@@ -142,7 +142,13 @@ export interface Payment {
   createdAt: number;
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'receivables' | 'accountPlan' | 'banks' | 'reports' | 'fleet';
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'receivables' | 'accountPlan' | 'banks' | 'reports' | 'fleet' | 'settings';
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  password?: string;
+}
 
 export interface DashboardStats {
   totalSales: number;

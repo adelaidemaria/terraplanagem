@@ -12,7 +12,8 @@ import {
   Truck,
   Wallet,
   Printer,
-  Wrench
+  Wrench,
+  User
 } from 'lucide-react';
 import {
   Customer,
@@ -26,7 +27,8 @@ import {
   AccountPlan,
   BankAccount,
   Equipment,
-  MaintenanceRecord
+  MaintenanceRecord,
+  AdminUser
 } from './types';
 
 // Components
@@ -40,6 +42,8 @@ import AccountPlanManager from './components/AccountPlanManager';
 import BankAccountManager from './components/BankAccountManager';
 import ReportsManager from './components/ReportsManager';
 import FleetManager from './components/FleetManager';
+import SettingsManager from './components/SettingsManager';
+import Login from './components/Login';
 import Logo from './components/Logo';
 import { useSupabaseSync } from './lib/useSupabaseSync';
 import { isSupabaseConfigured } from './lib/supabase';
@@ -80,6 +84,10 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentAdminUser, setCurrentAdminUser] = useState<AdminUser | null>(null);
+
   // Date range for Dashboard
   const [dashStartDate, setDashStartDate] = useState(() => {
     const d = new Date();
@@ -88,6 +96,7 @@ const App: React.FC = () => {
   const [dashEndDate, setDashEndDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Data State
+  const [adminUsers, setAdminUsers, adminLoaded] = useSupabaseSync<AdminUser>('admin_users');
   const [customers, setCustomers, customersLoaded] = useSupabaseSync<Customer>('customers');
   const [vendors, setVendors, vendorsLoaded] = useSupabaseSync<Vendor>('vendors');
   const [vendorCategories, setVendorCategories, vcLoaded] = useSupabaseSync<VendorCategory>('vendor_categories');
@@ -101,7 +110,7 @@ const App: React.FC = () => {
   const [fleet, setFleet, fleetLoaded] = useSupabaseSync<Equipment>('equipment');
   const [maintenanceRecords, setMaintenanceRecords, mrLoaded] = useSupabaseSync<MaintenanceRecord>('maintenance_records');
 
-  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && baLoaded && fleetLoaded && mrLoaded;
+  const allLoaded = adminLoaded && customersLoaded && vendorsLoaded && vcLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && baLoaded && fleetLoaded && mrLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -171,6 +180,21 @@ const App: React.FC = () => {
 
   if (!allLoaded) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-pulse flex items-center space-x-3"><div className="w-8 h-8 rounded-full border-4 border-amber-500 border-t-transparent animate-spin"></div><span className="text-xl font-bold text-slate-500">Sincronizando com Supabase...</span></div></div>;
+  }
+
+  const handleLogin = async (username: string, pass: string) => {
+    // Basic verification against the synced table
+    const user = adminUsers.find(u => u.username === username && u.password === pass);
+    if (user) {
+      setCurrentAdminUser(user);
+      setIsAuthenticated(true);
+      return true;
+    }
+    return false;
+  };
+
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />;
   }
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -243,6 +267,15 @@ const App: React.FC = () => {
           fleet={fleet} setFleet={setFleet}
           maintenanceRecords={maintenanceRecords} setMaintenanceRecords={setMaintenanceRecords}
         />;
+      case 'settings':
+        return <SettingsManager
+          adminUser={currentAdminUser}
+          onUpdateUser={() => {
+            // When password updates, force re-fetch or sync state
+            // Since it's synced real-time or on mount, we can let the hook do its job, 
+            // but minimally we can clear auth or just leave it.
+          }}
+        />;
       default:
         return <Dashboard
           stats={stats} sales={sales} expenses={expenses} payments={payments} customers={customers}
@@ -311,12 +344,15 @@ const App: React.FC = () => {
           </div>
           <NavItem id="accountPlan" label="Plano de Contas" icon={BookOpen} />
           <NavItem id="banks" label="Contas Banco" icon={Building2} />
+          <NavItem id="settings" label="Acesso ao Sistema" icon={User} />
         </nav>
 
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center space-x-3 text-slate-400">
-            <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold text-[10px]">TB</div>
-            {isSidebarOpen && <span className="text-xs font-semibold text-white">Administração</span>}
+            <div className={`w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold text-[10px] uppercase`}>
+              {currentAdminUser?.username.substring(0, 2) || 'AD'}
+            </div>
+            {isSidebarOpen && <span className="text-xs font-semibold text-white capitalize">{currentAdminUser?.username || 'Administração'}</span>}
           </div>
         </div>
       </aside>
@@ -334,7 +370,14 @@ const App: React.FC = () => {
             {currentView === 'banks' && 'Contas Bancárias'}
             {currentView === 'reports' && 'Módulo de Relatórios Gerenciais'}
             {currentView === 'fleet' && 'Controle de Frota e Manutenção'}
+            {currentView === 'settings' && 'Configurações do Sistema'}
           </h1>
+          <button
+            onClick={() => setIsAuthenticated(false)}
+            className="text-sm font-bold text-slate-500 hover:text-rose-500 transition-colors"
+          >
+            Sair
+          </button>
         </header>
         <div className="p-8 print:p-0">{renderView()}</div>
       </main>
