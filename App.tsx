@@ -42,8 +42,41 @@ import ReportsManager from './components/ReportsManager';
 import FleetManager from './components/FleetManager';
 import Logo from './components/Logo';
 import { useSupabaseSync } from './lib/useSupabaseSync';
+import { isSupabaseConfigured } from './lib/supabase';
 
 const App: React.FC = () => {
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white p-6 text-center">
+        <div className="bg-rose-500 w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-rose-500/50 text-5xl">
+          ⚠️
+        </div>
+        <h1 className="text-3xl sm:text-4xl font-black mb-4 leading-tight">Erro Crítico de Publicação<br />(Falta de Variáveis na Vercel)</h1>
+        <p className="text-xl text-slate-300 max-w-2xl leading-relaxed mb-8">
+          O sistema não pôde ser iniciado porque as <strong className="text-white">Variáveis de Ambiente do Supabase</strong> não foram encontradas. Isso estava originando a "tela branca".
+        </p>
+
+        <div className="bg-slate-800 text-left p-6 sm:p-8 rounded-2xl border border-slate-700 max-w-3xl w-full shadow-2xl">
+          <h2 className="text-amber-500 font-bold mb-6 uppercase tracking-widest text-sm flex items-center">
+            Como Consertar Agora Mesmo:
+          </h2>
+          <ol className="list-decimal pl-5 space-y-4 text-slate-300">
+            <li>Acesse o painel da <strong>Vercel</strong> e vá até o seu projeto.</li>
+            <li>No menu superior esquerdo, clique em <strong>Settings</strong> e depois em <strong>Environment Variables</strong> (menu lateral).</li>
+            <li>Adicione duas variáveis preenchendo <em>Name</em> e <em>Value</em> (Pegue os valores do seu painel do Supabase):
+              <ul className="list-disc pl-5 mt-3 mb-2 space-y-2 text-sm font-mono text-amber-400 p-4 bg-slate-900 rounded-lg">
+                <li>VITE_SUPABASE_URL</li>
+                <li>VITE_SUPABASE_ANON_KEY</li>
+              </ul>
+            </li>
+            <li className="text-rose-400 font-bold py-2">Atenção: Apenas salvar as variáveis no painel <span className="underline decoration-wavy underline-offset-4">NÃO APLICA</span> as mudanças! Você precisa gerar um novo Build (Deploy).</li>
+            <li>Vá na aba principal <strong>Deployments</strong> (no menu que fica no topo do lado de Settings), clique nas reticências (<em>três pontinhos</em>) no deploy do topo da lista e clique em <strong>Redeploy</strong>.</li>
+          </ol>
+        </div>
+      </div>
+    );
+  }
+
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
