@@ -13,7 +13,8 @@ import {
   Wallet,
   Printer,
   Wrench,
-  User
+  User,
+  CreditCard
 } from 'lucide-react';
 import {
   Customer,
@@ -25,6 +26,7 @@ import {
   View,
   DashboardStats,
   AccountPlan,
+  AccountCategory,
   BankAccount,
   Equipment,
   MaintenanceRecord,
@@ -37,6 +39,7 @@ import CustomerManager from './components/CustomerManager';
 import VendorManager from './components/VendorManager';
 import SalesManager from './components/SalesManager';
 import ExpenseManager from './components/ExpenseManager';
+import PayablesManager from './components/PayablesManager';
 import ReceivablesManager from './components/ReceivablesManager';
 import AccountPlanManager from './components/AccountPlanManager';
 import BankAccountManager from './components/BankAccountManager';
@@ -82,6 +85,7 @@ const App: React.FC = () => {
   }
 
   const [currentView, setCurrentView] = useState<View>('dashboard');
+  const [selectedReportType, setSelectedReportType] = useState<string | null>('sales');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Authentication State
@@ -91,15 +95,16 @@ const App: React.FC = () => {
   // Date range for Dashboard
   const [dashStartDate, setDashStartDate] = useState(() => {
     const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+    return new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString('en-CA');
   });
-  const [dashEndDate, setDashEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dashEndDate, setDashEndDate] = useState(new Date().toLocaleDateString('en-CA'));
 
   // Data State
   const [adminUsers, setAdminUsers, adminLoaded] = useSupabaseSync<AdminUser>('admin_users');
   const [customers, setCustomers, customersLoaded] = useSupabaseSync<Customer>('customers');
   const [vendors, setVendors, vendorsLoaded] = useSupabaseSync<Vendor>('vendors');
   const [vendorCategories, setVendorCategories, vcLoaded] = useSupabaseSync<VendorCategory>('vendor_categories');
+  const [accountCategories, setAccountCategories, acLoaded] = useSupabaseSync<AccountCategory>('account_categories');
   const [sales, setSales, salesLoaded] = useSupabaseSync<Sale>('sales');
   const [expenses, setExpenses, expLoaded] = useSupabaseSync<Expense>('expenses');
   const [payments, setPayments, payLoaded] = useSupabaseSync<Payment>('payments');
@@ -110,7 +115,7 @@ const App: React.FC = () => {
   const [fleet, setFleet, fleetLoaded] = useSupabaseSync<Equipment>('equipment');
   const [maintenanceRecords, setMaintenanceRecords, mrLoaded] = useSupabaseSync<MaintenanceRecord>('maintenance_records');
 
-  const allLoaded = adminLoaded && customersLoaded && vendorsLoaded && vcLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && baLoaded && fleetLoaded && mrLoaded;
+  const allLoaded = adminLoaded && customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && baLoaded && fleetLoaded && mrLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -218,34 +223,71 @@ const App: React.FC = () => {
           />
         );
       case 'customers':
-        return <CustomerManager customers={customers} setCustomers={setCustomers} />;
+        return <CustomerManager
+          customers={customers} setCustomers={setCustomers}
+          onNavigateToReports={() => {
+            setSelectedReportType('customersSummary');
+            setCurrentView('reports');
+          }}
+        />;
       case 'vendors':
         return <VendorManager
           vendors={vendors} setVendors={setVendors}
-          vendorCategories={vendorCategories} setVendorCategories={setVendorCategories}
+          accountPlan={accountPlan}
+          onNavigateToReports={() => {
+            setSelectedReportType('vendorsSummary');
+            setCurrentView('reports');
+          }}
         />;
       case 'sales':
         return <SalesManager
           sales={sales} setSales={setSales}
           customers={customers} payments={payments}
           accountPlan={accountPlan}
+          onNavigateToReports={() => {
+            setSelectedReportType('sales');
+            setCurrentView('reports');
+          }}
         />;
       case 'expenses':
         return <ExpenseManager
           expenses={expenses} setExpenses={setExpenses}
           vendors={vendors} accountPlan={accountPlan}
           bankAccounts={bankAccounts}
+          onNavigateToReports={() => {
+            setSelectedReportType('expensesByMonthFlat');
+            setCurrentView('reports');
+          }}
+        />;
+      case 'payables':
+        return <PayablesManager
+          expenses={expenses} setExpenses={setExpenses}
+          vendors={vendors} bankAccounts={bankAccounts}
+          onNavigateToReports={() => {
+            setSelectedReportType('bankStatement');
+            setCurrentView('reports');
+          }}
         />;
       case 'receivables':
         return <ReceivablesManager
           sales={sales} payments={payments}
           setPayments={setPayments} setSales={setSales}
           customers={customers} bankAccounts={bankAccounts}
+          onNavigateToReports={() => {
+            setSelectedReportType('bankStatement');
+            setCurrentView('reports');
+          }}
         />;
       case 'accountPlan':
         return <AccountPlanManager
           accountPlan={accountPlan}
           setAccountPlan={setAccountPlan}
+          accountCategories={accountCategories}
+          setAccountCategories={setAccountCategories}
+          onNavigateToReports={() => {
+            setSelectedReportType('accountPlan');
+            setCurrentView('reports');
+          }}
         />;
       case 'banks':
         return <BankAccountManager bankAccounts={bankAccounts} setBankAccounts={setBankAccounts} />;
@@ -261,6 +303,7 @@ const App: React.FC = () => {
           bankAccounts={bankAccounts}
           fleet={fleet}
           maintenanceRecords={maintenanceRecords}
+          initialReport={selectedReportType as any}
         />;
       case 'fleet':
         return <FleetManager
@@ -288,7 +331,14 @@ const App: React.FC = () => {
 
   const NavItem = ({ id, label, icon: Icon }: { id: View, label: string, icon: any }) => (
     <button
-      onClick={() => setCurrentView(id)}
+      onClick={() => {
+        if (id !== 'reports') {
+          setSelectedReportType(null); // Clear or set to default when leaving
+        } else {
+          setSelectedReportType('sales'); // Ensure it defaults to sales when clicking from menu
+        }
+        setCurrentView(id);
+      }}
       className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${currentView === id
         ? 'bg-amber-500 text-white shadow-md font-bold'
         : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
@@ -320,26 +370,27 @@ const App: React.FC = () => {
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Entradas</span>
           </div>
           <NavItem id="customers" label="Clientes" icon={Users} />
-          <NavItem id="sales" label="Vendas de Serviços" icon={Receipt} />
-          <NavItem id="receivables" label="Baixa de Recebíveis" icon={HandCoins} />
+          <NavItem id="sales" label="Faturamento" icon={Receipt} />
+          <NavItem id="receivables" label="Contas a Receber" icon={HandCoins} />
 
           <div className="pt-4 pb-1 px-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Saídas</span>
           </div>
           <NavItem id="vendors" label="Fornecedores" icon={Truck} />
           <NavItem id="expenses" label="Lançar Despesas" icon={Wallet} />
-
-          <div className="pt-4 pb-1 px-4">
-            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Equipamentos</span>
-          </div>
-          <NavItem id="fleet" label="Gestão de Frota" icon={Wrench} />
+          <NavItem id="payables" label="Contas a Pagar" icon={CreditCard} />
 
           <div className="pt-6 pb-2 px-4 border-t border-slate-800 mt-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Relatórios</span>
           </div>
           <NavItem id="reports" label="Imprimir Relatórios" icon={Printer} />
 
-          <div className="pt-4 pb-1 px-4">
+          <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
+            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Equipamentos</span>
+          </div>
+          <NavItem id="fleet" label="Gestão de Frota" icon={Wrench} />
+
+          <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Configurações</span>
           </div>
           <NavItem id="accountPlan" label="Plano de Contas" icon={BookOpen} />
@@ -363,8 +414,9 @@ const App: React.FC = () => {
             {currentView === 'dashboard' && 'Visão Geral'}
             {currentView === 'customers' && 'Gestão de Clientes'}
             {currentView === 'vendors' && 'Cadastro de Fornecedores'}
-            {currentView === 'sales' && 'Vendas de Serviços'}
-            {currentView === 'expenses' && 'Controle de Despesas'}
+            {currentView === 'sales' && 'Faturamento'}
+            {currentView === 'expenses' && 'Lançamentos de Despesas'}
+            {currentView === 'payables' && 'Contas a Pagar'}
             {currentView === 'receivables' && 'Contas a Receber'}
             {currentView === 'accountPlan' && 'Plano de Contas'}
             {currentView === 'banks' && 'Contas Bancárias'}

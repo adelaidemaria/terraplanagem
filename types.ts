@@ -1,4 +1,10 @@
 
+export interface CustomerInteraction {
+  id: string;
+  date: string;
+  text: string;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -8,6 +14,8 @@ export interface Customer {
   contactPerson: string;
   phone: string;
   email: string;
+  isActive?: boolean;
+  interactions?: CustomerInteraction[];
   createdAt: number;
 }
 
@@ -26,6 +34,8 @@ export interface Vendor {
   contactPerson: string;
   phone: string;
   email: string;
+  notes?: string;
+  isActive?: boolean;
   createdAt: number;
 }
 
@@ -34,9 +44,15 @@ export interface Category {
   name: string;
 }
 
+export interface AccountCategory {
+  id: string;
+  type: 'Receita' | 'Despesa' | 'Outros';
+  name: string;
+}
+
 export interface AccountPlan {
   id: string;
-  type: 'Receita' | 'Despesa';
+  type: 'Receita' | 'Despesa' | 'Outros';
   category: string;
   subcategory: string;
   description: string;
@@ -92,6 +108,14 @@ export interface ExpenseItem {
   value: number;
 }
 
+export interface SaleInstallment {
+  id: string;
+  number: number;
+  dueDate: string;
+  value: number;
+  status: 'Pendente' | 'Parcial' | 'Pago';
+}
+
 export interface Sale {
   id: string;
   customerId: string;
@@ -102,14 +126,16 @@ export interface Sale {
   deductions?: number;
   date: string;
   nfNumber: string;
-  isNoNF?: boolean;
+  isNoNf?: boolean;
   saleType: 'Serviço' | 'Locação';
   paymentMethod: string;
   paymentCondition: 'A Vista' | 'A Prazo';
   installments: number;
+  installmentsList?: SaleInstallment[];
   dueDate?: string;
   status: 'Pendente' | 'Parcial' | 'Pago';
   observations?: string;
+  receiptUrl?: string;
   createdAt: number;
 }
 
@@ -122,27 +148,34 @@ export interface Expense {
   totalValue: number;
   date: string;
   docNumber: string;
+  isNoDoc?: boolean;
   paymentMethod: string;
   paymentCondition: 'A Vista' | 'A Prazo';
   dueDate?: string;
   status: 'Pendente' | 'Pago';
   bankAccountId?: string;
   paymentDate?: string;
+  amountPaid?: number;
+  interestAmount?: number;
+  receiptUrl?: string;
+  paymentReceiptUrl?: string;
   createdAt: number;
 }
 
 export interface Payment {
   id: string;
   saleId: string;
+  installmentId?: string;
   bankAccountId: string;
   amount: number;
   fee?: number;
   date: string;
   method: string;
+  receiptUrl?: string;
   createdAt: number;
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'receivables' | 'accountPlan' | 'banks' | 'reports' | 'fleet' | 'settings';
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'reports' | 'fleet' | 'settings';
 
 export interface AdminUser {
   id: string;

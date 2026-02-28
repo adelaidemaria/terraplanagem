@@ -12,14 +12,14 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Partial<BankAccount>>({ 
-    bankName: '', 
-    agency: '', 
+  const [formData, setFormData] = useState<Partial<BankAccount>>({
+    bankName: '',
+    agency: '',
     accountNumber: '',
-    initialBalance: 0 
+    initialBalance: 0
   });
 
-  const formatCurrency = (val: number) => 
+  const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   const formatInputCurrency = (value: number) => {
@@ -88,7 +88,7 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
           </thead>
           <tbody className="divide-y">
             {bankAccounts.length > 0 ? bankAccounts.map(bank => (
-              <tr key={bank.id} className="hover:bg-slate-50 transition-colors">
+              <tr key={bank.id} className="hover:bg-slate-200/70 transition-colors cursor-pointer">
                 <td className="px-6 py-4 font-bold text-slate-800">{bank.bankName}</td>
                 <td className="px-6 py-4 text-slate-600">{bank.agency} / {bank.accountNumber}</td>
                 <td className="px-6 py-4 font-semibold text-slate-700">{formatCurrency(bank.initialBalance || 0)}</td>
@@ -129,11 +129,11 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold mb-1 text-slate-700">Nome do Banco / Instituição *</label>
-                <input 
+                <input
                   autoFocus
-                  required type="text" className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none" 
-                  value={formData.bankName} onChange={(e) => setFormData({ ...formData, bankName: e.target.value })} 
-                  placeholder="Ex: Santander, Nubank, Itaú..." 
+                  required type="text" className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                  value={formData.bankName} onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                  placeholder="Ex: Santander, Nubank, Itaú..."
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -150,8 +150,8 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
                 <label className="block text-sm font-semibold mb-1 text-slate-700">Saldo Inicial (Sistêmico) *</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">R$</span>
-                  <input 
-                    required 
+                  <input
+                    required
                     className="w-full pl-10 pr-4 py-2 border rounded-lg font-bold focus:ring-2 focus:ring-amber-500 outline-none"
                     value={formatInputCurrency(formData.initialBalance || 0)}
                     onChange={(e) => setFormData({ ...formData, initialBalance: parseCurrencyInput(e.target.value) })}

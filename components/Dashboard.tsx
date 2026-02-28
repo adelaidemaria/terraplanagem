@@ -1,26 +1,28 @@
 
-import React from 'react';
-import { 
-  TrendingUp, 
-  HandCoins, 
-  Users, 
+import React, { useMemo } from 'react';
+import {
+  TrendingUp,
+  HandCoins,
+  Users,
   AlertCircle,
   ArrowUpRight,
   ArrowDownRight,
   TrendingDown,
   Calculator,
   ArrowRight,
-  Calendar
+  Calendar,
+  Wrench,
+  CreditCard
 } from 'lucide-react';
 import { DashboardStats, Sale, Expense, Customer } from '../types';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
   Cell
 } from 'recharts';
 
@@ -38,8 +40,15 @@ interface DashboardProps {
   onNavigateToFleet?: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ 
-  stats, sales, expenses, customers, 
+const formatDateDisplay = (dateStr: string | undefined) => {
+  if (!dateStr) return '---';
+  if (!dateStr.includes('-')) return dateStr;
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}/${year}`;
+};
+
+const Dashboard: React.FC<DashboardProps> = ({
+  stats, sales, expenses, customers,
   startDate, endDate, setStartDate, setEndDate,
   hasFleetAlerts, onNavigateToFleet
 }) => {
@@ -76,25 +85,51 @@ const Dashboard: React.FC<DashboardProps> = ({
   // Quick shortcut handlers
   const handleCurrentMonth = () => {
     const d = new Date();
-    setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
-    setEndDate(new Date().toISOString().split('T')[0]);
+    setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString('en-CA'));
+    setEndDate(new Date().toLocaleDateString('en-CA'));
   };
 
   const handleLastMonth = () => {
     const d = new Date();
     const start = new Date(d.getFullYear(), d.getMonth() - 1, 1);
     const end = new Date(d.getFullYear(), d.getMonth(), 0);
-    setStartDate(start.toISOString().split('T')[0]);
-    setEndDate(end.toISOString().split('T')[0]);
+    setStartDate(start.toLocaleDateString('en-CA'));
+    setEndDate(end.toLocaleDateString('en-CA'));
   };
 
-  const handle30Days = () => {
+  const handle7Days = () => {
     const d = new Date();
     const start = new Date();
-    start.setDate(d.getDate() - 30);
-    setStartDate(start.toISOString().split('T')[0]);
-    setEndDate(d.toISOString().split('T')[0]);
+    start.setDate(d.getDate() - 7);
+    setStartDate(start.toLocaleDateString('en-CA'));
+    setEndDate(d.toLocaleDateString('en-CA'));
   };
+
+  const todayDateStr = new Date().toLocaleDateString('en-CA');
+  const hasReceivablesToday = sales.some(s =>
+    s.status !== 'Pago' &&
+    (s.dueDate === todayDateStr || (s.installmentsList && s.installmentsList.some(i => i.status !== 'Pago' && i.dueDate === todayDateStr)))
+  );
+  const hasPayablesToday = expenses.some(e =>
+    e.status !== 'Pago' && e.dueDate === todayDateStr
+  );
+
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const monthStartStr = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString('en-CA');
+  const lastMonthStartStr = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleDateString('en-CA');
+  const lastMonthEndStr = new Date(new Date().getFullYear(), new Date().getMonth(), 0).toLocaleDateString('en-CA');
+  const sevenDaysAgoStr = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toLocaleDateString('en-CA');
+  })();
+
+  const activeFilter = useMemo(() => {
+    if (startDate === monthStartStr && endDate === todayStr) return 'current';
+    if (startDate === lastMonthStartStr && endDate === lastMonthEndStr) return 'last';
+    if (startDate === sevenDaysAgoStr && endDate === todayStr) return '7days';
+    return 'custom';
+  }, [startDate, endDate, todayStr, monthStartStr, lastMonthStartStr, lastMonthEndStr, sevenDaysAgoStr]);
 
   return (
     <div className="space-y-8">
@@ -104,32 +139,32 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="flex flex-col space-y-2 w-full lg:w-auto">
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Atalhos Rápidos</span>
           <div className="flex items-center space-x-2">
-            {hasFleetAlerts && (
-              <button 
-                onClick={onNavigateToFleet}
-                className="flex-1 lg:flex-none px-6 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-black text-[11px] rounded-xl border border-rose-200 transition-colors uppercase tracking-tight flex items-center space-x-1"
-              >
-                <AlertCircle size={14} />
-                <span>Ver Controle Preventivo</span>
-              </button>
-            )}
-            <button 
+            <button
               onClick={handleCurrentMonth}
-              className="flex-1 lg:flex-none px-6 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 font-black text-[11px] rounded-xl border border-slate-200 transition-colors uppercase tracking-tight"
+              className={`flex-1 lg:flex-none px-6 py-2.5 font-black text-[11px] rounded-xl border transition-colors uppercase tracking-tight ${activeFilter === 'current'
+                ? 'bg-amber-500 text-white border-amber-600 shadow-md'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                }`}
             >
               Mês Atual
             </button>
-            <button 
+            <button
               onClick={handleLastMonth}
-              className="flex-1 lg:flex-none px-6 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 font-black text-[11px] rounded-xl border border-slate-200 transition-colors uppercase tracking-tight"
+              className={`flex-1 lg:flex-none px-6 py-2.5 font-black text-[11px] rounded-xl border transition-colors uppercase tracking-tight ${activeFilter === 'last'
+                ? 'bg-amber-500 text-white border-amber-600 shadow-md'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                }`}
             >
               Mês Passado
             </button>
-            <button 
-              onClick={handle30Days}
-              className="flex-1 lg:flex-none px-6 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 font-black text-[11px] rounded-xl border border-slate-200 transition-colors uppercase tracking-tight"
+            <button
+              onClick={handle7Days}
+              className={`flex-1 lg:flex-none px-6 py-2.5 font-black text-[11px] rounded-xl border transition-colors uppercase tracking-tight ${activeFilter === '7days'
+                ? 'bg-amber-500 text-white border-amber-600 shadow-md'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                }`}
             >
-              30 Dias
+              7 Dias
             </button>
           </div>
         </div>
@@ -139,8 +174,8 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="flex flex-col space-y-1 flex-1">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Período Inicial</span>
             <div className="relative">
-              <input 
-                type="date" 
+              <input
+                type="date"
                 className="w-full lg:w-48 pl-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-700 font-bold text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
@@ -151,14 +186,82 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="flex flex-col space-y-1 flex-1">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Período Final</span>
             <div className="relative">
-              <input 
-                type="date" 
+              <input
+                type="date"
                 className="w-full lg:w-48 pl-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-700 font-bold text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
               <Calendar size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Alert Boxes */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`p-4 rounded-xl border-2 shadow-sm flex flex-col justify-between transition-all ${hasReceivablesToday ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-100'}`}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-bold text-slate-500">Contas a Receber Hoje</h3>
+            <div className={`p-1.5 rounded-lg ${hasReceivablesToday ? 'bg-amber-200 text-amber-700 shadow-sm' : 'bg-slate-100 text-slate-400'}`}>
+              <HandCoins size={18} />
+            </div>
+          </div>
+          <div className="mt-1">
+            {hasReceivablesToday ? (
+              <span className="text-xl font-black text-amber-600 flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                </span>
+                SIM
+              </span>
+            ) : (
+              <span className="text-xl font-black text-slate-300">NÃO</span>
+            )}
+          </div>
+        </div>
+
+        <div className={`p-4 rounded-xl border-2 shadow-sm flex flex-col justify-between transition-all ${hasPayablesToday ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-100'}`}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-bold text-slate-500">Contas a Pagar Hoje</h3>
+            <div className={`p-1.5 rounded-lg ${hasPayablesToday ? 'bg-rose-200 text-rose-700 shadow-sm' : 'bg-slate-100 text-slate-400'}`}>
+              <CreditCard size={18} />
+            </div>
+          </div>
+          <div className="mt-1">
+            {hasPayablesToday ? (
+              <span className="text-xl font-black text-rose-600 flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                </span>
+                SIM
+              </span>
+            ) : (
+              <span className="text-xl font-black text-slate-300">NÃO</span>
+            )}
+          </div>
+        </div>
+
+        <div className={`p-4 rounded-xl border-2 shadow-sm flex flex-col justify-between transition-all ${hasFleetAlerts ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100'}`}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-bold text-slate-500">Controle de Frota</h3>
+            <div className={`p-1.5 rounded-lg ${hasFleetAlerts ? 'bg-blue-200 text-blue-700 shadow-sm' : 'bg-slate-100 text-slate-400'}`}>
+              <Wrench size={18} />
+            </div>
+          </div>
+          <div className="mt-1">
+            {hasFleetAlerts ? (
+              <button
+                onClick={onNavigateToFleet}
+                className="text-lg font-black text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-2 cursor-pointer uppercase"
+              >
+                VER CONTROLE <ArrowRight size={18} />
+              </button>
+            ) : (
+              <span className="text-xl font-black text-emerald-500">Tudo Ok</span>
+            )}
           </div>
         </div>
       </div>
@@ -192,9 +295,9 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
               <Calculator size={24} />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resultado</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resultado DRE</span>
           </div>
-          <h3 className="text-slate-500 text-sm font-medium">Saldo Líquido</h3>
+          <h3 className="text-slate-500 text-sm font-medium">Lucro Líquido</h3>
           <p className={`text-2xl font-black mt-1 ${netResult >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
             {formatCurrency(netResult)}
           </p>
@@ -224,7 +327,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#64748b' }} />
                 <YAxis hide />
-                <Tooltip 
+                <Tooltip
                   formatter={(value: number) => formatCurrency(value)}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
                 />
@@ -252,16 +355,15 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <span className="font-bold text-slate-800 text-sm truncate max-w-[150px]">
                       {item.type === 'receita' ? item.customerName : item.vendorName}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{item.date}</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{formatDateDisplay(item.date)}</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
                   <span className={`font-black text-sm ${item.type === 'receita' ? 'text-slate-800' : 'text-rose-600'}`}>
                     {item.type === 'receita' ? '+' : '-'}{formatCurrency(item.totalValue)}
                   </span>
-                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                    item.status === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                  }`}>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${item.status === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                    }`}>
                     {item.status}
                   </span>
                 </div>

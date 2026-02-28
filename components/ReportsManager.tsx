@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Printer,
   Calendar,
@@ -35,7 +35,7 @@ import {
 } from '../types';
 import Logo from './Logo';
 
-type ReportType = 'customers' | 'vendors' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetOverdue' | 'fleetDue2' | 'fleetDue15' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'receivablesPending' | 'cardFees';
+type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetOverdue' | 'fleetDue2' | 'fleetDue15' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre';
 
 interface ReportsManagerProps {
   customers: Customer[];
@@ -48,6 +48,7 @@ interface ReportsManagerProps {
   bankAccounts: BankAccount[];
   fleet: Equipment[];
   maintenanceRecords: MaintenanceRecord[];
+  initialReport?: ReportType | null;
 }
 
 const itemLabels: Record<keyof MaintenanceIntervals, string> = {
@@ -60,17 +61,38 @@ const itemLabels: Record<keyof MaintenanceIntervals, string> = {
   others: 'Outras Manutenções'
 };
 
+const formatDateDisplay = (dateStr: string | undefined) => {
+  if (!dateStr) return '---';
+  if (!dateStr.includes('-')) return dateStr;
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}/${year}`;
+};
+
 const ReportsManager: React.FC<ReportsManagerProps> = ({
-  customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords
+  customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, initialReport
 }) => {
-  const [selectedReport, setSelectedReport] = useState<ReportType | null>(null);
+  const [selectedReport, setSelectedReport] = useState<ReportType | null>(initialReport || 'sales');
+
+  useEffect(() => {
+    if (initialReport) {
+      setSelectedReport(initialReport);
+    }
+  }, [initialReport]);
   const [selectedBankId, setSelectedBankId] = useState<string>('');
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>('all');
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+    return new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString('en-CA');
   });
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toLocaleDateString('en-CA');
+  });
+  const [receivablesFilter, setReceivablesFilter] = useState<'all' | 'withNf' | 'withoutNf'>('all');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<'Todos' | 'Ativos' | 'Inativos'>('Ativos');
+  const [period, setPeriod] = useState<'current' | 'last' | '7days' | 'year' | 'custom'>('current');
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -84,15 +106,24 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
   const setMonthRange = () => {
     const d = new Date();
-    setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
-    setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]);
+    setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString('en-CA'));
+    setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toLocaleDateString('en-CA'));
   };
 
   const reportContent = useMemo(() => {
     if (!selectedReport) return null;
 
     const startTimestamp = new Date(startDate).getTime();
-    const endTimestamp = new Date(endDate).setHours(23, 59, 59, 999);
+    const endTimestamp = new Date(endDate).getTime() + (24 * 60 * 60 * 1000) - 1;
+
+    // Helper para filtragem robusta de clientes
+    const matchesClient = (item: { customerId?: string; customerName?: string }) => {
+      if (selectedCustomerId === 'all') return true;
+      const target = customers.find(c => c.id === selectedCustomerId);
+      const targetId = String(selectedCustomerId);
+      const targetName = target?.name;
+      return String(item.customerId) === targetId || (targetName && item.customerName === targetName);
+    };
 
     const getFleetAlerts = (statusFilter: 'overdue' | 'warning' | 'info' | 'all') => {
       const alerts: any[] = [];
@@ -133,58 +164,245 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
     switch (selectedReport) {
       case 'expensesPending': {
         const pending = expenses
-          .filter(e => e.status === 'Pendente')
+          .filter(e => {
+            const balance = e.totalValue - (e.amountPaid || 0);
+            if (balance <= 0.01) return false;
+
+            // Filtro por Categoria
+            const matchesCategory = selectedCategoryId === 'all' || e.accountPlanId === selectedCategoryId;
+            if (!matchesCategory) return false;
+
+            // Filtro por Data (Vencimento ou Emissão)
+            const refDate = e.dueDate ? new Date(e.dueDate) : new Date(e.date);
+            const d = refDate.getTime();
+            return d >= startTimestamp && d <= endTimestamp;
+          })
           .sort((a, b) => {
-            const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
-            const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+            const dateA = a.dueDate ? new Date(a.dueDate).getTime() : new Date(a.date).getTime();
+            const dateB = b.dueDate ? new Date(b.dueDate).getTime() : new Date(b.date).getTime();
             return dateA - dateB;
           });
 
         return {
-          title: 'Relatório de Contas a Pagar (Pendentes)',
+          title: `Relatório de Contas a Pagar - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
           headerInfo: 'Listagem de despesas cadastradas que ainda não foram baixadas (pagas).',
-          headers: ['Vencimento', 'Fornecedor', 'Documento', 'Plano de Contas', 'Valor'],
+          headers: ['Tipo de Despesa', 'Fornecedor', 'Documento', 'Data Doc', 'Vencimento', 'Valor'],
           rows: pending.map(e => [
-            e.dueDate ? new Date(e.dueDate).toLocaleDateString() : '---',
+            accountPlan.find(p => p.id === e.accountPlanId)?.subcategory || '---',
             e.vendorName,
             e.docNumber || 'S/N',
-            accountPlan.find(p => p.id === e.accountPlanId)?.subcategory || '---',
-            formatCurrency(e.totalValue)
+            formatDateDisplay(e.date),
+            e.dueDate ? formatDateDisplay(e.dueDate) : '---',
+            formatCurrency(e.totalValue - (e.amountPaid || 0))
           ]),
-          total: pending.reduce((acc, e) => acc + e.totalValue, 0)
+          total: pending.reduce((acc, e) => acc + (e.totalValue - (e.amountPaid || 0)), 0)
+        };
+      }
+      case 'expensesByMonth': {
+        const filtered = expenses.filter(e => {
+          const matchesCategory = selectedCategoryId === 'all' || e.accountPlanId === selectedCategoryId;
+          const d = new Date(e.date).getTime();
+          return matchesCategory && d >= startTimestamp && d <= endTimestamp;
+        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        const expensesByMonthMap = new Map<string, Expense[]>();
+        filtered.forEach(e => {
+          let monthKey = '';
+          if (e.date && e.date.includes('-')) {
+            const parts = e.date.split('-');
+            monthKey = `${parts[1]}/${parts[0]}`;
+          } else {
+            const d = new Date(e.date);
+            monthKey = `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+          }
+          if (!expensesByMonthMap.has(monthKey)) expensesByMonthMap.set(monthKey, []);
+          expensesByMonthMap.get(monthKey)!.push(e);
+        });
+
+        const rows: any[] = [];
+        let monthIndex = 0;
+
+        expensesByMonthMap.forEach((monthExps, month) => {
+          if (monthIndex > 0) {
+            rows.push(['MONTH_SEPARATOR', '', '', '', '', '']);
+          }
+
+          // Agrupar por Categoria (Account Plan) dentro do mês
+          const byCategoryMap = new Map<string, Expense[]>();
+          monthExps.forEach(e => {
+            const catId = e.accountPlanId;
+            const apEntry = accountPlan.find(ap => ap.id === catId);
+            const subcat = apEntry?.subcategory || 'DIVERSOS';
+            if (!byCategoryMap.has(subcat)) byCategoryMap.set(subcat, []);
+            byCategoryMap.get(subcat)!.push(e);
+          });
+
+          byCategoryMap.forEach((catExps, catName) => {
+            if (rows.length > 0 && rows[rows.length - 1][0] !== 'MONTH_SEPARATOR') rows.push(['', '', '', '', '', '']);
+            rows.push([`MÊS: ${month} - DESPESA: ${catName.toUpperCase()}`, '', '', '', '', '']);
+            rows.push(['COLUMN_HEADERS', '', '', '', '', '']);
+            catExps.forEach(e => {
+              const ap = accountPlan.find(p => p.id === e.accountPlanId);
+              rows.push([
+                formatDateDisplay(e.date),
+                ap?.subcategory || 'DIVERSOS',
+                e.docNumber || 'S/N',
+                e.vendorName,
+                formatCurrency(e.totalValue)
+              ]);
+            });
+            const subtotal = catExps.reduce((sum, e) => sum + e.totalValue, 0);
+            rows.push([`SUBTOTAL CATEGORIA: ${catName}`, '', '', '', formatCurrency(subtotal)]);
+          });
+
+          const totalMonth = monthExps.reduce((sum, e) => sum + e.totalValue, 0);
+          rows.push([`TOTAL DO MÊS: ${month}`, 'IS_TOTAL_MONTH', '', '', formatCurrency(totalMonth)]);
+          monthIndex++;
+        });
+
+        return {
+          title: `Relatório de Despesas por Categoria - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headers: ['Data Doc', 'Despesa', 'Doc', 'Fornecedor', 'Valor'],
+          rows: rows,
+          total: filtered.reduce((acc, curr) => acc + curr.totalValue, 0)
+        };
+      }
+      case 'expensesByMonthFlat': {
+        const filtered = expenses.filter(e => {
+          const matchesCategory = selectedCategoryId === 'all' || e.accountPlanId === selectedCategoryId;
+          const d = new Date(e.date).getTime();
+          return matchesCategory && d >= startTimestamp && d <= endTimestamp;
+        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        const expensesByMonthMap = new Map<string, Expense[]>();
+        filtered.forEach(e => {
+          let monthKey = '';
+          if (e.date && e.date.includes('-')) {
+            const parts = e.date.split('-');
+            monthKey = `${parts[1]}/${parts[0]}`;
+          } else {
+            const d = new Date(e.date);
+            monthKey = `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+          }
+          if (!expensesByMonthMap.has(monthKey)) expensesByMonthMap.set(monthKey, []);
+          expensesByMonthMap.get(monthKey)!.push(e);
+        });
+
+        const rows: any[] = [];
+        let monthIndex = 0;
+
+        expensesByMonthMap.forEach((monthExps, month) => {
+          if (monthIndex > 0) {
+            rows.push(['MONTH_SEPARATOR', '', '', '', '', '']);
+          }
+
+          rows.push([`MÊS: ${month}`, '', '', '', '', '']);
+          rows.push(['COLUMN_HEADERS', '', '', '', '', '']);
+
+          monthExps.forEach(e => {
+            const ap = accountPlan.find(p => p.id === e.accountPlanId);
+            rows.push([
+              formatDateDisplay(e.date),
+              ap?.subcategory || 'DIVERSOS',
+              e.docNumber || 'S/N',
+              e.vendorName,
+              formatCurrency(e.totalValue)
+            ]);
+          });
+
+          const totalMonth = monthExps.reduce((sum, e) => sum + e.totalValue, 0);
+          rows.push([`TOTAL DO MÊS: ${month}`, 'IS_TOTAL_MONTH', '', '', formatCurrency(totalMonth)]);
+          monthIndex++;
+        });
+
+        return {
+          title: `Relatório de Despesas por Mês - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headers: ['Data Doc', 'Despesa', 'Doc', 'Fornecedor', 'Valor'],
+          rows: rows,
+          total: filtered.reduce((acc, curr) => acc + curr.totalValue, 0)
         };
       }
       case 'receivablesPending': {
-        const pending = sales
-          .filter(s => {
-            const totalPaid = payments.filter(p => p.saleId === s.id).reduce((sum, p) => sum + p.amount, 0);
-            return s.totalValue - totalPaid > 0.01;
-          })
-          .sort((a, b) => {
-            const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
-            const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
-            return dateA - dateB;
-          });
+        const pendingItems: any[] = [];
 
-        return {
-          title: 'Relatório de Contas a Receber (Pendentes)',
-          headerInfo: 'Listagem de faturamentos de serviços com saldo em aberto por parte dos clientes.',
-          headers: ['Vencimento', 'Cliente', 'NF / Fatura', 'Plano de Contas', 'Saldo Devedor'],
-          rows: pending.map(s => {
+        sales.forEach(s => {
+          const sInstallments = s.installmentsList || [];
+
+          if (sInstallments.length > 0) {
+            // Se tem parcelas, avalia cada uma
+            sInstallments.forEach(inst => {
+              if (inst.status !== 'Pago') {
+                const instPayments = payments.filter(p => p.saleId === s.id && p.installmentId === inst.id);
+                const paidOnInst = instPayments.reduce((sum, p) => sum + p.amount, 0);
+                const balance = inst.value - paidOnInst;
+
+                if (balance > 0.01) {
+                  // Filtro por Cliente
+                  if (!matchesClient(s)) return;
+
+                  // Filtros de NF
+                  if (receivablesFilter === 'withNf' && s.isNoNf) return;
+                  if (receivablesFilter === 'withoutNf' && !s.isNoNf) return;
+
+                  // Filtro por Data (Vencimento da Parcela)
+                  const d = new Date(inst.dueDate).getTime();
+                  if (d >= startTimestamp && d <= endTimestamp) {
+                    pendingItems.push({
+                      date: s.date,
+                      customerName: s.customerName,
+                      nf: s.isNoNf ? 'S/NF' : (s.nfNumber || 'S/N'),
+                      condition: `A PRAZO / PARCELA ${inst.number}/${sInstallments.length}`,
+                      dueDate: inst.dueDate,
+                      balance: balance
+                    });
+                  }
+                }
+              }
+            });
+          } else {
+            // Sem parcelas (À Vista ou Legado)
             const totalPaid = payments.filter(p => p.saleId === s.id).reduce((sum, p) => sum + p.amount, 0);
             const balance = s.totalValue - totalPaid;
-            return [
-              s.dueDate ? new Date(s.dueDate).toLocaleDateString() : (s.paymentCondition === 'A Vista' ? new Date(s.date).toLocaleDateString() : '---'),
-              s.customerName,
-              s.isNoNF ? 'S/NF' : (s.nfNumber || 'S/N'),
-              accountPlan.find(p => p.id === s.accountPlanId)?.subcategory || '---',
-              formatCurrency(balance)
-            ];
-          }),
-          total: pending.reduce((acc, s) => {
-            const totalPaid = payments.filter(p => p.saleId === s.id).reduce((sum, p) => sum + p.amount, 0);
-            return acc + (s.totalValue - totalPaid);
-          }, 0)
+
+            if (balance > 0.01) {
+              // Filtro por Cliente
+              if (!matchesClient(s)) return;
+
+              if (receivablesFilter === 'withNf' && s.isNoNf) return;
+              if (receivablesFilter === 'withoutNf' && !s.isNoNf) return;
+
+              const refDate = s.dueDate ? new Date(s.dueDate) : (s.paymentCondition === 'A Vista' ? new Date(s.date) : new Date(s.date));
+              const d = refDate.getTime();
+
+              if (d >= startTimestamp && d <= endTimestamp) {
+                pendingItems.push({
+                  date: s.date,
+                  customerName: s.customerName,
+                  nf: s.isNoNf ? 'S/NF' : (s.nfNumber || 'S/N'),
+                  condition: s.paymentCondition === 'A Vista' ? 'À VISTA' : 'ÚNICA',
+                  dueDate: s.dueDate || s.date,
+                  balance: balance
+                });
+              }
+            }
+          }
+        });
+
+        const sorted = pendingItems.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+        return {
+          title: `Relatório de Contas a Receber - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headerInfo: 'Listagem de faturamentos de serviços com saldo em aberto por parte dos clientes.',
+          headers: ['Data Emissão', 'Cliente', 'NF', 'Condição PG', 'Vencimento', 'Saldo a Receber'],
+          rows: sorted.map(item => [
+            formatDateDisplay(item.date),
+            item.customerName,
+            item.nf,
+            item.condition,
+            formatDateDisplay(item.dueDate),
+            formatCurrency(item.balance)
+          ]),
+          total: sorted.reduce((acc, item) => acc + item.balance, 0)
         };
       }
       case 'fleetIntervals': {
@@ -269,8 +487,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           .reduce((acc, p) => acc + p.amount, 0);
 
         const prevDebits = expenses
-          .filter(e => e.bankAccountId === selectedBankId && e.status === 'Pago' && e.paymentDate && new Date(e.paymentDate).getTime() < startTimestamp)
-          .reduce((acc, e) => acc + e.totalValue, 0);
+          .filter(e => e.bankAccountId === selectedBankId && (e.status === 'Pago' || (e.amountPaid && e.amountPaid > 0)) && e.paymentDate && new Date(e.paymentDate).getTime() < startTimestamp)
+          .reduce((acc, e) => acc + (e.amountPaid || 0), 0);
 
         const openingBalance = initialSystemBalance + prevCredits - prevDebits;
 
@@ -287,11 +505,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           });
 
         const periodDebits = expenses
-          .filter(e => e.bankAccountId === selectedBankId && e.status === 'Pago' && e.paymentDate && new Date(e.paymentDate).getTime() >= startTimestamp && new Date(e.paymentDate).getTime() <= endTimestamp)
+          .filter(e => e.bankAccountId === selectedBankId && (e.status === 'Pago' || (e.amountPaid && e.amountPaid > 0)) && e.paymentDate && new Date(e.paymentDate).getTime() >= startTimestamp && new Date(e.paymentDate).getTime() <= endTimestamp)
           .map(e => ({
             date: e.paymentDate!,
             credit: 0,
-            debit: e.totalValue,
+            debit: e.amountPaid || e.totalValue,
             desc: `PAGAMENTO: ${e.vendorName} / DOC: ${e.docNumber || 'S/N'} / ${e.items.map(i => i.description).join(', ')}`
           }));
 
@@ -301,7 +519,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         const rowsWithBalance = sortedMovements.map(m => {
           currentRunningBalance = currentRunningBalance + m.credit - m.debit;
           return [
-            new Date(m.date).toLocaleDateString('pt-BR'),
+            formatDateDisplay(m.date),
             m.desc,
             m.credit > 0 ? formatCurrency(m.credit) : '---',
             m.debit > 0 ? formatCurrency(m.debit) : '---',
@@ -321,87 +539,192 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
       case 'corporateCard': {
         const cardExpenses = expenses
-          .filter(e => e.paymentMethod === 'Cartão Corporativo' && new Date(e.date).getTime() >= startTimestamp && new Date(e.date).getTime() <= endTimestamp)
+          .filter(e => {
+            const matchesCategory = selectedCategoryId === 'all' || e.accountPlanId === selectedCategoryId;
+            return matchesCategory && e.paymentMethod === 'Cartão Corporativo' && new Date(e.date).getTime() >= startTimestamp && new Date(e.date).getTime() <= endTimestamp;
+          })
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         return {
           title: `Relatório de Cartão Corporativo - Período: ${new Date(startDate).toLocaleDateString()} a ${new Date(endDate).toLocaleDateString()}`,
           headers: ['Data Compra', 'Vencimento', 'Fornecedor', 'Descrição', 'Valor'],
           rows: cardExpenses.map(e => [
-            new Date(e.date).toLocaleDateString(),
-            e.dueDate ? new Date(e.dueDate).toLocaleDateString() : '---',
+            formatDateDisplay(e.date),
+            e.dueDate ? formatDateDisplay(e.dueDate) : '---',
             e.vendorName,
             e.items.map(i => i.description).join(', '),
-            formatCurrency(e.totalValue)
+            formatCurrency(e.amountPaid || e.totalValue)
           ]),
-          total: cardExpenses.reduce((acc, e) => acc + e.totalValue, 0)
+          total: cardExpenses.reduce((acc, e) => acc + (e.amountPaid || e.totalValue), 0)
         };
       }
 
-      case 'customers':
+      case 'customers': {
+        const filtered = customers.filter(c => {
+          if (statusFilter === 'Todos') return true;
+          if (statusFilter === 'Ativos') return c.isActive !== false;
+          if (statusFilter === 'Inativos') return c.isActive === false;
+          return true;
+        });
         return {
           title: 'Relatório Geral de Clientes',
-          headers: ['Nome / Razão Social', 'CPF / CNPJ', 'Responsável', 'Telefone / Email', 'Endereço'],
-          rows: customers.map(c => [c.name, c.document, c.contactPerson, `${c.phone}\n${c.email}`, c.address])
-        };
-      case 'vendors':
-        return {
-          title: 'Relatório Geral de Fornecedores',
-          headers: ['Fornecedor', 'Categoria', 'Documento', 'Responsável', 'Contato'],
-          rows: vendors.map(v => [
-            v.name,
-            vendorCategories.find(c => c.id === v.categoryId)?.name || 'N/A',
-            v.document,
-            v.contactPerson,
-            `${v.phone}\n${v.email}`
+          headers: ['DADOS DO CLIENTE'],
+          rows: filtered.map(c => [
+            'CUSTOM_CARD',
+            c.name,
+            c.isActive === false ? 'INATIVO' : 'ATIVO',
+            c.document,
+            c.contactPerson,
+            `${c.phone} / ${c.email}`,
+            c.address
           ])
         };
+      }
+      case 'customersSummary': {
+        const filtered = customers.filter(c => {
+          if (statusFilter === 'Todos') return true;
+          if (statusFilter === 'Ativos') return c.isActive !== false;
+          if (statusFilter === 'Inativos') return c.isActive === false;
+          return true;
+        });
+        return {
+          title: 'Listagem de Clientes (Resumo)',
+          headers: ['Nome do Cliente', 'CPF / CNPJ', 'Telefone', 'Status'],
+          rows: filtered.map(c => [
+            c.name,
+            c.document,
+            c.phone,
+            c.isActive === false ? 'INATIVO' : 'ATIVO'
+          ])
+        };
+      }
+      case 'vendors': {
+        const filtered = vendors.filter(v => {
+          if (statusFilter === 'Todos') return true;
+          if (statusFilter === 'Ativos') return v.isActive !== false;
+          if (statusFilter === 'Inativos') return v.isActive === false;
+          return true;
+        });
+        return {
+          title: 'Relatório Geral de Fornecedores',
+          headers: ['DADOS DO FORNECEDOR'],
+          rows: filtered.map(v => [
+            'CUSTOM_CARD',
+            v.name,
+            v.isActive === false ? 'INATIVO' : 'ATIVO',
+            v.document,
+            v.contactPerson,
+            `${v.phone} / ${v.email}`,
+            v.address
+          ])
+        };
+      }
+      case 'vendorsSummary': {
+        const filtered = vendors.filter(v => {
+          if (statusFilter === 'Todos') return true;
+          if (statusFilter === 'Ativos') return v.isActive !== false;
+          if (statusFilter === 'Inativos') return v.isActive === false;
+          return true;
+        });
+        return {
+          title: 'Listagem de Fornecedores (Resumo)',
+          headers: ['Nome do Fornecedor', 'CNPJ / CPF', 'Telefone', 'Status', 'Categorias'],
+          rows: filtered.map(v => {
+            const plan = accountPlan.find(p => p.id === v.categoryId);
+            return [
+              v.name,
+              v.document,
+              v.phone,
+              v.isActive === false ? 'INATIVO' : 'ATIVO',
+              plan?.subcategory || '---'
+            ];
+          })
+        };
+      }
       case 'sales': {
         const filteredSales = sales.filter(s => {
           const d = new Date(s.date).getTime();
-          return d >= startTimestamp && d <= endTimestamp;
+          const inRange = d >= startTimestamp && d <= endTimestamp;
+          if (!inRange) return false;
+
+          if (!matchesClient(s)) return false;
+
+          if (receivablesFilter === 'withNf') return !s.isNoNf;
+          if (receivablesFilter === 'withoutNf') return !!s.isNoNf;
+          return true;
+        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        const salesByMonthMap = new Map<string, Sale[]>();
+        filteredSales.forEach(s => {
+          let monthKey = '';
+          if (s.date && s.date.includes('-')) {
+            const parts = s.date.split('-');
+            monthKey = `${parts[1]}/${parts[0]}`;
+          } else {
+            const d = new Date(s.date);
+            monthKey = `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+          }
+          if (!salesByMonthMap.has(monthKey)) salesByMonthMap.set(monthKey, []);
+          salesByMonthMap.get(monthKey)!.push(s);
         });
 
-        const salesWithNF = filteredSales.filter(s => !s.isNoNF).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        const salesWithoutNF = filteredSales.filter(s => !!s.isNoNF).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-        const totalWithNF = salesWithNF.reduce((sum, s) => sum + s.totalValue, 0);
-        const totalWithoutNF = salesWithoutNF.reduce((sum, s) => sum + s.totalValue, 0);
-
         const rows: any[] = [];
+        let monthIndex = 0;
 
-        if (salesWithNF.length > 0) {
-          rows.push(['FATURAMENTO COM NOTA FISCAL', '', '', '', '']);
-          salesWithNF.forEach(s => {
-            rows.push([
-              new Date(s.date).toLocaleDateString(),
-              s.nfNumber || 'S/N',
-              s.customerName,
-              accountPlan.find(p => p.id === s.accountPlanId)?.subcategory || '---',
-              formatCurrency(s.totalValue)
-            ]);
-          });
-          rows.push(['SUBTOTAL COM NOTA FISCAL:', '', '', '', formatCurrency(totalWithNF)]);
-        }
+        salesByMonthMap.forEach((monthSales, month) => {
+          if (monthIndex > 0) {
+            rows.push(['MONTH_SEPARATOR', '', '', '', '', '', '']);
+          }
 
-        if (salesWithoutNF.length > 0) {
-          if (rows.length > 0) rows.push(['', '', '', '', '']);
-          rows.push(['FATURAMENTO SEM NOTA FISCAL (S/NF)', '', '', '', '']);
-          salesWithoutNF.forEach(s => {
-            rows.push([
-              new Date(s.date).toLocaleDateString(),
-              'S/NF',
-              s.customerName,
-              accountPlan.find(p => p.id === s.accountPlanId)?.subcategory || '---',
-              formatCurrency(s.totalValue)
-            ]);
-          });
-          rows.push(['SUBTOTAL SEM NOTA FISCAL (S/NF):', '', '', '', formatCurrency(totalWithoutNF)]);
-        }
+          const salesWithNF = monthSales.filter(s => !s.isNoNf);
+          const salesWithoutNF = monthSales.filter(s => !!s.isNoNf);
+
+          if (salesWithNF.length > 0) {
+            const label = receivablesFilter === 'withNf' ? `MÊS: ${month}` : `MÊS: ${month} - FATURAMENTO COM NOTA FISCAL`;
+            rows.push([label, '', '', '', '', '', '']);
+            rows.push(['COLUMN_HEADERS', '', '', '', '', '', '']);
+            salesWithNF.forEach(s => {
+              const plan = accountPlan.find(p => p.id === s.accountPlanId);
+              rows.push([
+                formatDateDisplay(s.date),
+                s.nfNumber || 'S/N',
+                s.customerName,
+                `${plan?.category || '---'}/${plan?.subcategory || '---'}`,
+                `${s.status === 'Pago' ? '' : ''}${s.paymentCondition} (${s.paymentMethod})`,
+                formatDateDisplay(s.dueDate),
+                formatCurrency(s.totalValue)
+              ]);
+            });
+            const totalWithNF = salesWithNF.reduce((sum, s) => sum + s.totalValue, 0);
+            rows.push([`SUBTOTAL DO MÊS: ${month}`, '', '', '', '', '', formatCurrency(totalWithNF)]);
+          }
+
+          if (salesWithoutNF.length > 0) {
+            if (rows.length > 0 && rows[rows.length - 1][0] !== 'MONTH_SEPARATOR') rows.push(['', '', '', '', '', '', '']);
+            const label = receivablesFilter === 'withoutNf' ? `MÊS: ${month}` : `MÊS: ${month} - FATURAMENTO SEM NOTA FISCAL (S/NF)`;
+            rows.push([label, '', '', '', '', '', '']);
+            rows.push(['COLUMN_HEADERS', '', '', '', '', '', '']);
+            salesWithoutNF.forEach(s => {
+              const plan = accountPlan.find(p => p.id === s.accountPlanId);
+              rows.push([
+                formatDateDisplay(s.date),
+                'S/NF',
+                s.customerName,
+                `${plan?.category || '---'}/${plan?.subcategory || '---'}`,
+                `${s.paymentCondition} (${s.paymentMethod})`,
+                formatDateDisplay(s.dueDate),
+                formatCurrency(s.totalValue)
+              ]);
+            });
+            const totalWithoutNF = salesWithoutNF.reduce((sum, s) => sum + s.totalValue, 0);
+            rows.push([`SUBTOTAL DO MÊS: ${month}`, '', '', '', '', '', formatCurrency(totalWithoutNF)]);
+          }
+          monthIndex++;
+        });
 
         return {
-          title: `Relatório de Faturamento de Serviços - Período: ${new Date(startDate).toLocaleDateString()} a ${new Date(endDate).toLocaleDateString()}`,
-          headers: ['Data', 'NF', 'Cliente', 'Plano de Contas', 'Valor'],
+          title: `Relatório de Faturamento de Serviços - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headers: ['Emissão', 'NF', 'Cliente', 'Receita', 'Condições PG', 'Vencimento', 'Valor Bruto NF'],
           rows: rows,
           total: filteredSales.reduce((acc, curr) => acc + curr.totalValue, 0)
         };
@@ -409,79 +732,111 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       case 'receivables': {
         const filteredPayments = payments.filter(p => {
           const d = new Date(p.date).getTime();
-          return d >= startTimestamp && d <= endTimestamp;
+          const inRange = d >= startTimestamp && d <= endTimestamp;
+          if (!inRange) return false;
+
+          const sale = sales.find(sl => sl.id === p.saleId);
+          if (sale && !matchesClient(sale)) return false;
+          if (!sale && selectedCustomerId !== 'all') return false;
+
+          if (receivablesFilter === 'withNf') return sale && !sale.isNoNf;
+          if (receivablesFilter === 'withoutNf') return sale && sale.isNoNf;
+          return true;
         });
 
         const paymentsWithNF = filteredPayments.filter(p => {
           const sale = sales.find(s => s.id === p.saleId);
-          return sale && !sale.isNoNF;
+          return sale && !sale.isNoNf;
         }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         const paymentsWithoutNF = filteredPayments.filter(p => {
           const sale = sales.find(s => s.id === p.saleId);
-          return sale && sale.isNoNF;
+          return sale && sale.isNoNf;
         }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         const rows: any[] = [];
 
         if (paymentsWithNF.length > 0) {
-          rows.push(['RECEBIMENTOS COM NOTA FISCAL', '', '', '', '', '']);
+          rows.push(['RECEBIMENTOS COM NOTA FISCAL', '', '', '', '', '', '', '']);
+          rows.push(['COLUMN_HEADERS', '', '', '', '', '', '', '']);
           paymentsWithNF.forEach(p => {
             const sale = sales.find(s => s.id === p.saleId);
             const bank = bankAccounts.find(b => b.id === p.bankAccountId);
+            const inst = sale?.installmentsList?.find(i => i.id === p.installmentId);
+            const conditionText = inst
+              ? `A PRAZO / PARCELA ${inst.number}/${sale?.installmentsList?.length}`
+              : (sale?.paymentCondition === 'A Vista' ? 'À VISTA' : 'ÚNICA');
+
             rows.push([
-              new Date(p.date).toLocaleDateString(),
               sale?.customerName || '---',
+              sale?.nfNumber || 'S/N',
+              sale ? formatDateDisplay(sale.date) : '---',
+              formatDateDisplay(p.date),
               bank?.bankName || '---',
               p.method,
-              formatCurrency(p.amount),
-              formatCurrency(p.amount - (p.fee || 0))
+              conditionText,
+              formatCurrency(p.amount)
             ]);
           });
-          rows.push(['SUBTOTAL RECEBIMENTOS COM NF:', '', '', '', '', formatCurrency(paymentsWithNF.reduce((acc, p) => acc + (p.amount - (p.fee || 0)), 0))]);
+          const subtotalNF = paymentsWithNF.reduce((acc, p) => acc + p.amount, 0);
+          rows.push(['SUBTOTAL RECEBIMENTOS COM NF:', '', '', '', '', '', '', formatCurrency(subtotalNF)]);
         }
 
         if (paymentsWithoutNF.length > 0) {
-          if (rows.length > 0) rows.push(['', '', '', '', '', '']);
-          rows.push(['RECEBIMENTOS SEM NOTA FISCAL (S/NF)', '', '', '', '', '']);
+          if (rows.length > 0) rows.push(['', '', '', '', '', '', '', '']);
+          rows.push(['RECEBIMENTOS SEM NOTA FISCAL (S/NF)', '', '', '', '', '', '', '']);
+          rows.push(['COLUMN_HEADERS', '', '', '', '', '', '', '']);
           paymentsWithoutNF.forEach(p => {
             const sale = sales.find(s => s.id === p.saleId);
             const bank = bankAccounts.find(b => b.id === p.bankAccountId);
+            const inst = sale?.installmentsList?.find(i => i.id === p.installmentId);
+            const conditionText = inst
+              ? `A PRAZO / PARCELA ${inst.number}/${sale?.installmentsList?.length}`
+              : (sale?.paymentCondition === 'A Vista' ? 'À VISTA' : 'ÚNICA');
+
             rows.push([
-              new Date(p.date).toLocaleDateString(),
               sale?.customerName || '---',
+              'S/NF',
+              sale ? formatDateDisplay(sale.date) : '---',
+              formatDateDisplay(p.date),
               bank?.bankName || '---',
               p.method,
-              formatCurrency(p.amount),
-              formatCurrency(p.amount - (p.fee || 0))
+              conditionText,
+              formatCurrency(p.amount)
             ]);
           });
-          rows.push(['SUBTOTAL RECEBIMENTOS SEM NF (S/NF):', '', '', '', '', formatCurrency(paymentsWithoutNF.reduce((acc, p) => acc + (p.amount - (p.fee || 0)), 0))]);
+          const subtotalNoNF = paymentsWithoutNF.reduce((acc, p) => acc + p.amount, 0);
+          rows.push(['SUBTOTAL RECEBIMENTOS SEM NF (S/NF):', '', '', '', '', '', '', formatCurrency(subtotalNoNF)]);
         }
 
         return {
-          title: `Recebimentos Baixados - Período: ${new Date(startDate).toLocaleDateString()} a ${new Date(endDate).toLocaleDateString()}`,
-          headers: ['Data Rec.', 'Cliente', 'Banco', 'Forma', 'Vlr Bruto', 'Vlr Líquido'],
+          title: `Contas Recebidas - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headers: ['Cliente', 'NF', 'Emissão', 'Data Receb.', 'Banco', 'Forma PG', 'Condição', 'Valor Recebido'],
           rows: rows,
-          total: filteredPayments.reduce((acc, curr) => acc + (curr.amount - (curr.fee || 0)), 0)
+          total: filteredPayments.reduce((acc, curr) => acc + curr.amount, 0)
         };
       }
       case 'cardFees': {
         const cardPayments = payments.filter(p => {
           const d = new Date(p.date).getTime();
-          return d >= startTimestamp && d <= endTimestamp && p.method === 'Cartão' && (p.fee || 0) > 0;
+          const isCard = p.method === 'Cartão' || p.method === 'Cartão de Crédito' || p.method === 'Cartão de Débito';
+          return d >= startTimestamp && d <= endTimestamp && isCard && (p.fee || 0) > 0;
         }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         return {
-          title: 'Relatório de Despesas com Taxas de Recebimentos com Cartão',
-          headerInfo: `Período: ${new Date(startDate).toLocaleDateString()} a ${new Date(endDate).toLocaleDateString()}`,
-          headers: ['Data Recebimento', 'Valor da Taxa', 'Ref NF'],
+          title: 'Relatório de Despesas com Taxas de Recebimentos com Cartão (Vendas)',
+          headerInfo: `Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headers: ['Cliente', 'NF', 'Data Emissão', 'Data Recebido', 'Valor Bruto NF', 'Valor Recebido', 'Valor Taxa'],
           rows: cardPayments.map(p => {
             const sale = sales.find(s => s.id === p.saleId);
             return [
-              new Date(p.date).toLocaleDateString(),
-              formatCurrency(p.fee || 0),
-              sale?.nfNumber || 'S/N'
+              sale?.customerName || '---',
+              sale?.nfNumber || 'S/N',
+              sale ? formatDateDisplay(sale.date) : '---',
+              formatDateDisplay(p.date),
+              formatCurrency(sale?.totalValue || 0),
+              formatCurrency(p.amount),
+              formatCurrency(p.fee || 0)
             ];
           }),
           total: cardPayments.reduce((acc, p) => acc + (p.fee || 0), 0)
@@ -490,23 +845,26 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       case 'payments':
         const filteredExpenses = expenses.filter(e => {
           if (!e.paymentDate) return false;
+          const matchesCategory = selectedCategoryId === 'all' || e.accountPlanId === selectedCategoryId;
           const d = new Date(e.paymentDate).getTime();
-          return d >= startTimestamp && d <= endTimestamp && e.status === 'Pago';
+          return matchesCategory && d >= startTimestamp && d <= endTimestamp && (e.status === 'Pago' || (e.amountPaid && e.amountPaid > 0));
         }).sort((a, b) => new Date(a.paymentDate!).getTime() - new Date(b.paymentDate!).getTime());
         return {
-          title: `Pagamentos Realizados - Período: ${new Date(startDate).toLocaleDateString()} a ${new Date(endDate).toLocaleDateString()}`,
-          headers: ['Data Pag.', 'Fornecedor', 'Banco Saída', 'Doc', 'Valor'],
+          title: `Pagamentos Realizados - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headers: ['Data Pagto', 'Fornecedor', 'Doc', 'Despesa', 'Banco Saída', 'Valor'],
           rows: filteredExpenses.map(e => {
             const bank = bankAccounts.find(b => b.id === e.bankAccountId);
+            const plan = accountPlan.find(p => p.id === e.accountPlanId);
             return [
-              new Date(e.paymentDate!).toLocaleDateString(),
+              formatDateDisplay(e.paymentDate),
               e.vendorName,
-              bank?.bankName || '---',
               e.docNumber || 'S/N',
-              formatCurrency(e.totalValue)
+              plan?.subcategory || '---',
+              bank?.bankName || '---',
+              formatCurrency(e.amountPaid || e.totalValue)
             ];
           }),
-          total: filteredExpenses.reduce((acc, curr) => acc + curr.totalValue, 0)
+          total: filteredExpenses.reduce((acc, curr) => acc + (curr.amountPaid || curr.totalValue), 0)
         };
       case 'accountPlan':
         return {
@@ -525,298 +883,818 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           headers: ['Instituição', 'Agência', 'Conta Corrente'],
           rows: bankAccounts.map(b => [b.bankName, b.agency, b.accountNumber])
         };
+      case 'dre': {
+        const dreSales = sales.filter(s => {
+          const d = new Date(s.date).getTime();
+          return d >= startTimestamp && d <= endTimestamp;
+        });
+
+        const dreExpenses = expenses.filter(e => {
+          const d = new Date(e.date).getTime();
+          return d >= startTimestamp && d <= endTimestamp;
+        });
+
+        const salesMap = new Map<string, number>();
+        const expenseMap = new Map<string, number>();
+
+        dreSales.forEach(s => {
+          const plan = accountPlan.find(p => p.id === s.accountPlanId);
+          const name = plan?.subcategory || 'Outras Receitas';
+          salesMap.set(name, (salesMap.get(name) || 0) + s.totalValue);
+        });
+
+        dreExpenses.forEach(e => {
+          const plan = accountPlan.find(p => p.id === e.accountPlanId);
+          const name = plan?.subcategory || 'Outras Despesas';
+          expenseMap.set(name, (expenseMap.get(name) || 0) + e.totalValue);
+        });
+
+        let totalReceitas = 0;
+        let totalCustosVenda = 0;
+        let totalCustoFrota = 0;
+        let totalCustoPessoal = 0;
+        let totalCustoAdmin = 0;
+
+        const rows: any[] = [];
+
+        // 1. Receitas
+        rows.push(['DRE_SECTION', 'Receitas Brutas']);
+        salesMap.forEach((val, key) => {
+          rows.push(['', key, formatCurrency(val)]);
+          totalReceitas += val;
+        });
+        rows.push(['DRE_SUBTOTAL', 'Total de Receitas:', formatCurrency(totalReceitas)]);
+        rows.push(['', '', '']);
+
+        // 2. Custos de Vendas
+        rows.push(['DRE_SECTION', 'Custos de Vendas Direto']);
+        expenseMap.forEach((val, key) => {
+          const plan = accountPlan.find(p => p.subcategory === key && p.type === 'Despesa');
+          const sub = key.toLowerCase();
+          if (sub.includes('simples') || sub.includes('imposto')) {
+            rows.push(['', `(-) ${key}`, formatCurrency(val)]);
+            totalCustosVenda += val;
+          }
+        });
+        rows.push(['DRE_SUBTOTAL', 'Total Custos de Vendas:', formatCurrency(totalCustosVenda)]);
+        rows.push(['', '', '']);
+
+        // 3. Custos Frota
+        rows.push(['DRE_SECTION', 'Custos Direto Frota (Operacional)']);
+        expenseMap.forEach((val, key) => {
+          const plan = accountPlan.find(p => p.subcategory === key && p.type === 'Despesa');
+          const cat = (plan?.category || '').toLowerCase();
+          const sub = key.toLowerCase();
+          if (cat.includes('operacional') && !sub.includes('simples') && !sub.includes('imposto')) {
+            rows.push(['', key, formatCurrency(val)]);
+            totalCustoFrota += val;
+          }
+        });
+        rows.push(['DRE_SUBTOTAL', 'Total Custos Direto Frota:', formatCurrency(totalCustoFrota)]);
+        rows.push(['', '', '']);
+
+        // 4. Custos Pessoal
+        rows.push(['DRE_SECTION', 'Custos Direto com Pessoal']);
+        expenseMap.forEach((val, key) => {
+          const plan = accountPlan.find(p => p.subcategory === key && p.type === 'Despesa');
+          const cat = (plan?.category || '').toLowerCase();
+          const sub = key.toLowerCase();
+          const isPessoal = sub.includes('pró-labore') || sub.includes('pro-labore') || sub.includes('salário') || sub.includes('salario') || sub.includes('encargo') || sub.includes('fgts') || sub.includes('inss');
+          if (isPessoal && !cat.includes('operacional')) {
+            rows.push(['', key, formatCurrency(val)]);
+            totalCustoPessoal += val;
+          }
+        });
+        rows.push(['DRE_SUBTOTAL', 'Total Custos com Pessoal:', formatCurrency(totalCustoPessoal)]);
+        rows.push(['', '', '']);
+
+        // 5. Custos Administrativos
+        rows.push(['DRE_SECTION', 'Custos Administrativos']);
+        expenseMap.forEach((val, key) => {
+          const plan = accountPlan.find(p => p.subcategory === key && p.type === 'Despesa');
+          const cat = (plan?.category || '').toLowerCase();
+          const sub = key.toLowerCase();
+          const isPessoal = sub.includes('pró-labore') || sub.includes('pro-labore') || sub.includes('salário') || sub.includes('salario') || sub.includes('encargo') || sub.includes('fgts') || sub.includes('inss');
+          const isImposto = sub.includes('simples') || sub.includes('imposto');
+          const isFrota = cat.includes('operacional');
+
+          if (!isPessoal && !isImposto && !isFrota) {
+            rows.push(['', key, formatCurrency(val)]);
+            totalCustoAdmin += val;
+          }
+        });
+        rows.push(['DRE_SUBTOTAL', 'Total Custos Administrativos:', formatCurrency(totalCustoAdmin)]);
+        rows.push(['', '', '']);
+
+        const lucroBruto = totalReceitas - totalCustosVenda - totalCustoFrota - totalCustoPessoal - totalCustoAdmin;
+        rows.push(['DRE_RESULT', 'LUCRO BRUTO DO MÊS:', formatCurrency(lucroBruto)]);
+
+        return {
+          title: `DRE - Demonstração do Resultado - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headerInfo: 'Visão gerencial de resultados baseada em faturamentos e despesas por regime de competência/emissão.',
+          headers: ['Estrutura', 'Descrição da Conta', 'Valor do Período'],
+          rows: rows
+        };
+      }
       default:
         return null;
     }
-  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords]);
+  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, receivablesFilter, selectedCategoryId, selectedCustomerId, statusFilter]);
 
   return (
     <div className="space-y-8">
       <div className="print:hidden space-y-6">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center">
-            <Printer className="mr-2 text-amber-500" size={20} /> Relatórios Financeiros
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <ReportButton active={selectedReport === 'bankStatement'} onClick={() => setSelectedReport('bankStatement')} label="Extrato Bancário" icon={ArrowUpRight} />
-            <ReportButton active={selectedReport === 'corporateCard'} onClick={() => setSelectedReport('corporateCard')} label="Cartão Corporativo" icon={CreditCard} />
-            <ReportButton active={selectedReport === 'sales'} onClick={() => setSelectedReport('sales')} label="Faturamento por Período" icon={Receipt} />
-            <ReportButton active={selectedReport === 'receivables'} onClick={() => setSelectedReport('receivables')} label="Baixa de Recebidos" icon={HandCoins} />
-            <ReportButton active={selectedReport === 'cardFees'} onClick={() => setSelectedReport('cardFees')} label="Taxas de Cartão" icon={CreditCard} color="rose" />
-            <ReportButton active={selectedReport === 'receivablesPending'} onClick={() => setSelectedReport('receivablesPending')} label="Contas a Receber (Pendentes)" icon={Clock} color="blue" />
-            <ReportButton active={selectedReport === 'payments'} onClick={() => setSelectedReport('payments')} label="Pagamentos Efetuados" icon={Wallet} />
-            <ReportButton active={selectedReport === 'expensesPending'} onClick={() => setSelectedReport('expensesPending')} label="Contas a Pagar (Pendentes)" icon={Clock} color="rose" />
-          </div>
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {/* Relatórios Financeiros */}
+            <div className="space-y-3">
+              <label className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center">
+                <HandCoins className="text-amber-500 mr-2" size={20} />
+                Relatórios Financeiros
+              </label>
+              <div className="relative group">
+                <select
+                  className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white focus:border-amber-200 transition-all appearance-none cursor-pointer"
+                  value={['bankStatement', 'corporateCard', 'sales', 'receivables', 'cardFees', 'receivablesPending', 'payments', 'expensesPending'].includes(selectedReport || '') ? selectedReport || '' : ''}
+                  onChange={(e) => setSelectedReport(e.target.value as ReportType)}
+                >
+                  <option value="" disabled>Selecione um Relatório...</option>
+                  <option value="bankStatement">💰 Extrato Bancário</option>
+                  <option value="sales">📈 Faturamento por Período</option>
+                  <option value="receivablesPending">⏳ Contas a Receber</option>
+                  <option value="receivables">📥 Contas Recebidas</option>
+                  <option value="expensesPending">⚠️ Contas a Pagar</option>
+                  <option value="expensesByMonth">📊 Despesas por Categoria</option>
+                  <option value="expensesByMonthFlat">📊 Despesas por Mês</option>
+                  <option value="payments">💸 Pagamentos Efetuados</option>
+                  <option value="corporateCard">💳 Cartão Corporativo</option>
+                  <option value="cardFees">✂️ Taxas de Cartão (Vendas)</option>
+                </select>
+                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-amber-500 transition-transform rotate-90" size={18} />
+              </div>
+            </div>
 
-          <h3 className="text-lg font-bold text-slate-800 mt-10 mb-6 flex items-center">
-            <Wrench className="mr-2 text-rose-500" size={20} /> Relatórios de Frota e Manutenção
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <ReportButton active={selectedReport === 'fleetOverdue'} onClick={() => setSelectedReport('fleetOverdue')} label="Preventivas VENCIDAS" icon={AlertTriangle} color="rose" />
-            <ReportButton active={selectedReport === 'fleetDue2'} onClick={() => setSelectedReport('fleetDue2')} label="Vencendo em 2 Dias" icon={AlertTriangle} color="amber" />
-            <ReportButton active={selectedReport === 'fleetDue15'} onClick={() => setSelectedReport('fleetDue15')} label="Vencendo em 15 Dias" icon={Calendar} color="blue" />
-            <ReportButton active={selectedReport === 'fleetHistory'} onClick={() => setSelectedReport('fleetHistory')} label="Histórico Completo" icon={History} />
-            <ReportButton active={selectedReport === 'fleetIntervals'} onClick={() => setSelectedReport('fleetIntervals')} label="Prazos Cadastrados" icon={Timer} />
-          </div>
+            {/* Relatórios Cadastrais */}
+            <div className="space-y-3">
+              <label className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center">
+                <Users className="text-blue-500 mr-2" size={20} />
+                Relatórios Cadastrais
+              </label>
+              <div className="relative group">
+                <select
+                  className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-blue-200 transition-all appearance-none cursor-pointer"
+                  value={['customers', 'vendors', 'customersSummary', 'vendorsSummary', 'accountPlan', 'banks'].includes(selectedReport || '') ? selectedReport || '' : ''}
+                  onChange={(e) => setSelectedReport(e.target.value as ReportType)}
+                >
+                  <option value="" disabled>Selecione um Relatório...</option>
+                  <option value="customers">👥 Listagem de Clientes</option>
+                  <option value="customersSummary">📝 Listagem de Clientes (Resumo)</option>
+                  <option value="vendors">🚚 Listagem de Fornecedores</option>
+                  <option value="vendorsSummary">📝 Listagem de Fornecedores (Resumo)</option>
+                  <option value="accountPlan">📖 Plano de Contas</option>
+                  <option value="banks">🏛️ Contas Bancárias</option>
+                </select>
+                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-blue-500 transition-transform rotate-90" size={18} />
+              </div>
+            </div>
 
-          <h3 className="text-lg font-bold text-slate-800 mt-10 mb-6 flex items-center">
-            <BookOpen className="mr-2 text-blue-500" size={20} /> Relatórios Cadastrais
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <ReportButton active={selectedReport === 'customers'} onClick={() => setSelectedReport('customers')} label="Listagem de Clientes" icon={Users} />
-            <ReportButton active={selectedReport === 'vendors'} onClick={() => setSelectedReport('vendors')} label="Listagem de Fornecedores" icon={Truck} />
-            <ReportButton active={selectedReport === 'accountPlan'} onClick={() => setSelectedReport('accountPlan')} label="Plano de Contas" icon={BookOpen} />
-            <ReportButton active={selectedReport === 'banks'} onClick={() => setSelectedReport('banks')} label="Contas Bancárias" icon={Building2} />
-          </div>
-        </div>
+            {/* Relatórios de Frota */}
+            <div className="space-y-3">
+              <label className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center">
+                <Wrench className="text-rose-500 mr-2" size={20} />
+                Frota e Manutenção
+              </label>
+              <div className="relative group">
+                <select
+                  className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white focus:border-rose-200 transition-all appearance-none cursor-pointer"
+                  value={['fleetOverdue', 'fleetDue2', 'fleetDue15', 'fleetHistory', 'fleetIntervals'].includes(selectedReport || '') ? selectedReport || '' : ''}
+                  onChange={(e) => setSelectedReport(e.target.value as ReportType)}
+                >
+                  <option value="" disabled>Selecione um Relatório...</option>
+                  <option value="fleetOverdue">🚨 Preventivas VENCIDAS</option>
+                  <option value="fleetDue2">⚠️ Vencendo em 2 Dias</option>
+                  <option value="fleetDue15">📅 Vencendo em 15 Dias</option>
+                  <option value="fleetHistory">📜 Histórico Completo</option>
+                  <option value="fleetIntervals">⏱️ Prazos Cadastrados</option>
+                </select>
+                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-rose-500 transition-transform rotate-90" size={18} />
+              </div>
+            </div>
 
-        {selectedReport && (
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-4 space-y-6">
-            <div className="flex flex-col sm:flex-row items-end gap-4">
-              {selectedReport === 'bankStatement' && (
-                <div className="flex-1 space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
-                    <Building2 size={14} className="mr-1" /> Selecionar Conta Banco
-                  </label>
-                  <select
-                    className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500"
-                    value={selectedBankId}
-                    onChange={(e) => setSelectedBankId(e.target.value)}
-                  >
-                    <option value="">Escolha um banco...</option>
-                    {bankAccounts.map(b => <option key={b.id} value={b.id}>{b.bankName} - {b.accountNumber}</option>)}
-                  </select>
-                </div>
-              )}
-
-              {selectedReport === 'fleetHistory' && (
-                <div className="flex-1 space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
-                    <Truck size={14} className="mr-1" /> Selecionar Equipamento
-                  </label>
-                  <select
-                    className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
-                    value={selectedEquipmentId}
-                    onChange={(e) => setSelectedEquipmentId(e.target.value)}
-                  >
-                    <option value="all">TODOS OS EQUIPAMENTOS</option>
-                    {fleet.map(e => <option key={e.id} value={e.id}>{e.type} - {e.model}</option>)}
-                  </select>
-                </div>
-              )}
-
-              {['sales', 'receivables', 'payments', 'bankStatement', 'corporateCard', 'fleetHistory'].includes(selectedReport) && (
-                <>
-                  <div className="flex-1 space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
-                      <Calendar size={14} className="mr-1" /> Data Inicial
-                    </label>
-                    <input type="date" className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
-                      <Calendar size={14} className="mr-1" /> Data Final
-                    </label>
-                    <input type="date" className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                  </div>
-                  <button type="button" onClick={setMonthRange} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-sm transition-colors mb-[2px]">
-                    Mês Atual
-                  </button>
-                </>
-              )}
+            {/* Relatórios Contábeis */}
+            <div className="space-y-3">
+              <label className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center">
+                <BookOpen className="text-emerald-500 mr-2" size={20} />
+                Relatórios Contábeis
+              </label>
+              <div className="relative group">
+                <select
+                  className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:border-emerald-200 transition-all appearance-none cursor-pointer"
+                  value={['dre'].includes(selectedReport || '') ? selectedReport || '' : ''}
+                  onChange={(e) => setSelectedReport(e.target.value as ReportType)}
+                >
+                  <option value="" disabled>Selecione um Relatório...</option>
+                  <option value="dre">📈 DRE (Resultado)</option>
+                </select>
+                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-emerald-500 transition-transform rotate-90" size={18} />
+              </div>
             </div>
           </div>
-        )}
 
-        {selectedReport && (selectedReport !== 'bankStatement' || selectedBankId) && (
-          <div className="flex justify-end">
-            <button
-              type="button"
-              id="print-button"
-              onClick={handlePrint}
-              className="flex items-center space-x-2 bg-slate-900 text-white px-8 py-4 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-xl shadow-slate-200"
-            >
-              <Printer size={20} />
-              <span>Imprimir ou Gerar PDF</span>
-            </button>
-          </div>
-        )}
+          {selectedReport && (
+            <div className="mt-8 bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-4 space-y-6">
+              <div className="flex flex-col sm:flex-row items-end gap-4">
+                {selectedReport === 'bankStatement' && (
+                  <div className="flex-1 space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                      <Building2 size={14} className="mr-1" /> Selecionar Conta Banco
+                    </label>
+                    <select
+                      className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500"
+                      value={selectedBankId}
+                      onChange={(e) => setSelectedBankId(e.target.value)}
+                    >
+                      <option value="">Escolha um banco...</option>
+                      {bankAccounts.map(b => <option key={b.id} value={b.id}>{b.bankName} - {b.accountNumber}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                {selectedReport === 'fleetHistory' && (
+                  <div className="flex-1 space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                      <Truck size={14} className="mr-1" /> Selecionar Equipamento
+                    </label>
+                    <select
+                      className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+                      value={selectedEquipmentId}
+                      onChange={(e) => setSelectedEquipmentId(e.target.value)}
+                    >
+                      <option value="all">TODOS OS EQUIPAMENTOS</option>
+                      {fleet.map(e => <option key={e.id} value={e.id}>{e.type} - {e.model}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                {['dre', 'sales', 'receivables', 'receivablesPending', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory'].includes(selectedReport) && (
+                  <>
+                    {['dre', 'sales', 'receivables', 'receivablesPending'].includes(selectedReport) && (
+                      <div className="flex-1 space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                          <Receipt size={14} className="mr-1" /> Faturamento
+                        </label>
+                        <select
+                          className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+                          value={receivablesFilter}
+                          onChange={(e) => setReceivablesFilter(e.target.value as any)}
+                        >
+                          <option value="all">TODOS</option>
+                          <option value="withNf">RECEBIMENTOS COM NF</option>
+                          <option value="withoutNf">RECEBIMENTOS SEM NF</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {['sales', 'receivables', 'receivablesPending'].includes(selectedReport) && (
+                      <div className="flex-1 space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                          <Users size={14} className="mr-1" /> Clientes
+                        </label>
+                        <select
+                          className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+                          value={selectedCustomerId}
+                          onChange={(e) => setSelectedCustomerId(e.target.value)}
+                        >
+                          <option value="all">TODOS</option>
+                          {customers.sort((a, b) => a.name.localeCompare(b.name)).map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {['expensesPending', 'expensesByMonth', 'expensesByMonthFlat', 'payments', 'corporateCard'].includes(selectedReport) && (
+                      <div className="flex-1 space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                          <BookOpen size={14} className="mr-1" /> Categoria
+                        </label>
+                        <select
+                          className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+                          value={selectedCategoryId}
+                          onChange={(e) => setSelectedCategoryId(e.target.value)}
+                        >
+                          <option value="all">TODAS AS CATEGORIAS</option>
+                          {accountPlan.filter(p => p.type === 'Despesa').map(p => (
+                            <option key={p.id} value={p.id}>{p.subcategory}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex-1 space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                        <Calendar size={14} className="mr-1" /> Data Inicial
+                      </label>
+                      <input type="date" className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                        <Calendar size={14} className="mr-1" /> Data Final
+                      </label>
+                      <input type="date" className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                    </div>
+
+                    <div className="flex-1 space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                        <Clock size={14} className="mr-1" /> Período
+                      </label>
+                      <select
+                        className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+                        value={period}
+                        onChange={(e) => {
+                          const val = e.target.value as any;
+                          setPeriod(val);
+                          const today = new Date();
+                          if (val === '7days') {
+                            const start = new Date();
+                            start.setDate(today.getDate() - 7);
+                            setStartDate(start.toLocaleDateString('en-CA'));
+                            setEndDate(today.toLocaleDateString('en-CA'));
+                          } else if (val === 'current') {
+                            setStartDate(new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString('en-CA'));
+                            setEndDate(new Date(today.getFullYear(), today.getMonth() + 1, 0).toLocaleDateString('en-CA'));
+                          } else if (val === 'last') {
+                            setStartDate(new Date(today.getFullYear(), today.getMonth() - 1, 1).toLocaleDateString('en-CA'));
+                            setEndDate(new Date(today.getFullYear(), today.getMonth(), 0).toLocaleDateString('en-CA'));
+                          } else if (val === 'year') {
+                            setStartDate(new Date(today.getFullYear(), 0, 1).toLocaleDateString('en-CA'));
+                            setEndDate(new Date(today.getFullYear(), 11, 31).toLocaleDateString('en-CA'));
+                          }
+                        }}
+                      >
+                        <option value="current">Mês Atual</option>
+                        <option value="last">Mês Passado</option>
+                        <option value="7days">Últimos 7 dias</option>
+                        <option value="year">Ano Atual</option>
+                        <option value="custom">Personalizado</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {['customers', 'vendors', 'customersSummary', 'vendorsSummary'].includes(selectedReport || '') && (
+                  <div className="flex-1 space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                      <Users size={14} className="mr-1" /> Filtrar Status
+                    </label>
+                    <select
+                      className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value as any)}
+                    >
+                      <option value="Ativos">ATIVOS</option>
+                      <option value="Inativos">INATIVOS</option>
+                      <option value="Todos">TODOS</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Period selector now inside the common area */}
+              </div>
+            </div>
+          )}
+
+          {selectedReport && (selectedReport !== 'bankStatement' || selectedBankId) && (
+            <div className="flex justify-end mt-6">
+              <button
+                type="button"
+                id="print-button"
+                onClick={handlePrint}
+                className="flex items-center space-x-2 bg-slate-900 text-white px-8 py-4 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-xl shadow-slate-200"
+              >
+                <Printer size={20} />
+                <span>Imprimir ou Gerar PDF</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {selectedReport && reportContent && (
-        <div className="bg-white p-8 sm:p-12 rounded-2xl border border-slate-100 shadow-xl print:shadow-none print:border-0 print:p-0 print:m-0 print-visible">
-          <div className="border-b-2 border-slate-900 pb-6 mb-8 flex justify-between items-center">
-            <Logo size="lg" className="origin-left" />
-            <div className="text-right">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Documento Gerencial</p>
-              <p className="text-sm font-bold text-slate-800">Emitido em: {new Date().toLocaleString('pt-BR')}</p>
+      {
+        selectedReport && reportContent && (
+          <div className="bg-white p-8 sm:p-12 rounded-2xl border border-slate-100 shadow-xl print:shadow-none print:border-0 print:m-0">
+            {/* Cabeçalho Visual (Apenas Tela) */}
+            <div className="border-b-2 border-slate-900 pb-6 mb-8 flex justify-between items-center bg-white print:hidden">
+              <Logo size="lg" className="origin-left" />
+              <div className="text-right">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Documento Gerencial</p>
+                <p className="text-sm font-bold text-slate-800">Emitido em: {new Date().toLocaleString('pt-BR')}</p>
+              </div>
             </div>
-          </div>
 
-          <h2 className="text-[12px] font-normal text-slate-800 mb-2 border-l-4 border-amber-500 pl-4 uppercase leading-none">
-            {reportContent.title}
-          </h2>
-          {reportContent.headerInfo && (
-            <p className="text-[10px] font-bold text-slate-500 mb-8 pl-5 uppercase tracking-widest">{reportContent.headerInfo}</p>
-          )}
+            <h2 className="text-sm font-normal text-slate-800 mb-2 border-l-4 border-amber-500 pl-4 uppercase leading-none print:hidden">
+              {reportContent.title}
+            </h2>
+            {reportContent.headerInfo && (
+              <p className="text-[10px] font-bold text-slate-500 mb-8 pl-5 uppercase tracking-widest print:hidden">{reportContent.headerInfo}</p>
+            )}
 
-          {reportContent.openingBalance !== undefined && (
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 flex justify-between items-center">
-              <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Saldo em {new Date(startDate).toLocaleDateString('pt-BR')} (Saldo Anterior):</span>
-              <span className={`font-black text-lg ${reportContent.openingBalance >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
-                {formatCurrency(reportContent.openingBalance)}
-              </span>
-            </div>
-          )}
+            {reportContent.openingBalance !== undefined && (
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 flex justify-between items-center print:hidden">
+                <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Saldo em {new Date(startDate).toLocaleDateString('pt-BR')} (Saldo Anterior):</span>
+                <span className={`font-black text-lg ${reportContent.openingBalance >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
+                  {formatCurrency(reportContent.openingBalance)}
+                </span>
+              </div>
+            )}
 
-          <div className="overflow-x-auto print:overflow-visible text-slate-800">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-slate-50 border-y border-slate-200">
-                <tr>
-                  {reportContent.headers.map((h, k) => (
-                    <th
-                      key={k}
-                      className={`px-4 py-3 font-black text-slate-600 uppercase text-[10px] tracking-wider whitespace-nowrap
-                        ${selectedReport === 'sales' && k === 0 ? 'w-[100px]' : ''}
-                        ${selectedReport === 'sales' && k === 1 ? 'w-[60px] text-left' : ''}
-                        ${selectedReport === 'sales' && k === 2 ? 'w-auto min-w-[300px] print:min-w-0' : ''}
-                        ${selectedReport === 'sales' && k === 4 ? 'w-[120px] text-right' : ''}
-                      `}
-                    >
-                      {h}
+            <div className="overflow-x-auto print:overflow-visible text-slate-800">
+              <table className="w-full text-left text-sm border-collapse">
+                {/* Repete Cabeçalho em Todas as Páginas na Impressão */}
+                <thead className="hidden print:table-header-group">
+                  <tr>
+                    <th colSpan={reportContent.headers.length} className="pb-4 font-normal">
+                      <div className="border-b-2 border-slate-900 pb-2 mb-4 flex justify-between items-center bg-white">
+                        <Logo size="lg" className="origin-left" />
+                        <div className="text-right">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Documento Gerencial</p>
+                          <p className="text-sm font-normal text-slate-800">Emitido em: {new Date().toLocaleString('pt-BR')}</p>
+                        </div>
+                      </div>
+                      <h2 className="text-sm font-normal text-slate-800 mb-1 border-l-4 border-amber-500 pl-4 uppercase leading-none text-left print:text-[16px]">
+                        {reportContent.title}
+                      </h2>
+                      {reportContent.headerInfo && (
+                        <p className="text-[10px] font-bold text-slate-500 mb-4 pl-5 uppercase tracking-widest text-left">{reportContent.headerInfo}</p>
+                      )}
+                      {reportContent.openingBalance !== undefined && (
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 flex justify-between items-center w-full">
+                          <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Saldo em {new Date(startDate).toLocaleDateString('pt-BR')} (Saldo Anterior):</span>
+                          <span className={`font-black text-lg ${reportContent.openingBalance >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
+                            {formatCurrency(reportContent.openingBalance)}
+                          </span>
+                        </div>
+                      )}
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {reportContent.rows.length > 0 ? reportContent.rows.map((row, i) => {
-                  const isSectionHeader = row.some(cell =>
-                    cell.toString().includes('FATURAMENTO COM') ||
-                    cell.toString().includes('FATURAMENTO SEM') ||
-                    cell.toString().includes('DESPESAS COM') ||
-                    cell.toString().includes('DESPESAS POR') ||
-                    cell.toString().includes('MOVIMENTAÇÃO DE')
-                  );
-                  const isSubtotalRow = row.some(cell => cell.toString().includes('SUBTOTAL'));
-
-                  // Treat empty rows as visual spacers
-                  const isEmptyRow = row.every(cell => cell === '');
-                  if (isEmptyRow) {
-                    return (
-                      <tr key={i} className="h-8 bg-white border-0">
-                        <td colSpan={reportContent.headers.length}></td>
-                      </tr>
+                  </tr>
+                </thead>
+                {selectedReport !== 'sales' && selectedReport !== 'receivables' && selectedReport !== 'expensesByMonth' && selectedReport !== 'expensesByMonthFlat' && selectedReport !== 'customers' && selectedReport !== 'vendors' && (
+                  <thead className="bg-slate-50 border-y border-slate-200">
+                    <tr>
+                      {reportContent.headers.map((h, k) => (
+                        <th
+                          key={k}
+                          className={`px-4 py-3 font-black text-slate-600 uppercase text-[12px] tracking-wider whitespace-nowrap
+                        ${selectedReport === 'receivables' && k === 0 ? 'w-[120px]' : ''}
+                        ${selectedReport === 'receivables' && k === 1 ? 'w-auto min-w-[200px]' : ''}
+                        ${selectedReport === 'receivables' && k === 5 ? 'w-[200px] text-left' : ''}
+                        ${selectedReport === 'receivables' && k === 6 ? 'w-[110px] text-left' : ''}
+                         ${selectedReport === 'expensesPending' ? (
+                              k === 0 ? 'w-[150px]' :
+                                k === 1 ? 'w-full min-w-[180px]' :
+                                  k === 2 ? 'w-[80px]' :
+                                    k === 3 ? 'w-[90px]' :
+                                      k === 4 ? 'w-[90px]' :
+                                        k === 5 ? 'w-[110px] text-left' : ''
+                            ) : ''}
+                        ${selectedReport === 'payments' && k === 0 ? 'w-[120px]' : ''}
+                        ${selectedReport === 'payments' && k === 4 ? 'text-left w-[120px]' : ''}
+                         ${selectedReport === 'receivablesPending' && k === 5 ? 'text-left w-[120px]' : ''}
+                         ${selectedReport === 'corporateCard' && k === 4 ? 'w-[120px] text-left' : ''}
+                         ${selectedReport === 'cardFees' ? (
+                              k === 0 ? 'w-full min-w-[150px] text-left' :
+                                k === 4 || k === 5 || k === 6 ? 'w-[110px] text-left' : 'text-left'
+                            ) : ''}
+                         ${selectedReport === 'bankStatement' && (k === 2 || k === 3 || k === 4) ? 'w-[110px] text-left' : ''}
+                          ${selectedReport === 'customers' ? (
+                              k === 0 ? 'w-full min-w-[200px]' :
+                                k === 1 ? 'w-[150px]' :
+                                  k === 2 ? 'w-[100px]' :
+                                    k === 3 ? 'w-[150px]' :
+                                      k === 4 ? 'w-[200px]' :
+                                        k === 5 ? 'w-[250px]' : ''
+                            ) : ''}
+                          ${selectedReport === 'vendors' ? (
+                              k === 0 ? 'w-full min-w-[180px]' :
+                                k === 1 ? 'w-[150px]' :
+                                  k === 2 ? 'w-[150px]' :
+                                    k === 3 ? 'w-[100px]' :
+                                      k === 4 ? 'w-[150px]' :
+                                        k === 5 ? 'w-[200px]' : ''
+                            ) : ''}
+                          ${selectedReport === 'sales' ? (
+                              k === 0 ? 'w-[80px] text-left' :
+                                k === 1 ? 'w-[60px] text-left' :
+                                  k === 2 ? 'w-full min-w-[150px] text-left' :
+                                    k === 3 ? 'w-[250px] text-left' :
+                                      k === 4 ? 'w-[140px] text-left' :
+                                        k === 5 ? 'w-[100px] text-left' :
+                                          k === 6 ? 'w-[110px] text-left' : ''
+                            ) : ''}
+                          ${(['customersSummary', 'vendorsSummary'].includes(selectedReport || '')) ? (
+                              k === 0 ? 'w-[280px]' :
+                                k === 1 ? 'w-[170px]' :
+                                  k === 2 ? 'w-[170px]' :
+                                    k === 3 ? (selectedReport === 'customersSummary' ? 'w-full text-left' : 'w-[100px] text-left') :
+                                      k === 4 ? 'w-full text-left' : ''
+                            ) : ''}
+                          ${selectedReport === 'dre' ? (
+                              k === 0 ? 'w-[50px]' :
+                                k === 1 ? 'w-full text-left' :
+                                  k === 2 ? 'w-[200px] text-left' : ''
+                            ) : ''}
+                      `}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                )}
+                <tbody className="divide-y divide-slate-200">
+                  {reportContent.rows.length > 0 ? reportContent.rows.map((row, i) => {
+                    const rowString = row.join(' ');
+                    const isTotalMonthRow = row[1] === 'IS_TOTAL_MONTH';
+                    const isSubtotalRow = rowString.includes('SUBTOTAL') || isTotalMonthRow;
+                    const isSectionHeader = !isSubtotalRow && (
+                      rowString.includes('MÊS:') ||
+                      rowString.includes('FATURAMENTO COM') ||
+                      rowString.includes('FATURAMENTO SEM') ||
+                      rowString.includes('RECEBIMENTOS COM') ||
+                      rowString.includes('RECEBIMENTOS SEM') ||
+                      rowString.includes('DESPESAS COM') ||
+                      rowString.includes('DESPESAS POR') ||
+                      rowString.includes('MOVIMENTAÇÃO DE')
                     );
-                  }
 
-                  return (
-                    <tr key={i} className={`${isSectionHeader ? 'bg-slate-100/80 font-black border-y border-slate-300' : ''} ${isSubtotalRow ? 'bg-slate-50/50 font-bold border-y border-slate-200 italic' : ''}`}>
-                      {row.map((cell, j) => {
-                        // Skip empty cells in subtotal rows that are covered by the colSpan of the first cell
-                        if (isSubtotalRow && j > 0 && j < row.length - 1 && cell === '') return null;
-                        if (isSectionHeader && j > 0) return null;
+                    // Treat empty rows as visual spacers
+                    const isEmptyRow = row.every(cell => cell === '');
+                    if (isEmptyRow) {
+                      return (
+                        <tr key={i} className="h-6 bg-white border-0">
+                          <td colSpan={reportContent.headers.length}></td>
+                        </tr>
+                      );
+                    }
 
-                        const isCredit = selectedReport === 'bankStatement' && j === 2 && typeof cell === 'number' && cell > 0;
-                        const isDebit = selectedReport === 'bankStatement' && j === 3 && typeof cell === 'number' && cell > 0;
-                        const isBalance = selectedReport === 'bankStatement' && j === 4;
+                    if (row[0] === 'CUSTOM_CARD') {
+                      return (
+                        <tr key={i} className="py-4">
+                          <td colSpan={reportContent.headers.length} className="px-4 py-4">
+                            <div className="flex justify-between items-end mb-4 border-b border-slate-200 pb-2">
+                              <span className="text-sm font-black text-slate-900 uppercase tracking-wide">{row[1]}</span>
+                              <span className={`text-[11px] font-black px-4 py-1 rounded-lg border-2 ${row[2] === 'ATIVO' ? 'border-emerald-500 text-emerald-600 bg-emerald-50' : 'border-rose-500 text-rose-600 bg-rose-50'}`}>
+                                STATUS: {row[2]}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-x-8 gap-y-4 p-4 bg-slate-50/50 rounded-xl">
+                              <div>
+                                <p className="text-slate-400 text-[10px] font-black uppercase mb-1 tracking-widest">CPF / CNPJ</p>
+                                <p className="text-slate-900 font-normal text-[12px] tracking-wide">{row[3] || '---'}</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-400 text-[10px] font-black uppercase mb-1 tracking-widest">Responsável</p>
+                                <p className="text-slate-900 font-normal text-[12px] uppercase">{row[4] || '---'}</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-400 text-[10px] font-black uppercase mb-1 tracking-widest">Telefone / Email</p>
+                                <p className="text-slate-900 font-normal text-[12px]">{row[5] || '---'}</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-400 text-[10px] font-black uppercase mb-1 tracking-widest">Endereço</p>
+                                <p className="text-slate-900 font-normal text-[12px]">{row[6] || '---'}</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
 
-                        return (
-                          <td
-                            key={j}
-                            colSpan={isSectionHeader ? reportContent.headers.length : (isSubtotalRow && j === 0 ? reportContent.headers.length - 1 : 1)}
-                            className={`px-4 py-3 text-slate-700 font-medium whitespace-pre-line leading-relaxed
-                                ${isSectionHeader ? 'text-slate-900 text-[11px] tracking-widest uppercase py-4 whitespace-nowrap' : ''}
-                                ${isSubtotalRow ? 'text-slate-800 text-xs italic' : ''}
+                    if (row[0] === 'MONTH_SEPARATOR') {
+                      return (
+                        <tr key={i} className="bg-white border-0">
+                          <td colSpan={reportContent.headers.length} className="py-6">
+                            <hr className="border-t-2 border-slate-300 border-dashed" />
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    if (row[0] === 'COLUMN_HEADERS') {
+                      return (
+                        <tr key={i} className="bg-slate-50 border-y border-slate-200">
+                          {reportContent.headers.map((h: string, k: number) => (
+                            <th
+                              key={k}
+                              className={`px-4 py-3 font-black text-slate-600 uppercase text-[12px] tracking-wider whitespace-nowrap
+                                ${h.toLowerCase().includes('valor') || h.toLowerCase().includes('total') || h.toLowerCase().includes('saldo') || h.toLowerCase().includes('líquido') ? 'text-right' : 'text-left'}
+                                ${k === 0 ? 'w-[90px]' : ''}
+                      ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') ? (
+                                  k === 1 ? 'w-[180px]' :
+                                    k === 2 ? 'w-[40px]' :
+                                      k === 3 ? 'w-full' :
+                                        k === 4 ? 'w-[100px]' : ''
+                                ) : selectedReport === 'sales' ? (
+                                  k === 0 ? 'w-[80px]' :
+                                    k === 1 ? 'w-[60px]' :
+                                      k === 2 ? 'w-full min-w-[150px]' :
+                                        k === 3 ? 'w-[250px]' :
+                                          k === 4 ? 'w-[140px]' :
+                                            k === 5 ? 'w-[100px]' :
+                                              k === 6 ? 'w-[110px]' : ''
+                                ) : selectedReport === 'receivables' ? (
+                                  k === 0 ? 'w-full min-w-[180px]' :
+                                    k === 1 ? 'w-[70px]' :
+                                      k === 2 ? 'w-[90px]' :
+                                        k === 3 ? 'w-[90px]' :
+                                          k === 4 ? 'w-[130px]' :
+                                            k === 5 ? 'w-[130px]' :
+                                              k === 6 ? 'w-[120px]' :
+                                                k === 7 ? 'w-[110px]' : ''
+                                ) : selectedReport === 'receivablesPending' ? (
+                                  k === 0 ? 'w-[100px]' :
+                                    k === 1 ? 'w-full' :
+                                      k === 2 ? 'w-[60px]' :
+                                        k === 3 ? 'w-[150px]' :
+                                          k === 4 ? 'w-[100px]' :
+                                            k === 5 ? 'w-[120px]' : ''
+                                ) : selectedReport === 'expensesPending' ? (
+                                  k === 0 ? 'w-[150px]' :
+                                    k === 1 ? 'w-full min-w-[180px]' :
+                                      k === 2 ? 'w-[80px]' :
+                                        k === 3 ? 'w-[90px]' :
+                                          k === 4 ? 'w-[90px]' :
+                                            k === 5 ? 'w-[110px]' : ''
+                                ) : selectedReport === 'cardFees' ? (
+                                  k === 0 ? 'w-full min-w-[150px]' :
+                                    k === 1 ? 'w-[60px]' :
+                                      k === 2 ? 'w-[100px]' :
+                                        k === 3 ? 'w-[100px]' :
+                                          k === 4 ? 'w-[110px]' :
+                                            k === 5 ? 'w-[110px]' :
+                                              k === 6 ? 'w-[110px]' : ''
+                                ) : selectedReport === 'dre' ? (
+                                  k === 0 ? 'w-[50px]' :
+                                    k === 1 ? 'w-full' :
+                                      k === 2 ? 'w-[200px]' : ''
+                                ) : selectedReport === 'payments' ? (
+                                  k === 0 ? 'w-[100px]' :
+                                    k === 1 ? 'w-full min-w-[180px]' :
+                                      k === 2 ? 'w-[80px]' :
+                                        k === 3 ? 'w-[150px]' :
+                                          k === 4 ? 'w-[120px]' :
+                                            k === 5 ? 'w-[110px]' : ''
+                                ) : (
+                                  k === 1 ? 'w-[60px]' :
+                                    k === 2 ? 'w-auto min-w-[300px] print:min-w-0' :
+                                      k === 3 ? '' :
+                                        k === 4 ? 'w-[120px]' :
+                                          k === 5 ? 'w-[120px]' : ''
+                                )}
+                              `}
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      );
+                    }
+
+                    if (row[0] === 'DRE_SECTION') {
+                      return (
+                        <tr key={i} className="bg-slate-50/50 border-y border-slate-200">
+                          <td colSpan={reportContent.headers.length} className="px-4 py-3 font-black text-slate-800 uppercase tracking-widest text-sm">
+                            {row[1]}
+                          </td>
+                        </tr>
+                      );
+                    }
+                    if (row[0] === 'DRE_SUBTOTAL') {
+                      return (
+                        <tr key={i} className="border-t border-slate-200">
+                          <td className="px-4 py-2"></td>
+                          <td className="px-4 py-2 font-black text-slate-700 text-right">{row[1]}</td>
+                          <td className="px-4 py-2 font-black text-slate-900 border-l border-slate-200 text-right">{row[2]}</td>
+                        </tr>
+                      );
+                    }
+                    if (row[0] === 'DRE_RESULT') {
+                      return (
+                        <tr key={i} className="border-t-4 border-slate-900 bg-amber-500/10">
+                          <td colSpan={2} className="px-4 py-4 font-black text-slate-900 text-right uppercase tracking-widest text-base">
+                            {row[1]}
+                          </td>
+                          <td className="px-4 py-4 font-black text-amber-700 text-xl border-l border-slate-900 text-right whitespace-nowrap">
+                            {row[2]}
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <tr key={i} className={`${isSectionHeader ? 'font-black border-y border-slate-300' : ''} ${isSubtotalRow ? 'font-black border-y border-slate-200' : ''}`}>
+                        {row.map((cell, j) => {
+                          // Skip empty cells in subtotal rows that are covered by the colSpan of the first cell
+                          if (isSubtotalRow && j > 0 && j < row.length - 1) return null;
+                          if (isSectionHeader && j > 0) return null;
+
+                          const isCredit = selectedReport === 'bankStatement' && j === 2 && typeof cell === 'number' && cell > 0;
+                          const isDebit = selectedReport === 'bankStatement' && j === 3 && typeof cell === 'number' && cell > 0;
+                          const isBalance = selectedReport === 'bankStatement' && j === 4;
+
+                          return (
+                            <td
+                              key={j}
+                              colSpan={isSectionHeader ? reportContent.headers.length : (isSubtotalRow && j === 0 ? reportContent.headers.length - 1 : 1)}
+                              className={`px-4 py-3 text-slate-700 font-medium leading-relaxed print:text-[12px]
+                                ${isSectionHeader ? 'text-slate-900 text-sm tracking-widest uppercase py-4 whitespace-nowrap print:text-[12px]' : ''}
+                                ${isSubtotalRow ? 'text-slate-800 text-sm print:text-[12px]' : ''}
                                 ${isCredit ? 'text-emerald-600 font-bold' : ''}
                                 ${isDebit ? 'text-rose-600 font-bold' : ''}
                                 ${isBalance ? 'bg-slate-50/50 font-black text-slate-900 border-l border-slate-200' : ''}
-                                ${isSubtotalRow && j === row.length - 1 ? 'text-right font-black border-l-2 border-slate-900' : ''}
-                                ${selectedReport === 'sales' && j === 4 ? 'text-right' : ''}
-                                ${(isSubtotalRow && j === 0) ? 'whitespace-nowrap' : ''}
+                                 ${isTotalMonthRow ? 'bg-amber-500/10' : ''}
+                                 ${isSubtotalRow && j === (isSectionHeader ? 0 : row.length - 1) ? 'text-right font-black border-l-2 border-slate-900' : ''}
+                                 ${(selectedReport === 'sales' && j === 6) || (selectedReport === 'receivables' && j === 7) || (selectedReport === 'dre' && j === 2) || (selectedReport === 'expensesPending' && j === 5) || (selectedReport === 'payments' && j === 5) || (selectedReport === 'receivablesPending' && j === 5) || (selectedReport === 'corporateCard' && j === 4) || (selectedReport === 'cardFees' && [4, 5, 6].includes(j)) || (selectedReport === 'bankStatement' && [2, 3, 4].includes(j)) ? 'text-right' : 'text-left'}
+                                 ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 4 ? 'text-right' : ''}
+                                 ${selectedReport === 'payments' ? (
+                                  j === 0 ? 'w-[100px]' :
+                                    j === 1 ? 'w-full min-w-[180px]' :
+                                      j === 2 ? 'w-[80px]' :
+                                        j === 3 ? 'w-[150px]' :
+                                          j === 4 ? 'w-[120px]' :
+                                            j === 5 ? 'w-[110px]' : ''
+                                ) : selectedReport === 'sales' ? (
+                                  j === 0 ? 'w-[80px]' :
+                                    j === 1 ? 'w-[60px]' :
+                                      j === 2 ? 'w-full min-w-[150px]' :
+                                        j === 3 ? 'w-[250px]' :
+                                          j === 4 ? 'w-[140px]' :
+                                            j === 5 ? 'w-[100px]' :
+                                              j === 6 ? 'w-[110px]' : ''
+                                ) : (selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1 ? 'min-w-[180px]' : ''}
+                                 ${((selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1) || ((selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && (j >= 0 && j <= 4)) || (selectedReport === 'sales' && [2, 3, 4].includes(j)) ? 'whitespace-nowrap' : (isSectionHeader ? '' : 'whitespace-pre-line')}
+                                ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1 ? 'min-w-[180px]' : ''}
+                                ${(selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && j === 3 ? 'text-left' : ''}
+                                ${(isSubtotalRow && (j === 0 || j === 1)) ? 'whitespace-nowrap text-left' : ''}
+                                ${isTotalMonthRow && j === 0 ? 'font-black text-slate-900 text-sm' : ''}
                             `}
-                          >
-                            {cell}
-                          </td>
-                        );
-                      })}
+                            >
+                              {cell}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  }) : (
+                    <tr>
+                      <td colSpan={reportContent.headers.length} className="px-4 py-10 text-center italic text-slate-400">
+                        Nenhum registro encontrado.
+                      </td>
                     </tr>
-                  );
-                }) : (
-                  <tr>
-                    <td colSpan={reportContent.headers.length} className="px-4 py-10 text-center italic text-slate-400">
-                      Nenhum registro encontrado.
-                    </td>
-                  </tr>
+                  )}
+                </tbody>
+
+                {(reportContent.total !== undefined || reportContent.closingBalance !== undefined) && reportContent.rows.length > 0 && (
+                  <tbody className="border-t-4 border-slate-900 bg-slate-100 font-black">
+                    <tr className="print:break-inside-avoid">
+                      <td colSpan={reportContent.headers.length - 1} className="px-4 py-5 text-right text-slate-900 uppercase tracking-widest text-sm">
+                        {reportContent.closingBalance !== undefined
+                          ? 'Saldo Final em Conta:'
+                          : selectedReport === 'payments'
+                            ? 'TOTAL DE PAGAMENTOS REALIZADOS:'
+                            : selectedReport === 'receivablesPending'
+                              ? 'TOTAL A RECEBER:'
+                              : selectedReport === 'receivables'
+                                ? 'TOTAL RECEBIDO:'
+                                : selectedReport === 'sales'
+                                  ? 'TOTAL DO FATURAMENTO:'
+                                  : 'TOTAL DE DESPESAS:'}
+                      </td>
+                      <td className={`px-4 py-5 text-xl whitespace-nowrap text-right ${reportContent.closingBalance !== undefined && reportContent.closingBalance < 0 ? 'text-rose-600' : 'text-slate-900 underline underline-offset-8 decoration-slate-300'}`}>
+                        {formatCurrency(reportContent.closingBalance ?? reportContent.total ?? 0)}
+                      </td>
+                    </tr>
+                  </tbody>
                 )}
-              </tbody>
 
-              {(reportContent.total !== undefined || reportContent.closingBalance !== undefined) && reportContent.rows.length > 0 && (
-                <tfoot className="border-t-4 border-slate-900 bg-slate-100 font-black">
-                  <tr>
-                    <td colSpan={reportContent.headers.length - 1} className="px-4 py-5 text-right text-slate-900 uppercase tracking-widest text-sm">
-                      {reportContent.closingBalance !== undefined ? 'Saldo Final em Conta:' : 'TOTAL PENDENTE GERAL:'}
-                    </td>
-                    <td className={`px-4 py-5 text-xl whitespace-nowrap text-right ${reportContent.closingBalance !== undefined && reportContent.closingBalance < 0 ? 'text-rose-600' : 'text-slate-900 underline underline-offset-8 decoration-slate-300'}`}>
-                      {formatCurrency(reportContent.closingBalance ?? reportContent.total ?? 0)}
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-
-          <div className="mt-12 pt-8 border-t border-slate-100 flex justify-between items-end text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-            <div>
-              <p>Relatório Gerencial Interno - Sistema Terraplanagem Bauru</p>
+                {/* Repete Rodapé em Todas as Páginas na Impressão */}
+                {/* Rodapé removido conforme solicitação */}
+              </table>
             </div>
-            <div className="text-right">
-              <p>Página 1 de 1</p>
-            </div>
+
+            {/* Rodapé removido conforme solicitação */}
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {!selectedReport && (
-        <div className="bg-slate-100/50 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center py-20 px-4 text-center">
-          <Printer size={48} className="text-slate-300 mb-4" />
-          <h4 className="text-slate-500 font-bold text-lg">Pronto para emitir!</h4>
-          <p className="text-slate-400 text-sm max-w-xs mt-2">Selecione um dos botões acima para visualizar a prévia do relatório antes de imprimir.</p>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const ReportButton = ({ active, onClick, label, icon: Icon, color = 'amber' }: any) => {
-  const activeColors: Record<string, string> = {
-    amber: 'border-amber-500 bg-amber-50 text-amber-700',
-    rose: 'border-rose-500 bg-rose-50 text-rose-700',
-    blue: 'border-blue-500 bg-blue-50 text-blue-700'
-  };
-
-  const iconColors: Record<string, string> = {
-    amber: 'text-amber-700 bg-amber-200',
-    rose: 'text-rose-700 bg-rose-200',
-    blue: 'text-blue-700 bg-blue-200'
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-center justify-between px-5 py-4 rounded-2xl border-2 transition-all group ${active
-        ? `${activeColors[color]} shadow-lg`
-        : 'border-slate-100 hover:border-amber-200 hover:bg-slate-50 text-slate-500'
-        }`}
-    >
-      <div className="flex items-center space-x-3 text-left">
-        <div className={`p-2 rounded-xl transition-colors ${active ? iconColors[color] : 'bg-slate-100 group-hover:bg-amber-100'}`}>
-          <Icon size={20} className={active ? '' : 'text-slate-400 group-hover:text-amber-500'} />
-        </div>
-        <span className={`font-bold text-sm leading-tight ${active ? 'opacity-100' : 'text-slate-600'}`}>{label}</span>
-      </div>
-      <ChevronRight size={18} className={`flex-shrink-0 transition-transform ${active ? 'rotate-90 text-current' : 'text-slate-300'}`} />
-    </button>
+      {
+        !selectedReport && (
+          <div className="bg-slate-100/50 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center py-20 px-4 text-center">
+            <Printer size={48} className="text-slate-300 mb-4" />
+            <h4 className="text-slate-500 font-bold text-lg">Pronto para emitir!</h4>
+            <p className="text-slate-400 text-sm max-w-xs mt-2">Selecione uma categoria acima para visualizar a prévia do relatório antes de imprimir.</p>
+          </div>
+        )
+      }
+    </div >
   );
 };
 

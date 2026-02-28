@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { 
-  Plus, Search, Edit, Trash2, Wrench, X, History, 
+import {
+  Plus, Search, Edit, Trash2, Wrench, X, History,
   AlertTriangle, CheckCircle2, Calendar, LayoutGrid, Info, Eye, FileText
 } from 'lucide-react';
 import { Equipment, MaintenanceRecord, MaintenanceIntervals } from '../types';
@@ -23,14 +23,21 @@ const itemLabels: Record<keyof MaintenanceIntervals, string> = {
   others: 'Outras Manutenções'
 };
 
-const FleetManager: React.FC<FleetManagerProps> = ({ 
-  fleet, setFleet, maintenanceRecords, setMaintenanceRecords 
+const formatDateDisplay = (dateStr: string | undefined) => {
+  if (!dateStr) return '---';
+  if (!dateStr.includes('-')) return dateStr;
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}/${year}`;
+};
+
+const FleetManager: React.FC<FleetManagerProps> = ({
+  fleet, setFleet, maintenanceRecords, setMaintenanceRecords
 }) => {
   const [activeTab, setActiveTab] = useState<'alerts' | 'inventory' | 'history'>('alerts');
   const [isEquipModalOpen, setIsEquipModalOpen] = useState(false);
   const [isMaintModalOpen, setIsMaintModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingMaintId, setEditingMaintId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -47,7 +54,7 @@ const FleetManager: React.FC<FleetManagerProps> = ({
   });
 
   const [maintForm, setMaintForm] = useState<Partial<MaintenanceRecord>>({
-    equipmentId: '', date: new Date().toISOString().split('T')[0],
+    equipmentId: '', date: new Date().toLocaleDateString('en-CA'),
     nfNumber: '', performedItems: [], observations: ''
   });
 
@@ -59,7 +66,7 @@ const FleetManager: React.FC<FleetManagerProps> = ({
     fleet.forEach(equip => {
       Object.keys(equip.intervals).forEach((key) => {
         const itemKey = key as keyof MaintenanceIntervals;
-        
+
         const lastMaint = maintenanceRecords
           .filter(r => r.equipmentId === equip.id && r.performedItems.includes(itemKey))
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
@@ -68,9 +75,9 @@ const FleetManager: React.FC<FleetManagerProps> = ({
           const lastDate = new Date(lastMaint.date);
           const nextDate = new Date(lastDate);
           nextDate.setMonth(lastDate.getMonth() + equip.intervals[itemKey]);
-          
+
           const diffDays = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-          
+
           let status: 'overdue' | 'warning' | 'info' | 'ok' = 'ok';
           if (diffDays <= 0) status = 'overdue';
           else if (diffDays <= 2) status = 'warning';
@@ -120,7 +127,7 @@ const FleetManager: React.FC<FleetManagerProps> = ({
     } else {
       setEditingMaintId(null);
       setMaintForm({
-        equipmentId: '', date: new Date().toISOString().split('T')[0],
+        equipmentId: '', date: new Date().toLocaleDateString('en-CA'),
         nfNumber: '', performedItems: [], observations: ''
       });
     }
@@ -140,7 +147,7 @@ const FleetManager: React.FC<FleetManagerProps> = ({
   const handleSaveMaint = (e: React.FormEvent) => {
     e.preventDefault();
     if (!maintForm.equipmentId || maintForm.performedItems?.length === 0) return alert('Selecione o equipamento e ao menos um item.');
-    
+
     if (editingMaintId) {
       setMaintenanceRecords(prev => prev.map(rec => rec.id === editingMaintId ? { ...rec, ...maintForm } as MaintenanceRecord : rec));
     } else {
@@ -217,8 +224,8 @@ const FleetManager: React.FC<FleetManagerProps> = ({
                   <td className="px-6 py-4 font-bold text-slate-600">A cada {equip.intervals.oilChange} meses</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-2">
-                       <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
-                       <span className="text-xs font-bold text-slate-600">Operacional</span>
+                      <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
+                      <span className="text-xs font-bold text-slate-600">Operacional</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
@@ -254,7 +261,7 @@ const FleetManager: React.FC<FleetManagerProps> = ({
                 const equip = fleet.find(f => f.id === rec.equipmentId);
                 return (
                   <tr key={rec.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-bold text-slate-800">{new Date(rec.date).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 font-bold text-slate-800">{formatDateDisplay(rec.date)}</td>
                     <td className="px-6 py-4 text-slate-600 font-medium">
                       {equip ? `${equip.type} - ${equip.model}` : 'Desconhecido'}
                     </td>
@@ -271,10 +278,10 @@ const FleetManager: React.FC<FleetManagerProps> = ({
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                       <div className="flex justify-end space-x-1">
-                          <button onClick={() => handleOpenMaint(rec)} className="p-2 text-slate-400 hover:text-amber-500" title="Editar Registro"><Edit size={16} /></button>
-                          <button onClick={() => setMaintenanceRecords(prev => prev.filter(r => r.id !== rec.id))} className="p-2 text-slate-300 hover:text-rose-500" title="Excluir Registro"><Trash2 size={16} /></button>
-                       </div>
+                      <div className="flex justify-end space-x-1">
+                        <button onClick={() => handleOpenMaint(rec)} className="p-2 text-slate-400 hover:text-amber-500" title="Editar Registro"><Edit size={16} /></button>
+                        <button onClick={() => setMaintenanceRecords(prev => prev.filter(r => r.id !== rec.id))} className="p-2 text-slate-300 hover:text-rose-500" title="Excluir Registro"><Trash2 size={16} /></button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -340,19 +347,19 @@ const FleetManager: React.FC<FleetManagerProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-black text-slate-500 uppercase mb-1">Equipamento *</label>
-                  <select required className="w-full px-4 py-3 border rounded-xl bg-white font-bold outline-none focus:ring-2 focus:ring-emerald-500/20" value={maintForm.equipmentId} onChange={e => setMaintForm({...maintForm, equipmentId: e.target.value})}>
+                  <select required className="w-full px-4 py-3 border rounded-xl bg-white font-bold outline-none focus:ring-2 focus:ring-emerald-500/20" value={maintForm.equipmentId} onChange={e => setMaintForm({ ...maintForm, equipmentId: e.target.value })}>
                     <option value="">Escolha...</option>
                     {fleet.map(e => <option key={e.id} value={e.id}>{e.type} - {e.model}</option>)}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                   <div>
+                  <div>
                     <label className="block text-xs font-black text-slate-500 uppercase mb-1">Data Realização</label>
-                    <input type="date" required className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20" value={maintForm.date} onChange={e => setMaintForm({...maintForm, date: e.target.value})} />
+                    <input type="date" required className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20" value={maintForm.date} onChange={e => setMaintForm({ ...maintForm, date: e.target.value })} />
                   </div>
                   <div>
                     <label className="block text-xs font-black text-slate-500 uppercase mb-1">Nº Nota Fiscal (NF)</label>
-                    <input placeholder="Ex: 00254" className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 font-black" value={maintForm.nfNumber} onChange={e => setMaintForm({...maintForm, nfNumber: e.target.value})} />
+                    <input placeholder="Ex: 00254" className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 font-black" value={maintForm.nfNumber} onChange={e => setMaintForm({ ...maintForm, nfNumber: e.target.value })} />
                   </div>
                 </div>
               </div>
@@ -364,14 +371,14 @@ const FleetManager: React.FC<FleetManagerProps> = ({
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-slate-50 p-6 rounded-2xl border border-slate-200">
                   {Object.entries(itemLabels).map(([key, label]) => (
                     <label key={key} className="flex items-center space-x-3 cursor-pointer group bg-white p-3 rounded-xl border border-slate-200 hover:border-emerald-500 transition-all">
-                      <input 
-                        type="checkbox" 
-                        className="w-5 h-5 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500" 
+                      <input
+                        type="checkbox"
+                        className="w-5 h-5 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500"
                         checked={maintForm.performedItems?.includes(key as any)}
                         onChange={e => {
                           const items = maintForm.performedItems || [];
-                          if (e.target.checked) setMaintForm({...maintForm, performedItems: [...items, key as any]});
-                          else setMaintForm({...maintForm, performedItems: items.filter(i => i !== key)});
+                          if (e.target.checked) setMaintForm({ ...maintForm, performedItems: [...items, key as any] });
+                          else setMaintForm({ ...maintForm, performedItems: items.filter(i => i !== key) });
                         }}
                       />
                       <span className="text-[10px] font-black text-slate-600 uppercase leading-tight">{label}</span>
@@ -382,13 +389,13 @@ const FleetManager: React.FC<FleetManagerProps> = ({
 
               <div>
                 <label className="block text-xs font-black text-slate-500 uppercase mb-1 flex items-center"><FileText size={14} className="mr-2" /> Documentação / Observações da Troca</label>
-                <textarea rows={3} placeholder="Descreva detalhes da manutenção, marca das peças ou observações para o próximo período..." className="w-full px-4 py-3 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/20" value={maintForm.observations} onChange={e => setMaintForm({...maintForm, observations: e.target.value})} />
+                <textarea rows={3} placeholder="Descreva detalhes da manutenção, marca das peças ou observações para o próximo período..." className="w-full px-4 py-3 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/20" value={maintForm.observations} onChange={e => setMaintForm({ ...maintForm, observations: e.target.value })} />
               </div>
 
               <div className="flex justify-end space-x-3 pt-6 border-t">
                 <button type="button" onClick={() => setIsMaintModalOpen(false)} className="px-6 py-2 text-slate-500 font-bold">Cancelar</button>
                 <button type="submit" className="px-10 py-3 bg-emerald-500 text-white font-black uppercase text-xs tracking-widest rounded-xl shadow-xl shadow-emerald-100 hover:scale-[1.02] active:scale-95 transition-all">
-                   {editingMaintId ? 'Salvar Alterações' : 'Confirmar Manutenção'}
+                  {editingMaintId ? 'Salvar Alterações' : 'Confirmar Manutenção'}
                 </button>
               </div>
             </form>
@@ -408,11 +415,11 @@ const FleetManager: React.FC<FleetManagerProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-black text-slate-500 uppercase mb-1">Tipo de Equipamento</label>
-                  <input required placeholder="Ex: Escavadeira, Caminhão..." className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500/20 outline-none" value={equipForm.type} onChange={e => setEquipForm({...equipForm, type: e.target.value})} />
+                  <input required placeholder="Ex: Escavadeira, Caminhão..." className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500/20 outline-none" value={equipForm.type} onChange={e => setEquipForm({ ...equipForm, type: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-xs font-black text-slate-500 uppercase mb-1">Modelo / Identificação</label>
-                  <input required placeholder="Ex: Volvo EC210B" className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500/20 outline-none font-bold" value={equipForm.model} onChange={e => setEquipForm({...equipForm, model: e.target.value})} />
+                  <input required placeholder="Ex: Volvo EC210B" className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500/20 outline-none font-bold" value={equipForm.model} onChange={e => setEquipForm({ ...equipForm, model: e.target.value })} />
                 </div>
               </div>
 
@@ -423,12 +430,12 @@ const FleetManager: React.FC<FleetManagerProps> = ({
                     <div key={key}>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{label}</label>
                       <div className="flex items-center space-x-2">
-                        <input 
-                          type="number" min="1" 
-                          className="w-full px-3 py-2 border rounded-xl text-sm font-black text-slate-700 outline-none focus:ring-2 focus:ring-amber-500/10" 
-                          value={equipForm.intervals?.[key as keyof MaintenanceIntervals]} 
+                        <input
+                          type="number" min="1"
+                          className="w-full px-3 py-2 border rounded-xl text-sm font-black text-slate-700 outline-none focus:ring-2 focus:ring-amber-500/10"
+                          value={equipForm.intervals?.[key as keyof MaintenanceIntervals]}
                           onChange={e => setEquipForm({
-                            ...equipForm, 
+                            ...equipForm,
                             intervals: { ...equipForm.intervals!, [key]: Number(e.target.value) }
                           })}
                         />
@@ -441,7 +448,7 @@ const FleetManager: React.FC<FleetManagerProps> = ({
 
               <div>
                 <label className="block text-xs font-black text-slate-500 uppercase mb-1">Observações Técnicas</label>
-                <textarea rows={2} className="w-full px-4 py-3 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/20" value={equipForm.observations} onChange={e => setEquipForm({...equipForm, observations: e.target.value})} />
+                <textarea rows={2} className="w-full px-4 py-3 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/20" value={equipForm.observations} onChange={e => setEquipForm({ ...equipForm, observations: e.target.value })} />
               </div>
 
               <div className="flex justify-end space-x-3 pt-6 border-t">
@@ -504,8 +511,8 @@ const AlertColumn = ({ title, type, items }: { title: string, type: 'overdue' | 
           </div>
         )) : (
           <div className="flex flex-col items-center justify-center h-full opacity-40">
-             <Wrench size={32} className="mb-2" />
-             <p className="text-[10px] font-black uppercase">Sem pendências</p>
+            <Wrench size={32} className="mb-2" />
+            <p className="text-[10px] font-black uppercase">Sem pendências</p>
           </div>
         )}
       </div>
