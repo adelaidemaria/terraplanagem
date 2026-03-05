@@ -307,9 +307,10 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                                     </div>
 
                                     <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-                                        <div className="flex items-center text-blue-600 font-black text-[10px] uppercase truncate max-w-[120px]">
+                                        <div className="flex items-center text-blue-600 font-black text-[10px] uppercase truncate max-w-[200px]">
                                             <Building2 size={12} className="mr-1 flex-shrink-0" />
                                             {bank?.bankName || 'BANCO'}
+                                            {bank?.isBlocked && <span className="ml-1 text-rose-500 font-bold">(BLOQUEADO)</span>}
                                         </div>
                                         <div className="flex items-center space-x-1">
                                             <button
@@ -421,7 +422,9 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                                 <label className="block text-sm font-semibold mb-1 text-slate-700">Pagar Com (Banco) *</label>
                                 <select autoFocus required className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-emerald-500" value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)}>
                                     <option value="">Selecione a Conta Origem...</option>
-                                    {bankAccounts.map(b => <option key={b.id} value={b.id}>{b.bankName} / {b.accountNumber}</option>)}
+                                    {bankAccounts
+                                        .filter(b => !b.isBlocked || b.id === bankAccountId)
+                                        .map(b => <option key={b.id} value={b.id}>{b.bankName} / {b.accountNumber}</option>)}
                                 </select>
                             </div>
 
@@ -438,6 +441,8 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                                         <option value="Boleto">Boleto</option>
                                         <option value="Transferência">Transferência (TED/DOC)</option>
                                         <option value="Cartão Corporativo">Cartão Corporativo</option>
+                                        <option value="Débito">Débito</option>
+                                        <option value="Cheque">Cheque</option>
                                     </select>
                                 </div>
                             </div>

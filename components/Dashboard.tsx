@@ -1,5 +1,5 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   TrendingUp,
   HandCoins,
@@ -12,7 +12,8 @@ import {
   ArrowRight,
   Calendar,
   Wrench,
-  CreditCard
+  CreditCard,
+  X
 } from 'lucide-react';
 import { DashboardStats, Sale, Expense, Customer } from '../types';
 import {
@@ -57,6 +58,16 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const netResult = stats.totalSales - stats.totalExpenses;
+
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
+  useEffect(() => {
+    const hasShown = sessionStorage.getItem('dashboard_welcome_shown');
+    if (!hasShown) {
+      setShowWelcomeModal(true);
+      sessionStorage.setItem('dashboard_welcome_shown', 'true');
+    }
+  }, []);
 
   // Filtrar transações recentes baseadas na data selecionada para manter consistência
   const startTs = new Date(startDate).getTime();
@@ -198,73 +209,97 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Alert Boxes */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className={`p-4 rounded-xl border-2 shadow-sm flex flex-col justify-between transition-all ${hasReceivablesToday ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-100'}`}>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-lg font-bold text-slate-500">Contas a Receber Hoje</h3>
-            <div className={`p-1.5 rounded-lg ${hasReceivablesToday ? 'bg-amber-200 text-amber-700 shadow-sm' : 'bg-slate-100 text-slate-400'}`}>
-              <HandCoins size={18} />
-            </div>
-          </div>
-          <div className="mt-1">
-            {hasReceivablesToday ? (
-              <span className="text-xl font-black text-amber-600 flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
-                </span>
-                SIM
-              </span>
-            ) : (
-              <span className="text-xl font-black text-slate-300">NÃO</span>
-            )}
-          </div>
-        </div>
-
-        <div className={`p-4 rounded-xl border-2 shadow-sm flex flex-col justify-between transition-all ${hasPayablesToday ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-100'}`}>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-lg font-bold text-slate-500">Contas a Pagar Hoje</h3>
-            <div className={`p-1.5 rounded-lg ${hasPayablesToday ? 'bg-rose-200 text-rose-700 shadow-sm' : 'bg-slate-100 text-slate-400'}`}>
-              <CreditCard size={18} />
-            </div>
-          </div>
-          <div className="mt-1">
-            {hasPayablesToday ? (
-              <span className="text-xl font-black text-rose-600 flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
-                </span>
-                SIM
-              </span>
-            ) : (
-              <span className="text-xl font-black text-slate-300">NÃO</span>
-            )}
-          </div>
-        </div>
-
-        <div className={`p-4 rounded-xl border-2 shadow-sm flex flex-col justify-between transition-all ${hasFleetAlerts ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100'}`}>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-lg font-bold text-slate-500">Controle de Frota</h3>
-            <div className={`p-1.5 rounded-lg ${hasFleetAlerts ? 'bg-blue-200 text-blue-700 shadow-sm' : 'bg-slate-100 text-slate-400'}`}>
-              <Wrench size={18} />
-            </div>
-          </div>
-          <div className="mt-1">
-            {hasFleetAlerts ? (
+      {/* Welcome Modal */}
+      {showWelcomeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+            <div className="flex items-center justify-between p-6 bg-gradient-to-r from-amber-500 to-amber-600">
+              <h2 className="text-2xl font-black text-white">Resumo do Dia</h2>
               <button
-                onClick={onNavigateToFleet}
-                className="text-lg font-black text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-2 cursor-pointer uppercase"
+                onClick={() => setShowWelcomeModal(false)}
+                className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-xl transition-colors"
+                title="Fechar"
               >
-                VER CONTROLE <ArrowRight size={18} />
+                <X size={24} />
               </button>
-            ) : (
-              <span className="text-xl font-black text-emerald-500">Tudo Ok</span>
-            )}
+            </div>
+
+            <div className="p-8 space-y-6">
+              <p className="text-slate-600 font-medium text-lg text-center mb-8">
+                Aqui estão as suas notificações pendentes para hoje:
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className={`p-6 rounded-2xl border-2 shadow-sm flex flex-col items-center text-center transition-all ${hasReceivablesToday ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
+                  <div className={`p-4 rounded-full mb-4 ${hasReceivablesToday ? 'bg-amber-100 text-amber-600 shadow-inner' : 'bg-slate-200 text-slate-400'}`}>
+                    <HandCoins size={32} />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-2">Contas a Receber</h3>
+                  {hasReceivablesToday ? (
+                    <span className="text-2xl font-black text-amber-600 flex items-center gap-2">
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                      </span>
+                      SIM
+                    </span>
+                  ) : (
+                    <span className="text-xl font-black text-slate-300">NÃO</span>
+                  )}
+                </div>
+
+                <div className={`p-6 rounded-2xl border-2 shadow-sm flex flex-col items-center text-center transition-all ${hasPayablesToday ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-100'}`}>
+                  <div className={`p-4 rounded-full mb-4 ${hasPayablesToday ? 'bg-rose-100 text-rose-600 shadow-inner' : 'bg-slate-200 text-slate-400'}`}>
+                    <CreditCard size={32} />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-2">Contas a Pagar</h3>
+                  {hasPayablesToday ? (
+                    <span className="text-2xl font-black text-rose-600 flex items-center gap-2">
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                      </span>
+                      SIM
+                    </span>
+                  ) : (
+                    <span className="text-xl font-black text-slate-300">NÃO</span>
+                  )}
+                </div>
+
+                <div className={`p-6 rounded-2xl border-2 shadow-sm flex flex-col items-center text-center transition-all ${hasFleetAlerts ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-100'}`}>
+                  <div className={`p-4 rounded-full mb-4 ${hasFleetAlerts ? 'bg-blue-100 text-blue-600 shadow-inner' : 'bg-slate-200 text-slate-400'}`}>
+                    <Wrench size={32} />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-2">Controle Frota</h3>
+                  {hasFleetAlerts ? (
+                    <button
+                      onClick={() => {
+                        setShowWelcomeModal(false);
+                        if (onNavigateToFleet) onNavigateToFleet();
+                      }}
+                      className="text-lg font-black text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-2 cursor-pointer uppercase mt-1"
+                    >
+                      VER
+                      <ArrowRight size={18} />
+                    </button>
+                  ) : (
+                    <span className="text-xl font-black text-emerald-500">TUDO OK</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-slate-100 flex justify-center">
+                <button
+                  onClick={() => setShowWelcomeModal(false)}
+                  className="px-8 py-3 bg-slate-800 text-white rounded-xl font-bold uppercase tracking-widest text-sm hover:bg-slate-700 transition-colors shadow-lg shadow-slate-200"
+                >
+                  Ir para o Painel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

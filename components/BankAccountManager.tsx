@@ -1,14 +1,16 @@
 
 import React, { useState } from 'react';
-import { Plus, Trash2, Building2, X, Edit, AlertTriangle, Wallet } from 'lucide-react';
-import { BankAccount } from '../types';
+import { Plus, Trash2, Building2, X, Edit, AlertTriangle, Wallet, Lock } from 'lucide-react';
+import { BankAccount, Payment, Expense } from '../types';
 
 interface BankAccountManagerProps {
   bankAccounts: BankAccount[];
   setBankAccounts: React.Dispatch<React.SetStateAction<BankAccount[]>>;
+  payments?: Payment[];
+  expenses?: Expense[];
 }
 
-const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, setBankAccounts }) => {
+const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, setBankAccounts, payments = [], expenses = [] }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -16,7 +18,8 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
     bankName: '',
     agency: '',
     accountNumber: '',
-    initialBalance: 0
+    initialBalance: 0,
+    isBlocked: false
   });
 
   const formatCurrency = (val: number) =>
@@ -33,7 +36,7 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
 
   const handleOpenAdd = () => {
     setEditingId(null);
-    setFormData({ bankName: '', agency: '', accountNumber: '', initialBalance: 0 });
+    setFormData({ bankName: '', agency: '', accountNumber: '', initialBalance: 0, isBlocked: false });
     setIsModalOpen(true);
   };
 
@@ -89,7 +92,10 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
           <tbody className="divide-y">
             {bankAccounts.length > 0 ? bankAccounts.map(bank => (
               <tr key={bank.id} className="hover:bg-slate-200/70 transition-colors cursor-pointer">
-                <td className="px-6 py-4 font-bold text-slate-800">{bank.bankName}</td>
+                <td className="px-6 py-4 font-bold text-slate-800">
+                  {bank.bankName}
+                  {bank.isBlocked && <span className="ml-2 text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-bold inline-flex items-center"><Lock size={10} className="mr-1" /> BLOQUEADO</span>}
+                </td>
                 <td className="px-6 py-4 text-slate-600">{bank.agency} / {bank.accountNumber}</td>
                 <td className="px-6 py-4 font-semibold text-slate-700">{formatCurrency(bank.initialBalance || 0)}</td>
                 <td className="px-6 py-4 text-right">
@@ -109,12 +115,24 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border-t-4 border-rose-500">
-            <h3 className="text-lg font-bold mb-2 flex items-center text-rose-600"><AlertTriangle className="mr-2" /> Remover Banco?</h3>
-            <p className="text-sm text-slate-600 mb-6 font-medium">Isso pode afetar o histórico de recebimentos. Confirma a exclusão?</p>
-            <div className="flex justify-end space-x-3">
-              <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 text-slate-500 font-bold">Cancelar</button>
-              <button onClick={() => handleDelete(deleteConfirmId)} className="px-6 py-2 bg-rose-500 text-white font-bold rounded-lg shadow-lg">Confirmar</button>
-            </div>
+            {payments.some(p => p.bankAccountId === deleteConfirmId) || expenses.some(e => e.bankAccountId === deleteConfirmId) ? (
+              <>
+                <h3 className="text-lg font-bold mb-2 flex items-center text-rose-600"><AlertTriangle className="mr-2" /> EXCLUSÃO NÃO AUTORIZADA</h3>
+                <p className="text-sm text-slate-600 mb-6 font-medium">Existem lançamentos vinculados a esta conta bancária. Bloqueie a conta se não for mais utilizá-la.</p>
+                <div className="flex justify-end space-x-3">
+                  <button onClick={() => setDeleteConfirmId(null)} className="px-6 py-2 bg-slate-200 text-slate-700 font-bold rounded-lg shadow-sm hover:bg-slate-300">Voltar</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-bold mb-2 flex items-center text-rose-600"><AlertTriangle className="mr-2" /> Remover Banco?</h3>
+                <p className="text-sm text-slate-600 mb-6 font-medium">Isso pode afetar o histórico de recebimentos. Confirma a exclusão?</p>
+                <div className="flex justify-end space-x-3">
+                  <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 text-slate-500 font-bold">Cancelar</button>
+                  <button onClick={() => handleDelete(deleteConfirmId)} className="px-6 py-2 bg-rose-500 text-white font-bold rounded-lg shadow-lg">Confirmar</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -159,6 +177,24 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-tighter italic">Esse valor será o ponto de partida para todos os extratos.</p>
               </div>
+
+              <div className="mt-4 border-t pt-4">
+                <label className="flex items-center cursor-pointer space-x-3 group">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={formData.isBlocked || false}
+                      onChange={(e) => setFormData({ ...formData, isBlocked: e.target.checked })}
+                    />
+                    <div className={`block w-10 h-6 rounded-full transition-colors ${formData.isBlocked ? 'bg-rose-500' : 'bg-slate-300'}`}></div>
+                    <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.isBlocked ? 'transform translate-x-4' : ''}`}></div>
+                  </div>
+                  <span className="text-sm font-bold text-slate-700 select-none">Conta Bloqueada</span>
+                </label>
+                {formData.isBlocked && <p className="text-xs text-rose-500 mt-2 font-medium">Ao bloquear a conta, ela deixará de aparecer como opção para novos lançamentos de despesas e receitas.</p>}
+              </div>
+
               <div className="flex justify-end space-x-3 mt-6">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-500 font-bold">Cancelar</button>
                 <button type="submit" className="px-6 py-2 bg-amber-500 text-white font-bold rounded-lg shadow-lg">Confirmar Cadastro</button>

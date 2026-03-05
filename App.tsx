@@ -14,7 +14,8 @@ import {
   Printer,
   Wrench,
   User,
-  CreditCard
+  CreditCard,
+  ArrowRightLeft
 } from 'lucide-react';
 import {
   Customer,
@@ -27,10 +28,12 @@ import {
   DashboardStats,
   AccountPlan,
   AccountCategory,
+  AccountSubcategory,
   BankAccount,
   Equipment,
   MaintenanceRecord,
-  AdminUser
+  AdminUser,
+  BankTransfer
 } from './types';
 
 // Components
@@ -43,6 +46,7 @@ import PayablesManager from './components/PayablesManager';
 import ReceivablesManager from './components/ReceivablesManager';
 import AccountPlanManager from './components/AccountPlanManager';
 import BankAccountManager from './components/BankAccountManager';
+import TransferManager from './components/TransferManager';
 import ReportsManager from './components/ReportsManager';
 import FleetManager from './components/FleetManager';
 import SettingsManager from './components/SettingsManager';
@@ -109,13 +113,15 @@ const App: React.FC = () => {
   const [expenses, setExpenses, expLoaded] = useSupabaseSync<Expense>('expenses');
   const [payments, setPayments, payLoaded] = useSupabaseSync<Payment>('payments');
   const [accountPlan, setAccountPlan, apLoaded] = useSupabaseSync<AccountPlan>('account_plans');
+  const [accountSubcategories, setAccountSubcategories, ascLoaded] = useSupabaseSync<AccountSubcategory>('account_subcategories');
   const [bankAccounts, setBankAccounts, baLoaded] = useSupabaseSync<BankAccount>('bank_accounts');
+  const [bankTransfers, setBankTransfers, btLoaded] = useSupabaseSync<BankTransfer>('bank_transfers');
 
   // Fleet State
   const [fleet, setFleet, fleetLoaded] = useSupabaseSync<Equipment>('equipment');
   const [maintenanceRecords, setMaintenanceRecords, mrLoaded] = useSupabaseSync<MaintenanceRecord>('maintenance_records');
 
-  const allLoaded = adminLoaded && customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && baLoaded && fleetLoaded && mrLoaded;
+  const allLoaded = adminLoaded && customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && fleetLoaded && mrLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -225,6 +231,7 @@ const App: React.FC = () => {
       case 'customers':
         return <CustomerManager
           customers={customers} setCustomers={setCustomers}
+          sales={sales}
           onNavigateToReports={() => {
             setSelectedReportType('customersSummary');
             setCurrentView('reports');
@@ -233,6 +240,7 @@ const App: React.FC = () => {
       case 'vendors':
         return <VendorManager
           vendors={vendors} setVendors={setVendors}
+          expenses={expenses}
           accountPlan={accountPlan}
           onNavigateToReports={() => {
             setSelectedReportType('vendorsSummary');
@@ -284,23 +292,40 @@ const App: React.FC = () => {
           setAccountPlan={setAccountPlan}
           accountCategories={accountCategories}
           setAccountCategories={setAccountCategories}
+          accountSubcategories={accountSubcategories}
+          setAccountSubcategories={setAccountSubcategories}
+          sales={sales}
+          expenses={expenses}
           onNavigateToReports={() => {
-            setSelectedReportType('accountPlan');
+            setSelectedReportType('accountCategoriesList');
             setCurrentView('reports');
           }}
         />;
       case 'banks':
-        return <BankAccountManager bankAccounts={bankAccounts} setBankAccounts={setBankAccounts} />;
+        return <BankAccountManager bankAccounts={bankAccounts} setBankAccounts={setBankAccounts} payments={payments} expenses={expenses} />;
+      case 'transfers':
+        return <TransferManager
+          bankAccounts={bankAccounts}
+          transfers={bankTransfers}
+          setTransfers={setBankTransfers}
+          onGoToReports={(type) => {
+            if (type) setSelectedReportType(type);
+            setCurrentView('reports');
+          }}
+        />;
       case 'reports':
         return <ReportsManager
           customers={customers}
           vendors={vendors}
           vendorCategories={vendorCategories}
+          accountCategories={accountCategories}
+          accountSubcategories={accountSubcategories}
           sales={sales}
           expenses={expenses}
           payments={payments}
           accountPlan={accountPlan}
           bankAccounts={bankAccounts}
+          bankTransfers={bankTransfers}
           fleet={fleet}
           maintenanceRecords={maintenanceRecords}
           initialReport={selectedReportType as any}
@@ -380,6 +405,12 @@ const App: React.FC = () => {
           <NavItem id="expenses" label="Lançar Despesas" icon={Wallet} />
           <NavItem id="payables" label="Contas a Pagar" icon={CreditCard} />
 
+          <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
+            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Tesouraria</span>
+          </div>
+          <NavItem id="banks" label="Contas Bancárias" icon={Building2} />
+          <NavItem id="transfers" label="Transferências" icon={ArrowRightLeft} />
+
           <div className="pt-6 pb-2 px-4 border-t border-slate-800 mt-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Relatórios</span>
           </div>
@@ -394,7 +425,6 @@ const App: React.FC = () => {
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Configurações</span>
           </div>
           <NavItem id="accountPlan" label="Plano de Contas" icon={BookOpen} />
-          <NavItem id="banks" label="Contas Banco" icon={Building2} />
           <NavItem id="settings" label="Acesso ao Sistema" icon={User} />
         </nav>
 
@@ -420,12 +450,16 @@ const App: React.FC = () => {
             {currentView === 'receivables' && 'Contas a Receber'}
             {currentView === 'accountPlan' && 'Plano de Contas'}
             {currentView === 'banks' && 'Contas Bancárias'}
+            {currentView === 'transfers' && 'Transferências Bancárias'}
             {currentView === 'reports' && 'Módulo de Relatórios Gerenciais'}
             {currentView === 'fleet' && 'Controle de Frota e Manutenção'}
             {currentView === 'settings' && 'Configurações do Sistema'}
           </h1>
           <button
-            onClick={() => setIsAuthenticated(false)}
+            onClick={() => {
+              sessionStorage.removeItem('dashboard_welcome_shown');
+              setIsAuthenticated(false);
+            }}
             className="text-sm font-bold text-slate-500 hover:text-rose-500 transition-colors"
           >
             Sair

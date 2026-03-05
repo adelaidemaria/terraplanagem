@@ -70,6 +70,16 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
     return Number(cleanValue) / 100;
   };
 
+  const sortedRevenueAccounts = useMemo(() => {
+    return [...accountPlan]
+      .filter(p => p.type === 'Receita')
+      .sort((a, b) => {
+        const textA = `${a.category} / ${a.subcategory}`;
+        const textB = `${b.category} / ${b.subcategory}`;
+        return textA.localeCompare(textB);
+      });
+  }, [accountPlan]);
+
   const filteredSales = useMemo(() => {
     return sales
       .filter(s => {
@@ -526,7 +536,7 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">Categoria de Receitas *</label>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">Conta de Receitas *</label>
                       <select
                         disabled={modalMode === 'view'}
                         required
@@ -534,8 +544,8 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                         value={formData.accountPlanId}
                         onChange={(e) => setFormData({ ...formData, accountPlanId: e.target.value })}
                       >
-                        <option value="">Selecione a Categoria de Receita...</option>
-                        {accountPlan.filter(p => p.type === 'Receita').map(p => (
+                        <option value="">Selecione a Conta de Receita...</option>
+                        {sortedRevenueAccounts.map(p => (
                           <option key={p.id} value={p.id}>{p.category} / {p.subcategory}</option>
                         ))}
                       </select>

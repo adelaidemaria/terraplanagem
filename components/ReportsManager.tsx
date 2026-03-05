@@ -28,14 +28,17 @@ import {
   Expense,
   Payment,
   AccountPlan,
+  AccountCategory,
+  AccountSubcategory,
   BankAccount,
   Equipment,
   MaintenanceRecord,
-  MaintenanceIntervals
+  MaintenanceIntervals,
+  BankTransfer
 } from '../types';
 import Logo from './Logo';
 
-type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetOverdue' | 'fleetDue2' | 'fleetDue15' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre';
+type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetOverdue' | 'fleetDue2' | 'fleetDue15' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre';
 
 interface ReportsManagerProps {
   customers: Customer[];
@@ -45,7 +48,10 @@ interface ReportsManagerProps {
   expenses: Expense[];
   payments: Payment[];
   accountPlan: AccountPlan[];
+  accountCategories: AccountCategory[];
+  accountSubcategories: AccountSubcategory[];
   bankAccounts: BankAccount[];
+  bankTransfers: BankTransfer[];
   fleet: Equipment[];
   maintenanceRecords: MaintenanceRecord[];
   initialReport?: ReportType | null;
@@ -69,7 +75,7 @@ const formatDateDisplay = (dateStr: string | undefined) => {
 };
 
 const ReportsManager: React.FC<ReportsManagerProps> = ({
-  customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, initialReport
+  customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, accountCategories, accountSubcategories, bankAccounts, bankTransfers, fleet, maintenanceRecords, initialReport
 }) => {
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(initialReport || 'sales');
 
@@ -109,6 +115,12 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
     setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString('en-CA'));
     setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toLocaleDateString('en-CA'));
   };
+
+  const sortedExpenseAccounts = useMemo(() => {
+    return [...accountPlan]
+      .filter(p => p.type === 'Despesa')
+      .sort((a, b) => a.subcategory.localeCompare(b.subcategory));
+  }, [accountPlan]);
 
   const reportContent = useMemo(() => {
     if (!selectedReport) return null;
@@ -188,7 +200,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           headerInfo: 'Listagem de despesas cadastradas que ainda não foram baixadas (pagas).',
           headers: ['Tipo de Despesa', 'Fornecedor', 'Documento', 'Data Doc', 'Vencimento', 'Valor'],
           rows: pending.map(e => [
-            accountPlan.find(p => p.id === e.accountPlanId)?.subcategory || '---',
+            accountPlan.find(p => p.id === e.accountPlanId) ? `${accountPlan.find(p => p.id === e.accountPlanId)?.subcategory} / ${accountPlan.find(p => p.id === e.accountPlanId)?.description}` : '---',
             e.vendorName,
             e.docNumber || 'S/N',
             formatDateDisplay(e.date),
@@ -232,27 +244,27 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           monthExps.forEach(e => {
             const catId = e.accountPlanId;
             const apEntry = accountPlan.find(ap => ap.id === catId);
-            const subcat = apEntry?.subcategory || 'DIVERSOS';
+            const subcat = apEntry ? `${apEntry.subcategory} / ${apEntry.description}` : 'DIVERSOS';
             if (!byCategoryMap.has(subcat)) byCategoryMap.set(subcat, []);
             byCategoryMap.get(subcat)!.push(e);
           });
 
           byCategoryMap.forEach((catExps, catName) => {
             if (rows.length > 0 && rows[rows.length - 1][0] !== 'MONTH_SEPARATOR') rows.push(['', '', '', '', '', '']);
-            rows.push([`MÊS: ${month} - DESPESA: ${catName.toUpperCase()}`, '', '', '', '', '']);
+            rows.push([`MÊS: ${month} - CONTA: ${catName.toUpperCase()}`, '', '', '', '', '']);
             rows.push(['COLUMN_HEADERS', '', '', '', '', '']);
             catExps.forEach(e => {
               const ap = accountPlan.find(p => p.id === e.accountPlanId);
               rows.push([
                 formatDateDisplay(e.date),
-                ap?.subcategory || 'DIVERSOS',
+                ap ? ap.description : 'DIVERSOS',
                 e.docNumber || 'S/N',
                 e.vendorName,
                 formatCurrency(e.totalValue)
               ]);
             });
             const subtotal = catExps.reduce((sum, e) => sum + e.totalValue, 0);
-            rows.push([`SUBTOTAL CATEGORIA: ${catName}`, '', '', '', formatCurrency(subtotal)]);
+            rows.push([`SUBTOTAL CONTA: ${catName}`, '', '', '', formatCurrency(subtotal)]);
           });
 
           const totalMonth = monthExps.reduce((sum, e) => sum + e.totalValue, 0);
@@ -261,7 +273,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         });
 
         return {
-          title: `Relatório de Despesas por Categoria - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          title: `Relatório de Despesas por Conta - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
           headers: ['Data Doc', 'Despesa', 'Doc', 'Fornecedor', 'Valor'],
           rows: rows,
           total: filtered.reduce((acc, curr) => acc + curr.totalValue, 0)
@@ -303,7 +315,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             const ap = accountPlan.find(p => p.id === e.accountPlanId);
             rows.push([
               formatDateDisplay(e.date),
-              ap?.subcategory || 'DIVERSOS',
+              ap ? `${ap.subcategory} / ${ap.description}` : 'DIVERSOS',
               e.docNumber || 'S/N',
               e.vendorName,
               formatCurrency(e.totalValue)
@@ -490,7 +502,15 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           .filter(e => e.bankAccountId === selectedBankId && (e.status === 'Pago' || (e.amountPaid && e.amountPaid > 0)) && e.paymentDate && new Date(e.paymentDate).getTime() < startTimestamp)
           .reduce((acc, e) => acc + (e.amountPaid || 0), 0);
 
-        const openingBalance = initialSystemBalance + prevCredits - prevDebits;
+        const prevTransferCredits = bankTransfers
+          .filter(t => t.destinationAccountId === selectedBankId && new Date(t.date).getTime() < startTimestamp)
+          .reduce((acc, t) => acc + t.amount, 0);
+
+        const prevTransferDebits = bankTransfers
+          .filter(t => t.sourceAccountId === selectedBankId && new Date(t.date).getTime() < startTimestamp)
+          .reduce((acc, t) => acc + t.amount, 0);
+
+        const openingBalance = initialSystemBalance + prevCredits + prevTransferCredits - prevDebits - prevTransferDebits;
 
         const periodCredits = payments
           .filter(p => p.bankAccountId === selectedBankId && new Date(p.date).getTime() >= startTimestamp && new Date(p.date).getTime() <= endTimestamp)
@@ -500,7 +520,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               date: p.date,
               credit: p.amount,
               debit: 0,
-              desc: `RECEBIMENTO: ${sale?.customerName || 'Cliente'} / NF: ${sale?.nfNumber || 'S/N'} / ${p.method}`
+              desc: `RECBTO: ${sale?.customerName || 'Cliente'} / NF: ${sale?.nfNumber || 'S/N'} / ${p.method}`
             };
           });
 
@@ -510,10 +530,34 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             date: e.paymentDate!,
             credit: 0,
             debit: e.amountPaid || e.totalValue,
-            desc: `PAGAMENTO: ${e.vendorName} / DOC: ${e.docNumber || 'S/N'} / ${e.items.map(i => i.description).join(', ')}`
+            desc: `PGTO: ${e.vendorName} / DOC: ${e.docNumber || 'S/N'} / ${e.items.map(i => i.description).join(', ')}`
           }));
 
-        const sortedMovements = [...periodCredits, ...periodDebits].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const periodTransferCredits = bankTransfers
+          .filter(t => t.destinationAccountId === selectedBankId && new Date(t.date).getTime() >= startTimestamp && new Date(t.date).getTime() <= endTimestamp)
+          .map(t => {
+            const originBank = bankAccounts.find(b => b.id === t.sourceAccountId);
+            return {
+              date: t.date,
+              credit: t.amount,
+              debit: 0,
+              desc: `TRANSF. RECEBIDA: De ${originBank?.bankName || 'Outro Banco'} - ${t.description || ''}`
+            };
+          });
+
+        const periodTransferDebits = bankTransfers
+          .filter(t => t.sourceAccountId === selectedBankId && new Date(t.date).getTime() >= startTimestamp && new Date(t.date).getTime() <= endTimestamp)
+          .map(t => {
+            const destBank = bankAccounts.find(b => b.id === t.destinationAccountId);
+            return {
+              date: t.date,
+              credit: 0,
+              debit: t.amount,
+              desc: `TRANSF. ENVIADA: Para ${destBank?.bankName || 'Outro Banco'} - ${t.description || ''}`
+            };
+          });
+
+        const sortedMovements = [...periodCredits, ...periodDebits, ...periodTransferCredits, ...periodTransferDebits].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         let currentRunningBalance = openingBalance;
         const rowsWithBalance = sortedMovements.map(m => {
@@ -528,8 +572,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         });
 
         return {
-          title: `Extrato Bancário Detalhado - ${bank.bankName}`,
-          headerInfo: `Agência: ${bank.agency} | Conta: ${bank.accountNumber} | Saldo Inicial Sistema: ${formatCurrency(initialSystemBalance)}`,
+          title: `Extrato Bancário Detalhado - ${bank.bankName}${bank.isBlocked ? ' (BLOQUEADO)' : ''}`,
+          headerInfo: `Agência: ${bank.agency} | Conta: ${bank.accountNumber}`,
           openingBalance: openingBalance,
           closingBalance: currentRunningBalance,
           headers: ['Data', 'Descrição do Lançamento', 'Valor Crédito (+)', 'Valor Débito (-)', 'Saldo'],
@@ -628,15 +672,13 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         });
         return {
           title: 'Listagem de Fornecedores (Resumo)',
-          headers: ['Nome do Fornecedor', 'CNPJ / CPF', 'Telefone', 'Status', 'Categorias'],
+          headers: ['Nome do Fornecedor', 'CNPJ / CPF', 'Telefone', 'Status'],
           rows: filtered.map(v => {
-            const plan = accountPlan.find(p => p.id === v.categoryId);
             return [
               v.name,
               v.document,
               v.phone,
-              v.isActive === false ? 'INATIVO' : 'ATIVO',
-              plan?.subcategory || '---'
+              v.isActive === false ? 'INATIVO' : 'ATIVO'
             ];
           })
         };
@@ -851,37 +893,108 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         }).sort((a, b) => new Date(a.paymentDate!).getTime() - new Date(b.paymentDate!).getTime());
         return {
           title: `Pagamentos Realizados - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
-          headers: ['Data Pagto', 'Fornecedor', 'Doc', 'Despesa', 'Banco Saída', 'Valor'],
+          headers: ['Data Pagto', 'Data Vencto', 'Doc', 'Fornecedor', 'Despesa', 'Banco Saída', 'Valor'],
           rows: filteredExpenses.map(e => {
             const bank = bankAccounts.find(b => b.id === e.bankAccountId);
             const plan = accountPlan.find(p => p.id === e.accountPlanId);
             return [
               formatDateDisplay(e.paymentDate),
-              e.vendorName,
+              e.dueDate ? formatDateDisplay(e.dueDate) : '---',
               e.docNumber || 'S/N',
-              plan?.subcategory || '---',
+              e.vendorName,
+              plan?.description || '---',
               bank?.bankName || '---',
               formatCurrency(e.amountPaid || e.totalValue)
             ];
           }),
           total: filteredExpenses.reduce((acc, curr) => acc + (curr.amountPaid || curr.totalValue), 0)
         };
-      case 'accountPlan':
+      case 'accountPlan': {
+        const rows: any[] = [];
+        const types = ['Receita', 'Despesa'];
+
+        types.forEach(type => {
+          const planForType = accountPlan.filter(p => p.type === type);
+          if (planForType.length === 0) return;
+
+          rows.push(['ACCOUNT_PLAN_LEVEL', type === 'Receita' ? 'RECEITAS' : 'DESPESAS', 0]);
+
+          const categories = Array.from<string>(new Set(planForType.map(p => p.category as string))).sort();
+          categories.forEach(cat => {
+            rows.push(['ACCOUNT_PLAN_LEVEL', cat.toUpperCase(), 1]);
+
+            const planForCat = planForType.filter(p => p.category === cat);
+            const subcats = Array.from<string>(new Set(planForCat.map(p => p.subcategory as string))).sort();
+
+            subcats.forEach(sub => {
+              rows.push(['ACCOUNT_PLAN_LEVEL', sub.toUpperCase(), 2]);
+
+              const items = planForCat.filter(p => p.subcategory === sub && p.description);
+              const accounts = Array.from(new Set(items.map(p => p.description!.toUpperCase()))).sort();
+
+              accounts.forEach(acc => {
+                rows.push(['ACCOUNT_PLAN_LEVEL', acc, 3]);
+              });
+            });
+          });
+          rows.push(['', '', '']); // SPACER
+        });
+
         return {
-          title: 'Estrutura do Plano de Contas',
-          headers: ['Tipo', 'Categoria Principal', 'Subcategoria', 'Descrição'],
-          rows: accountPlan.sort((a, b) => a.type.localeCompare(b.type)).map(p => [
-            p.type.toUpperCase(),
-            p.category,
-            p.subcategory,
-            p.description || '---'
-          ])
+          title: 'Plano de Contas Geral',
+          headerInfo: 'Estruturação de todas as contas',
+          headers: ['Estrutura', 'Descrição', 'Nível'],
+          rows: rows
         };
+      }
+      case 'accountCategoriesList': {
+        const rows: any[] = [];
+        const types = ['Receita', 'Despesa'] as const;
+
+        types.forEach((type, index) => {
+          if (index > 0) rows.push(['', '']);
+
+          const typeNum = '';
+          const typeLabel = type === 'Receita' ? 'RECEITAS' : 'DESPESAS';
+          rows.push(['ACCOUNT_CAT_HIERARCHY', 0, typeNum, typeLabel]);
+
+          const catsForType = accountCategories
+            .filter(c => c.type === type)
+            .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''));
+
+          catsForType.forEach(cat => {
+            rows.push(['ACCOUNT_CAT_HIERARCHY', 1, cat.accountNumber || '---', cat.name]);
+
+            const subcatsForType = accountSubcategories
+              .filter(s => s.categoryId === cat.id)
+              .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''));
+
+            subcatsForType.forEach(sub => {
+              rows.push(['ACCOUNT_CAT_HIERARCHY', 2, sub.accountNumber || '---', sub.name]);
+
+              const accountsInSubcat = accountPlan
+                .filter(p => p.type === type && p.category === cat.name && p.subcategory === sub.name && p.description)
+                .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''));
+
+              accountsInSubcat.forEach(acc => {
+                rows.push(['ACCOUNT_CAT_HIERARCHY', 3, acc.accountNumber || '---', acc.description]);
+              });
+            });
+          });
+        });
+
+        return {
+          title: 'PLANO DE CONTAS',
+          headerInfo: 'Listagem completa de categorias, subcategorias e contas',
+          headers: ['Nº', 'Descrição'],
+          rows: rows
+        };
+      }
       case 'banks':
         return {
           title: 'Relatório de Contas Bancárias',
           headers: ['Instituição', 'Agência', 'Conta Corrente'],
-          rows: bankAccounts.map(b => [b.bankName, b.agency, b.accountNumber])
+          rows: bankAccounts.map(b => [`${b.bankName}${b.isBlocked ? ' (BLOQUEADO)' : ''}`, b.agency, b.accountNumber])
         };
       case 'dre': {
         const dreSales = sales.filter(s => {
@@ -894,105 +1007,88 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           return d >= startTimestamp && d <= endTimestamp;
         });
 
-        const salesMap = new Map<string, number>();
-        const expenseMap = new Map<string, number>();
+        const valueByAccountId = new Map<string, number>();
 
         dreSales.forEach(s => {
-          const plan = accountPlan.find(p => p.id === s.accountPlanId);
-          const name = plan?.subcategory || 'Outras Receitas';
-          salesMap.set(name, (salesMap.get(name) || 0) + s.totalValue);
+          valueByAccountId.set(s.accountPlanId, (valueByAccountId.get(s.accountPlanId) || 0) + s.totalValue);
         });
 
         dreExpenses.forEach(e => {
-          const plan = accountPlan.find(p => p.id === e.accountPlanId);
-          const name = plan?.subcategory || 'Outras Despesas';
-          expenseMap.set(name, (expenseMap.get(name) || 0) + e.totalValue);
+          valueByAccountId.set(e.accountPlanId, (valueByAccountId.get(e.accountPlanId) || 0) + e.totalValue);
         });
 
         let totalReceitas = 0;
-        let totalCustosVenda = 0;
-        let totalCustoFrota = 0;
-        let totalCustoPessoal = 0;
-        let totalCustoAdmin = 0;
+        let totalDespesas = 0;
 
         const rows: any[] = [];
+        const types = ['Receita', 'Despesa'] as const;
 
-        // 1. Receitas
-        rows.push(['DRE_SECTION', 'Receitas Brutas']);
-        salesMap.forEach((val, key) => {
-          rows.push(['', key, formatCurrency(val)]);
-          totalReceitas += val;
+        types.forEach((type, index) => {
+          if (index > 0) rows.push(['', '', '']);
+
+          const typeNum = '';
+          const typeLabel = type === 'Receita' ? 'RECEITAS' : 'DESPESAS';
+          let typeTotal = 0;
+
+          const catsForType = accountCategories
+            .filter(c => c.type === type)
+            .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''));
+
+          const typeRows: any[] = [];
+
+          catsForType.forEach(cat => {
+            let catTotal = 0;
+            const subcatsForType = accountSubcategories
+              .filter(s => s.categoryId === cat.id)
+              .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''));
+
+            const catRows: any[] = [];
+
+            subcatsForType.forEach(sub => {
+              let subcatTotal = 0;
+              const accountsInSubcat = accountPlan
+                .filter(p => p.type === type && p.category === cat.name && p.subcategory === sub.name && p.description)
+                .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''));
+
+              const subcatRows: any[] = [];
+
+              accountsInSubcat.forEach(acc => {
+                const accValue = valueByAccountId.get(acc.id) || 0;
+                if (accValue !== 0) {
+                  subcatTotal += accValue;
+                  subcatRows.push(['ACCOUNT_DRE_HIERARCHY', 3, acc.accountNumber || '---', acc.description, formatCurrency(accValue)]);
+                }
+              });
+
+              if (subcatRows.length > 0) {
+                catTotal += subcatTotal;
+                catRows.push(['ACCOUNT_DRE_HIERARCHY', 2, sub.accountNumber || '---', sub.name, formatCurrency(subcatTotal)]);
+                catRows.push(...subcatRows);
+              }
+            });
+
+            if (catRows.length > 0) {
+              typeTotal += catTotal;
+              typeRows.push(['ACCOUNT_DRE_HIERARCHY', 1, cat.accountNumber || '---', cat.name, formatCurrency(catTotal)]);
+              typeRows.push(...catRows);
+            }
+          });
+
+          if (type === 'Receita') totalReceitas = typeTotal;
+          else totalDespesas = typeTotal;
+
+          rows.push(['ACCOUNT_DRE_HIERARCHY', 0, typeNum, typeLabel, formatCurrency(typeTotal)]);
+          rows.push(...typeRows);
         });
-        rows.push(['DRE_SUBTOTAL', 'Total de Receitas:', formatCurrency(totalReceitas)]);
+
         rows.push(['', '', '']);
-
-        // 2. Custos de Vendas
-        rows.push(['DRE_SECTION', 'Custos de Vendas Direto']);
-        expenseMap.forEach((val, key) => {
-          const plan = accountPlan.find(p => p.subcategory === key && p.type === 'Despesa');
-          const sub = key.toLowerCase();
-          if (sub.includes('simples') || sub.includes('imposto')) {
-            rows.push(['', `(-) ${key}`, formatCurrency(val)]);
-            totalCustosVenda += val;
-          }
-        });
-        rows.push(['DRE_SUBTOTAL', 'Total Custos de Vendas:', formatCurrency(totalCustosVenda)]);
-        rows.push(['', '', '']);
-
-        // 3. Custos Frota
-        rows.push(['DRE_SECTION', 'Custos Direto Frota (Operacional)']);
-        expenseMap.forEach((val, key) => {
-          const plan = accountPlan.find(p => p.subcategory === key && p.type === 'Despesa');
-          const cat = (plan?.category || '').toLowerCase();
-          const sub = key.toLowerCase();
-          if (cat.includes('operacional') && !sub.includes('simples') && !sub.includes('imposto')) {
-            rows.push(['', key, formatCurrency(val)]);
-            totalCustoFrota += val;
-          }
-        });
-        rows.push(['DRE_SUBTOTAL', 'Total Custos Direto Frota:', formatCurrency(totalCustoFrota)]);
-        rows.push(['', '', '']);
-
-        // 4. Custos Pessoal
-        rows.push(['DRE_SECTION', 'Custos Direto com Pessoal']);
-        expenseMap.forEach((val, key) => {
-          const plan = accountPlan.find(p => p.subcategory === key && p.type === 'Despesa');
-          const cat = (plan?.category || '').toLowerCase();
-          const sub = key.toLowerCase();
-          const isPessoal = sub.includes('pró-labore') || sub.includes('pro-labore') || sub.includes('salário') || sub.includes('salario') || sub.includes('encargo') || sub.includes('fgts') || sub.includes('inss');
-          if (isPessoal && !cat.includes('operacional')) {
-            rows.push(['', key, formatCurrency(val)]);
-            totalCustoPessoal += val;
-          }
-        });
-        rows.push(['DRE_SUBTOTAL', 'Total Custos com Pessoal:', formatCurrency(totalCustoPessoal)]);
-        rows.push(['', '', '']);
-
-        // 5. Custos Administrativos
-        rows.push(['DRE_SECTION', 'Custos Administrativos']);
-        expenseMap.forEach((val, key) => {
-          const plan = accountPlan.find(p => p.subcategory === key && p.type === 'Despesa');
-          const cat = (plan?.category || '').toLowerCase();
-          const sub = key.toLowerCase();
-          const isPessoal = sub.includes('pró-labore') || sub.includes('pro-labore') || sub.includes('salário') || sub.includes('salario') || sub.includes('encargo') || sub.includes('fgts') || sub.includes('inss');
-          const isImposto = sub.includes('simples') || sub.includes('imposto');
-          const isFrota = cat.includes('operacional');
-
-          if (!isPessoal && !isImposto && !isFrota) {
-            rows.push(['', key, formatCurrency(val)]);
-            totalCustoAdmin += val;
-          }
-        });
-        rows.push(['DRE_SUBTOTAL', 'Total Custos Administrativos:', formatCurrency(totalCustoAdmin)]);
-        rows.push(['', '', '']);
-
-        const lucroBruto = totalReceitas - totalCustosVenda - totalCustoFrota - totalCustoPessoal - totalCustoAdmin;
-        rows.push(['DRE_RESULT', 'LUCRO BRUTO DO MÊS:', formatCurrency(lucroBruto)]);
+        const lucroBruto = totalReceitas - totalDespesas;
+        rows.push(['DRE_RESULT', 'RESULTADO DO PERÍODO:', formatCurrency(lucroBruto)]);
 
         return {
           title: `DRE - Demonstração do Resultado - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
           headerInfo: 'Visão gerencial de resultados baseada em faturamentos e despesas por regime de competência/emissão.',
-          headers: ['Estrutura', 'Descrição da Conta', 'Valor do Período'],
+          headers: ['Nº', 'Descrição da Conta', 'Valor do Período'],
           rows: rows
         };
       }
@@ -1024,7 +1120,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   <option value="receivablesPending">⏳ Contas a Receber</option>
                   <option value="receivables">📥 Contas Recebidas</option>
                   <option value="expensesPending">⚠️ Contas a Pagar</option>
-                  <option value="expensesByMonth">📊 Despesas por Categoria</option>
+                  <option value="expensesByMonth">📊 Despesas por Conta</option>
                   <option value="expensesByMonthFlat">📊 Despesas por Mês</option>
                   <option value="payments">💸 Pagamentos Efetuados</option>
                   <option value="corporateCard">💳 Cartão Corporativo</option>
@@ -1043,15 +1139,16 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               <div className="relative group">
                 <select
                   className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-blue-200 transition-all appearance-none cursor-pointer"
-                  value={['customers', 'vendors', 'customersSummary', 'vendorsSummary', 'accountPlan', 'banks'].includes(selectedReport || '') ? selectedReport || '' : ''}
+                  value={['customers', 'vendors', 'customersSummary', 'vendorsSummary', 'banks'].includes(selectedReport || '') ? selectedReport || '' : ''}
                   onChange={(e) => setSelectedReport(e.target.value as ReportType)}
                 >
                   <option value="" disabled>Selecione um Relatório...</option>
                   <option value="customers">👥 Listagem de Clientes</option>
                   <option value="customersSummary">📝 Listagem de Clientes (Resumo)</option>
-                  <option value="vendors">🚚 Listagem de Fornecedores</option>
+                  <option value="vendors">🚚 Relatório Geral de Fornecedores</option>
                   <option value="vendorsSummary">📝 Listagem de Fornecedores (Resumo)</option>
-                  <option value="accountPlan">📖 Plano de Contas</option>
+
+                  <option value="accountCategoriesList">📖 PLANO DE CONTAS</option>
                   <option value="banks">🏛️ Contas Bancárias</option>
                 </select>
                 <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-blue-500 transition-transform rotate-90" size={18} />
@@ -1115,7 +1212,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       onChange={(e) => setSelectedBankId(e.target.value)}
                     >
                       <option value="">Escolha um banco...</option>
-                      {bankAccounts.map(b => <option key={b.id} value={b.id}>{b.bankName} - {b.accountNumber}</option>)}
+                      {bankAccounts.map(b => <option key={b.id} value={b.id}>{b.bankName}{b.isBlocked ? ' (BLOQUEADO)' : ''} - {b.accountNumber}</option>)}
                     </select>
                   </div>
                 )}
@@ -1175,16 +1272,16 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                     {['expensesPending', 'expensesByMonth', 'expensesByMonthFlat', 'payments', 'corporateCard'].includes(selectedReport) && (
                       <div className="flex-1 space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
-                          <BookOpen size={14} className="mr-1" /> Categoria
+                          <BookOpen size={14} className="mr-1" /> Conta
                         </label>
                         <select
                           className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
                           value={selectedCategoryId}
                           onChange={(e) => setSelectedCategoryId(e.target.value)}
                         >
-                          <option value="all">TODAS AS CATEGORIAS</option>
-                          {accountPlan.filter(p => p.type === 'Despesa').map(p => (
-                            <option key={p.id} value={p.id}>{p.subcategory}</option>
+                          <option value="all">TODAS AS CONTAS</option>
+                          {sortedExpenseAccounts.map(p => (
+                            <option key={p.id} value={p.id}>{p.description}</option>
                           ))}
                         </select>
                       </div>
@@ -1243,7 +1340,13 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                 {['customers', 'vendors', 'customersSummary', 'vendorsSummary'].includes(selectedReport || '') && (
                   <div className="flex-1 space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
-                      <Users size={14} className="mr-1" /> Filtrar Status
+                      <Users size={14} className="mr-1" /> {
+                        ['vendors', 'vendorsSummary'].includes(selectedReport || '')
+                          ? 'Filtra Fornecedores'
+                          : ['customers', 'customersSummary'].includes(selectedReport || '')
+                            ? 'Filtra Clientes'
+                            : 'Filtrar Status'
+                      }
                     </label>
                     <select
                       className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
@@ -1291,7 +1394,13 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             </div>
 
             <h2 className="text-sm font-normal text-slate-800 mb-2 border-l-4 border-amber-500 pl-4 uppercase leading-none print:hidden">
-              {reportContent.title}
+              {typeof reportContent.title === 'string' && reportContent.title.includes('(BLOQUEADO)') ? (
+                <>
+                  {reportContent.title.split('(BLOQUEADO)')[0]}
+                  <span className="font-black text-rose-600">(BLOQUEADO)</span>
+                  {reportContent.title.split('(BLOQUEADO)')[1]}
+                </>
+              ) : reportContent.title}
             </h2>
             {reportContent.headerInfo && (
               <p className="text-[10px] font-bold text-slate-500 mb-8 pl-5 uppercase tracking-widest print:hidden">{reportContent.headerInfo}</p>
@@ -1320,7 +1429,13 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                         </div>
                       </div>
                       <h2 className="text-sm font-normal text-slate-800 mb-1 border-l-4 border-amber-500 pl-4 uppercase leading-none text-left print:text-[16px]">
-                        {reportContent.title}
+                        {typeof reportContent.title === 'string' && reportContent.title.includes('(BLOQUEADO)') ? (
+                          <>
+                            {reportContent.title.split('(BLOQUEADO)')[0]}
+                            <span className="font-black text-rose-600">(BLOQUEADO)</span>
+                            {reportContent.title.split('(BLOQUEADO)')[1]}
+                          </>
+                        ) : reportContent.title}
                       </h2>
                       {reportContent.headerInfo && (
                         <p className="text-[10px] font-bold text-slate-500 mb-4 pl-5 uppercase tracking-widest text-left">{reportContent.headerInfo}</p>
@@ -1397,9 +1512,13 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                       k === 4 ? 'w-full text-left' : ''
                             ) : ''}
                           ${selectedReport === 'dre' ? (
-                              k === 0 ? 'w-[50px]' :
+                              k === 0 ? 'w-[120px]' :
                                 k === 1 ? 'w-full text-left' :
-                                  k === 2 ? 'w-[200px] text-left' : ''
+                                  k === 2 ? 'w-[200px] text-right' : ''
+                            ) : ''}
+                          ${selectedReport === 'accountCategoriesList' ? (
+                              k === 0 ? 'w-[120px] text-left' :
+                                k === 1 ? 'w-full text-left' : ''
                             ) : ''}
                       `}
                         >
@@ -1431,6 +1550,56 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       return (
                         <tr key={i} className="h-6 bg-white border-0">
                           <td colSpan={reportContent.headers.length}></td>
+                        </tr>
+                      );
+                    }
+
+                    if (row[0] === 'ACCOUNT_CAT_HIERARCHY' || row[0] === 'ACCOUNT_DRE_HIERARCHY') {
+                      const level = row[1];
+                      const num = row[2];
+                      const title = row[3];
+                      const value = row[4];
+
+                      let numStyle = '';
+                      let descStyle = '';
+                      let paddingLeft1 = '';
+                      let paddingLeft2 = '';
+
+                      if (level === 0) {
+                        numStyle = 'text-[20px] text-slate-900 font-normal print:text-[14px]';
+                        descStyle = 'text-[20px] text-slate-900 font-normal uppercase tracking-widest print:text-[14px]';
+                        paddingLeft1 = 'pl-4 pt-10 pb-4 print:pt-6 print:pb-2';
+                        paddingLeft2 = 'pl-4 pt-10 pb-4 print:pt-6 print:pb-2';
+                      } else if (level === 1) {
+                        numStyle = 'text-base text-slate-900 font-normal print:text-[12px]';
+                        descStyle = 'text-base text-slate-900 font-normal uppercase print:text-[12px]';
+                        paddingLeft1 = 'pl-16 pt-3 pb-1 print:pt-1 print:pb-0';
+                        paddingLeft2 = 'pl-6 pt-3 pb-1 print:pt-1 print:pb-0';
+                      } else if (level === 2) {
+                        numStyle = 'text-base text-slate-900 font-normal print:text-[12px]';
+                        descStyle = 'text-base text-slate-900 font-normal uppercase print:text-[12px]';
+                        paddingLeft1 = 'pl-[100px] pt-3 pb-1 print:pt-1 print:pb-0';
+                        paddingLeft2 = 'pl-6 pt-3 pb-1 print:pt-1 print:pb-0';
+                      } else if (level === 3) {
+                        numStyle = 'text-sm text-slate-500/80 font-medium print:text-[12px]';
+                        descStyle = 'text-sm text-slate-500/80 font-medium tracking-wide flex items-center gap-2 before:content-[\'\'] before:w-3 before:h-[1px] before:bg-slate-300/80 print:text-[12px]';
+                        paddingLeft1 = 'pl-[130px] pt-1 pb-1 print:pt-0 print:pb-0';
+                        paddingLeft2 = 'pl-8 pt-1 pb-1 print:pt-0 print:pb-0';
+                      }
+
+                      return (
+                        <tr key={i} className={`border-0 bg-transparent`}>
+                          <td className={`w-[120px] ${paddingLeft1} align-top print:py-1`}>
+                            <span className={numStyle}>{num}</span>
+                          </td>
+                          <td className={`w-auto ${paddingLeft2} align-top print:py-1`}>
+                            <span className={descStyle}>{title}</span>
+                          </td>
+                          {row[0] === 'ACCOUNT_DRE_HIERARCHY' && (
+                            <td className={`text-right align-top print:py-1 px-4 ${level === 0 ? 'text-[20px] pt-10 pb-4 font-black print:text-[14px]' : level === 1 ? 'pt-3 pb-1 font-bold print:text-[12px] text-base' : level === 2 ? 'pt-3 pb-1 font-semibold print:text-[12px] text-base' : 'pt-1 pb-1 text-slate-500 font-medium print:text-[12px] text-sm'}`}>
+                              {value}
+                            </td>
+                          )}
                         </tr>
                       );
                     }
@@ -1532,16 +1701,26 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                             k === 5 ? 'w-[110px]' :
                                               k === 6 ? 'w-[110px]' : ''
                                 ) : selectedReport === 'dre' ? (
-                                  k === 0 ? 'w-[50px]' :
+                                  k === 0 ? 'w-[120px]' :
                                     k === 1 ? 'w-full' :
-                                      k === 2 ? 'w-[200px]' : ''
+                                      k === 2 ? 'w-[200px] text-right' : ''
                                 ) : selectedReport === 'payments' ? (
                                   k === 0 ? 'w-[100px]' :
-                                    k === 1 ? 'w-full min-w-[180px]' :
+                                    k === 1 ? 'w-[100px]' :
                                       k === 2 ? 'w-[80px]' :
-                                        k === 3 ? 'w-[150px]' :
-                                          k === 4 ? 'w-[120px]' :
-                                            k === 5 ? 'w-[110px]' : ''
+                                        k === 3 ? 'w-full min-w-[180px]' :
+                                          k === 4 ? 'w-[150px]' :
+                                            k === 5 ? 'w-[120px]' :
+                                              k === 6 ? 'w-[110px]' : ''
+                                ) : selectedReport === 'bankStatement' ? (
+                                  k === 1 ? 'w-full min-w-[200px]' :
+                                    k === 2 ? 'w-[120px]' :
+                                      k === 3 ? 'w-[120px]' :
+                                        k === 4 ? 'w-[150px]' : ''
+                                ) : selectedReport === 'accountCategoriesList' ? (
+                                  k === 0 ? 'w-[150px]' :
+                                    k === 1 ? 'w-full' :
+                                      k === 2 ? 'w-[200px]' : ''
                                 ) : (
                                   k === 1 ? 'w-[60px]' :
                                     k === 2 ? 'w-auto min-w-[300px] print:min-w-0' :
@@ -1554,6 +1733,36 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                               {h}
                             </th>
                           ))}
+                        </tr>
+                      );
+                    }
+
+                    if (row[0] === 'ACCOUNT_PLAN_LEVEL') {
+                      const text = row[1];
+                      const level = row[2];
+
+                      let paddingLeft = 'pl-4';
+                      let styling = 'font-normal text-slate-700';
+
+                      if (level === 0) {
+                        paddingLeft = 'pl-4';
+                        styling = 'font-black text-slate-900 border-b-2 border-slate-900 text-lg uppercase tracking-widest block pb-1 mt-6';
+                      } else if (level === 1) {
+                        paddingLeft = 'pl-10';
+                        styling = 'font-bold text-slate-800 text-base uppercase tracking-wide mt-4 block';
+                      } else if (level === 2) {
+                        paddingLeft = 'pl-20';
+                        styling = 'font-semibold text-slate-700 text-sm mt-2 block';
+                      } else if (level === 3) {
+                        paddingLeft = 'pl-32';
+                        styling = 'font-medium text-slate-500 text-sm mt-1 block pb-1 border-b border-slate-100 max-w-2xl';
+                      }
+
+                      return (
+                        <tr key={i} className="border-0 bg-transparent">
+                          <td colSpan={reportContent.headers.length} className={`py-0 ${paddingLeft}`}>
+                            <span className={styling}>{text}</span>
+                          </td>
                         </tr>
                       );
                     }
@@ -1612,15 +1821,17 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                 ${isBalance ? 'bg-slate-50/50 font-black text-slate-900 border-l border-slate-200' : ''}
                                  ${isTotalMonthRow ? 'bg-amber-500/10' : ''}
                                  ${isSubtotalRow && j === (isSectionHeader ? 0 : row.length - 1) ? 'text-right font-black border-l-2 border-slate-900' : ''}
-                                 ${(selectedReport === 'sales' && j === 6) || (selectedReport === 'receivables' && j === 7) || (selectedReport === 'dre' && j === 2) || (selectedReport === 'expensesPending' && j === 5) || (selectedReport === 'payments' && j === 5) || (selectedReport === 'receivablesPending' && j === 5) || (selectedReport === 'corporateCard' && j === 4) || (selectedReport === 'cardFees' && [4, 5, 6].includes(j)) || (selectedReport === 'bankStatement' && [2, 3, 4].includes(j)) ? 'text-right' : 'text-left'}
+                                 ${(selectedReport === 'sales' && j === 6) || (selectedReport === 'receivables' && j === 7) || (selectedReport === 'expensesPending' && j === 5) || (selectedReport === 'payments' && j === 6) || (selectedReport === 'receivablesPending' && j === 5) || (selectedReport === 'corporateCard' && j === 4) || (selectedReport === 'cardFees' && [4, 5, 6].includes(j)) || (selectedReport === 'bankStatement' && [2, 3, 4].includes(j)) ? 'text-right' : 'text-left'}
                                  ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 4 ? 'text-right' : ''}
+                                 ${(selectedReport === 'accountCategoriesList' || selectedReport === 'dre') && j === 0 ? 'w-[120px] pl-8 font-mono text-slate-500 font-bold' : ''}
                                  ${selectedReport === 'payments' ? (
                                   j === 0 ? 'w-[100px]' :
-                                    j === 1 ? 'w-full min-w-[180px]' :
+                                    j === 1 ? 'w-[100px]' :
                                       j === 2 ? 'w-[80px]' :
-                                        j === 3 ? 'w-[150px]' :
-                                          j === 4 ? 'w-[120px]' :
-                                            j === 5 ? 'w-[110px]' : ''
+                                        j === 3 ? 'w-full min-w-[180px]' :
+                                          j === 4 ? 'w-[150px]' :
+                                            j === 5 ? 'w-[120px]' :
+                                              j === 6 ? 'w-[110px]' : ''
                                 ) : selectedReport === 'sales' ? (
                                   j === 0 ? 'w-[80px]' :
                                     j === 1 ? 'w-[60px]' :
@@ -1630,14 +1841,20 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                             j === 5 ? 'w-[100px]' :
                                               j === 6 ? 'w-[110px]' : ''
                                 ) : (selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1 ? 'min-w-[180px]' : ''}
-                                 ${((selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1) || ((selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && (j >= 0 && j <= 4)) || (selectedReport === 'sales' && [2, 3, 4].includes(j)) ? 'whitespace-nowrap' : (isSectionHeader ? '' : 'whitespace-pre-line')}
+                                 ${((selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1) || ((selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && (j >= 0 && j <= 4)) || (selectedReport === 'sales' && [2, 3, 4].includes(j)) || (selectedReport === 'payments' && j === 4) || (selectedReport === 'expensesPending' && j === 0) ? 'whitespace-nowrap' : (isSectionHeader ? '' : 'whitespace-pre-line')}
                                 ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1 ? 'min-w-[180px]' : ''}
                                 ${(selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && j === 3 ? 'text-left' : ''}
                                 ${(isSubtotalRow && (j === 0 || j === 1)) ? 'whitespace-nowrap text-left' : ''}
                                 ${isTotalMonthRow && j === 0 ? 'font-black text-slate-900 text-sm' : ''}
                             `}
                             >
-                              {cell}
+                              {typeof cell === 'string' && cell.includes('(BLOQUEADO)') ? (
+                                <>
+                                  {cell.split('(BLOQUEADO)')[0]}
+                                  <span className="font-black text-rose-600">(BLOQUEADO)</span>
+                                  {cell.split('(BLOQUEADO)')[1]}
+                                </>
+                              ) : cell}
                             </td>
                           );
                         })}
@@ -1690,7 +1907,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           <div className="bg-slate-100/50 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center py-20 px-4 text-center">
             <Printer size={48} className="text-slate-300 mb-4" />
             <h4 className="text-slate-500 font-bold text-lg">Pronto para emitir!</h4>
-            <p className="text-slate-400 text-sm max-w-xs mt-2">Selecione uma categoria acima para visualizar a prévia do relatório antes de imprimir.</p>
+            <p className="text-slate-400 text-sm max-w-xs mt-2">Selecione um relatório acima para visualizar a prévia antes de imprimir.</p>
           </div>
         )
       }

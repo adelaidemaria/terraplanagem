@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
 
 // Utility to convert snake_case to camelCase
@@ -58,13 +58,22 @@ export function useSupabaseSync<T extends { id: string }>(tableName: string, ini
 
             if (deletedIds.length > 0) {
                 supabase.from(tableName).delete().in('id', deletedIds).then(({ error }) => {
-                    if (error) console.error(`Error deleting from ${tableName}:`, error);
+                    if (error) {
+                        console.error(`Error deleting from ${tableName}:`, error);
+                        alert(`Erro ao excluir do banco de dados (${tableName}):\n${error.message}`);
+                    }
                 });
             }
             if (addedOrUpdated.length > 0) {
                 const snakeCaseData = keysToSnake(addedOrUpdated);
-                supabase.from(tableName).upsert(snakeCaseData).then(({ error }) => {
-                    if (error) console.error(`Error upserting to ${tableName}:`, error);
+                console.log(`Syncing ${addedOrUpdated.length} items to ${tableName}...`, snakeCaseData);
+                supabase.from(tableName).upsert(snakeCaseData).then(({ error, data }) => {
+                    if (error) {
+                        console.error(`Error upserting to ${tableName}:`, error);
+                        alert(`ERRO CRÍTICO NO BANCO DE DADOS (${tableName}):\n\n${error.message}\n\nDetalhes: ${error.details}\nCódigo: ${error.code}`);
+                    } else {
+                        console.log(`Successfully synced ${tableName}`);
+                    }
                 });
             }
 

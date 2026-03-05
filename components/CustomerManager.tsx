@@ -3,15 +3,16 @@ import React, { useState, useMemo } from 'react';
 import {
   Plus, Search, Edit, Trash2, UserPlus, X, AlertTriangle, CreditCard, User, History
 } from 'lucide-react';
-import { Customer, CustomerInteraction } from '../types';
+import { Customer, CustomerInteraction, Sale } from '../types';
 
 interface CustomerManagerProps {
   customers: Customer[];
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
+  sales: Sale[];
   onNavigateToReports?: () => void;
 }
 
-const CustomerManager: React.FC<CustomerManagerProps> = ({ customers, setCustomers, onNavigateToReports }) => {
+const CustomerManager: React.FC<CustomerManagerProps> = ({ customers, setCustomers, sales, onNavigateToReports }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'Todos' | 'Ativos' | 'Inativos'>('Ativos');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -238,12 +239,24 @@ const CustomerManager: React.FC<CustomerManagerProps> = ({ customers, setCustome
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border-t-4 border-rose-500">
-            <h3 className="text-lg font-bold mb-2 flex items-center text-rose-600"><AlertTriangle className="mr-2" /> Excluir Cliente?</h3>
-            <p className="text-sm text-slate-600 mb-6 font-medium">Tem certeza que deseja remover este cliente? O histórico de vendas será preservado.</p>
-            <div className="flex justify-end space-x-3">
-              <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 text-slate-500 font-bold">Cancelar</button>
-              <button onClick={() => handleDelete(deleteConfirmId)} className="px-6 py-2 bg-rose-500 text-white font-bold rounded-lg shadow-lg">Confirmar</button>
-            </div>
+            {sales.some(s => s.customerId === deleteConfirmId) ? (
+              <>
+                <h3 className="text-lg font-bold mb-2 flex items-center text-rose-600"><AlertTriangle className="mr-2" /> EXCLUSÃO NÃO AUTORIZADA</h3>
+                <p className="text-sm text-slate-600 mb-6 font-medium">Existem lançamentos para esse cliente, entre no cadastro e mude para INATIVO.</p>
+                <div className="flex justify-end space-x-3">
+                  <button onClick={() => setDeleteConfirmId(null)} className="px-6 py-2 bg-slate-200 text-slate-700 font-bold rounded-lg shadow-sm hover:bg-slate-300">Voltar</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-bold mb-2 flex items-center text-rose-600"><AlertTriangle className="mr-2" /> Excluir Cliente?</h3>
+                <p className="text-sm text-slate-600 mb-6 font-medium">Tem certeza que deseja remover este cliente?</p>
+                <div className="flex justify-end space-x-3">
+                  <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 text-slate-500 font-bold">Cancelar</button>
+                  <button onClick={() => handleDelete(deleteConfirmId)} className="px-6 py-2 bg-rose-500 text-white font-bold rounded-lg shadow-lg">Confirmar</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

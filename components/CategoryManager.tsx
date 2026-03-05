@@ -47,10 +47,10 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, setCatego
     <div className="max-w-2xl">
       <div className="flex justify-between items-center mb-6">
         <h3 className="text-lg font-bold text-slate-800 flex items-center">
-          <Tags size={20} className="mr-2 text-amber-500" /> Categorias de Receitas
+          <Tags size={20} className="mr-2 text-amber-500" /> Contas de Receitas
         </h3>
         <button onClick={handleOpenAdd} className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 font-semibold">
-          <Plus size={18} /> <span>Nova Categoria</span>
+          <Plus size={18} /> <span>Nova Conta</span>
         </button>
       </div>
 
@@ -81,8 +81,8 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, setCatego
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border-t-4 border-rose-500">
-            <h3 className="text-lg font-bold mb-2 flex items-center"><AlertTriangle className="mr-2 text-rose-500" /> Excluir Categoria?</h3>
-            <p className="text-sm text-slate-600 mb-6">Tem certeza que deseja remover esta categoria de receitas?</p>
+            <h3 className="text-lg font-bold mb-2 flex items-center"><AlertTriangle className="mr-2 text-rose-500" /> Excluir Conta?</h3>
+            <p className="text-sm text-slate-600 mb-6">Tem certeza que deseja remover esta conta de receitas?</p>
             <div className="flex justify-end space-x-3">
               <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 text-slate-500">Cancelar</button>
               <button onClick={() => handleDelete(deleteConfirmId)} className="px-6 py-2 bg-rose-500 text-white font-bold rounded-lg">Excluir</button>
@@ -94,7 +94,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ categories, setCatego
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md p-6">
-            <h2 className="text-xl font-bold mb-6">{editingId ? 'Editar Categoria' : 'Nova Categoria'}</h2>
+            <h2 className="text-xl font-bold mb-6">{editingId ? 'Editar Conta' : 'Nova Conta'}</h2>
             <form onSubmit={handleSubmit}>
               <div className="mb-6">
                 <label className="block text-sm font-semibold mb-1">Nome *</label>

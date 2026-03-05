@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Plus, Search, Edit, Trash2, X, FileText, Eye, AlertTriangle, BookOpen, CheckCircle, CreditCard, Building2, Printer
 } from 'lucide-react';
@@ -28,17 +28,40 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toLocaleDateString('en-CA');
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [startDate, setStartDate] = useState(firstDay);
-  const [endDate, setEndDate] = useState(lastDay);
+  const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 7)).toLocaleDateString('en-CA'));
+  const [endDate, setEndDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [period, setPeriod] = useState<'7days' | 'current' | 'last' | 'thisYear' | 'custom'>('7days');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [nfFilter, setNfFilter] = useState<'all' | 'noNf' | 'withNf'>('all');
-  const [statusFilter, setStatusFilter] = useState<'Todos' | 'Pago' | 'Pendente'>('Pendente');
+  const [statusFilter, setStatusFilter] = useState<'Todos' | 'Pago' | 'Pendente'>('Todos');
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const [accountSearchTerm, setAccountSearchTerm] = useState('');
+  const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
+  const accountDropdownRef = useRef<HTMLDivElement>(null);
+
+  const [vendorSearchTerm, setVendorSearchTerm] = useState('');
+  const [isVendorDropdownOpen, setIsVendorDropdownOpen] = useState(false);
+  const vendorDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (accountDropdownRef.current && !accountDropdownRef.current.contains(event.target as Node)) {
+        setIsAccountDropdownOpen(false);
+      }
+      if (vendorDropdownRef.current && !vendorDropdownRef.current.contains(event.target as Node)) {
+        setIsVendorDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Payment State
   const [payBankId, setPayBankId] = useState('');
@@ -69,6 +92,35 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
     return Number(cleanValue) / 100;
   };
 
+  const sortedExpenseAccounts = useMemo(() => {
+    return [...accountPlan]
+      .filter(p => p.type === 'Despesa')
+      .sort((a, b) => {
+        const textA = `${a.category} / ${a.subcategory}`;
+        const textB = `${b.category} / ${b.subcategory}`;
+        return textA.localeCompare(textB);
+      });
+  }, [accountPlan]);
+
+  const filteredExpenseAccountsForDropdown = useMemo(() => {
+    if (!accountSearchTerm) return sortedExpenseAccounts;
+    return sortedExpenseAccounts.filter(p => {
+      const text = `${p.subcategory} / ${p.description}`.toLowerCase();
+      return text.includes(accountSearchTerm.toLowerCase());
+    });
+  }, [sortedExpenseAccounts, accountSearchTerm]);
+
+  const filteredVendorsForDropdown = useMemo(() => {
+    const activeVendors = vendors.filter(v => v.isActive !== false || v.id === formData.vendorId);
+    const sorted = [...activeVendors].sort((a, b) => a.name.localeCompare(b.name));
+    if (!vendorSearchTerm) return sorted;
+    const search = vendorSearchTerm.toLowerCase();
+    return sorted.filter(v =>
+      v.name.toLowerCase().includes(search) ||
+      (v.document && v.document.includes(search))
+    );
+  }, [vendors, vendorSearchTerm, formData.vendorId]);
+
   const filteredExpenses = useMemo(() => {
     return expenses
       .filter(e => {
@@ -89,6 +141,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
   const handleOpenAdd = () => {
     if (vendors.length === 0) return alert('Cadastre um fornecedor primeiro.');
     setEditingId(null);
+    setIsSubmitting(false);
     setModalMode('add');
     setFormData({
       vendorId: '', accountPlanId: '', items: [{ id: crypto.randomUUID(), description: '', value: 0 }],
@@ -101,6 +154,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
 
   const handleOpenEdit = (expense: Expense, mode: 'edit' | 'view') => {
     setEditingId(expense.id);
+    setIsSubmitting(false);
     setModalMode(mode);
     setFormData({ ...expense });
     setUploadError(null);
@@ -171,6 +225,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (modalMode === 'view') {
       setIsModalOpen(false);
       return;
@@ -178,6 +233,9 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
 
     const total = calculateTotal();
     if (!formData.vendorId || !formData.accountPlanId || total <= 0) return alert('Preencha os campos obrigatórios.');
+    if (formData.status === 'Pago' && !formData.bankAccountId) return alert('Selecione uma conta bancária para o pagamento.');
+
+    setIsSubmitting(true);
 
     const vendor = vendors.find(v => v.id === formData.vendorId);
     const expenseData: Expense = {
@@ -196,15 +254,36 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
       status: formData.status as any || 'Pendente',
       receiptUrl: formData.receiptUrl,
       paymentReceiptUrl: formData.paymentReceiptUrl,
+      bankAccountId: formData.status === 'Pago' ? formData.bankAccountId : undefined,
+      paymentDate: formData.status === 'Pago' ? (formData.paymentDate || formData.date) : undefined,
+      amountPaid: formData.status === 'Pago' ? total : undefined,
       createdAt: Date.now()
     };
 
     if (editingId) {
       setExpenses(prev => prev.map(ex => ex.id === editingId ? expenseData : ex));
+      setTimeout(() => {
+        setIsSubmitting(false);
+      }, 500);
+      setIsModalOpen(false);
     } else {
       setExpenses(prev => [expenseData, ...prev]);
+      setFormData({
+        vendorId: '', accountPlanId: '', items: [{ id: crypto.randomUUID(), description: '', value: 0 }],
+        docNumber: '', isNoDoc: false, paymentMethod: 'Boleto', paymentCondition: 'A Prazo',
+        date: new Date().toLocaleDateString('en-CA'),
+        dueDate: '', status: 'Pendente'
+      });
+      setTimeout(() => {
+        setIsSubmitting(false);
+        setEditingId(null);
+        setModalMode('add');
+        const dateInput = document.getElementById('data-documento-input');
+        if (dateInput) {
+          dateInput.focus();
+        }
+      }, 500);
     }
-    setIsModalOpen(false);
   };
 
   return (
@@ -212,7 +291,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto">
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <span className="text-sm font-bold text-slate-500 whitespace-nowrap">Status PG:</span>
+            <span className="text-sm font-bold text-slate-500 whitespace-nowrap">Situação Pgto:</span>
             <select
               className="px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm bg-white text-slate-600 focus:ring-2 focus:ring-rose-500/20 font-bold"
               value={statusFilter}
@@ -248,19 +327,37 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
               type="date"
               className="px-4 py-2 border border-slate-200 rounded-lg outline-none text-sm w-full sm:w-auto text-slate-600"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => { setEndDate(e.target.value); setPeriod('custom'); }}
               title="Data Final"
             />
-            <button
-              onClick={() => {
+            <select
+              className="px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm bg-white text-slate-600 font-bold focus:ring-2 focus:ring-rose-500/20"
+              value={period}
+              onChange={(e) => {
+                const val = e.target.value as any;
+                setPeriod(val);
                 const today = new Date();
-                setStartDate(new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString('en-CA'));
-                setEndDate(new Date(today.getFullYear(), today.getMonth() + 1, 0).toLocaleDateString('en-CA'));
+                if (val === '7days') {
+                  setStartDate(new Date(new Date().setDate(today.getDate() - 7)).toLocaleDateString('en-CA'));
+                  setEndDate(today.toLocaleDateString('en-CA'));
+                } else if (val === 'current') {
+                  setStartDate(new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString('en-CA'));
+                  setEndDate(new Date(today.getFullYear(), today.getMonth() + 1, 0).toLocaleDateString('en-CA'));
+                } else if (val === 'last') {
+                  setStartDate(new Date(today.getFullYear(), today.getMonth() - 1, 1).toLocaleDateString('en-CA'));
+                  setEndDate(new Date(today.getFullYear(), today.getMonth(), 0).toLocaleDateString('en-CA'));
+                } else if (val === 'thisYear') {
+                  setStartDate(new Date(today.getFullYear(), 0, 1).toLocaleDateString('en-CA'));
+                  setEndDate(new Date(today.getFullYear(), 11, 31).toLocaleDateString('en-CA'));
+                }
               }}
-              className="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 transition-colors whitespace-nowrap w-full sm:w-auto"
             >
-              Mês Atual
-            </button>
+              <option value="7days">Últimos 7 dias</option>
+              <option value="current">Mês Atual</option>
+              <option value="last">Mês Anterior</option>
+              <option value="thisYear">Ano Atual</option>
+              <option value="custom">Personalizado</option>
+            </select>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto mt-4 xl:mt-0">
@@ -280,22 +377,18 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
         <table className="w-full text-left min-w-[1000px]">
           <thead className="bg-slate-50 border-b">
             <tr>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Tipo de Despesa</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Fornecedor</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Documento / Data</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Fornecedor</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Tipo de Despesa</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Data Vencto</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Valor Total</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Status PG</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase text-right">Valor Total</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Situação Pgto</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filteredExpenses.map((expense) => (
               <tr key={expense.id} className="hover:bg-slate-200/70 transition-colors cursor-pointer">
-                <td className="px-6 py-4 text-xs text-slate-500 font-semibold">
-                  {accountPlan.find(p => p.id === expense.accountPlanId)?.subcategory || 'Diversos'}
-                </td>
-                <td className="px-6 py-4 font-semibold text-slate-800">{expense.vendorName}</td>
                 <td className="px-6 py-4">
                   <div className="flex flex-col">
                     <span className={`font-bold ${expense.isNoDoc ? 'text-rose-600' : 'text-slate-800'}`}>
@@ -309,10 +402,14 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                     )}
                   </div>
                 </td>
+                <td className="px-6 py-4 font-semibold text-slate-800">{expense.vendorName}</td>
+                <td className="px-6 py-4 text-xs text-slate-500 font-semibold">
+                  {accountPlan.find(p => p.id === expense.accountPlanId)?.description || 'Diversos'}
+                </td>
                 <td className="px-6 py-4 text-xs font-bold text-slate-600">
                   {formatDateDisplay(expense.dueDate)}
                 </td>
-                <td className="px-6 py-4 font-black text-rose-600">{formatCurrency(expense.totalValue)}</td>
+                <td className="px-6 py-4 font-black text-rose-600 text-right">{formatCurrency(expense.totalValue)}</td>
                 <td className="px-6 py-4">
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${expense.status === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                     }`}>
@@ -357,23 +454,31 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-4">
-                {/* Row 1: Nº DOC, Data, Despesas S/N */}
+                {/* Row 1: Data Documento, Nº DOC, Despesas S/N */}
                 <div className="grid grid-cols-12 gap-4">
-                  <div className="col-span-4">
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Nº DOC</label>
-                    <input
-                      autoFocus
-                      readOnly={modalMode === 'view' || formData.isNoDoc}
-                      type="text" className="w-full px-4 py-2 border rounded-lg bg-white disabled:bg-slate-50 border-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
-                      value={formData.isNoDoc ? 'S/N' : formData.docNumber} onChange={(e) => setFormData({ ...formData, docNumber: e.target.value })}
-                    />
-                  </div>
                   <div className="col-span-5">
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Data Documento</label>
                     <input
+                      id="data-documento-input"
+                      autoFocus
                       readOnly={modalMode === 'view'}
                       required type="date" className="w-full px-4 py-2 border rounded-lg bg-white border-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
-                      value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      value={formData.date} onChange={(e) => {
+                        const newDate = e.target.value;
+                        const updates: any = { date: newDate };
+                        if (formData.status === 'Pago' && !formData.dueDate) {
+                          updates.dueDate = newDate;
+                        }
+                        setFormData({ ...formData, ...updates });
+                      }}
+                    />
+                  </div>
+                  <div className="col-span-4">
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Nº DOC</label>
+                    <input
+                      readOnly={modalMode === 'view' || formData.isNoDoc}
+                      type="text" className="w-full px-4 py-2 border rounded-lg bg-white disabled:bg-slate-50 border-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
+                      value={formData.isNoDoc ? 'S/N' : formData.docNumber} onChange={(e) => setFormData({ ...formData, docNumber: e.target.value })}
                     />
                   </div>
                   <div className="col-span-3 flex items-center mt-6">
@@ -393,25 +498,91 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                 </div>
 
                 {/* Row 2: Fornecedor */}
-                <div>
+                <div className="relative z-20" ref={vendorDropdownRef}>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Fornecedor *</label>
-                  <select
-                    disabled={modalMode === 'view'}
-                    required
-                    className="w-full px-4 py-2 border rounded-lg bg-white disabled:bg-slate-50 border-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
-                    value={formData.vendorId}
-                    onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
+                  <div
+                    tabIndex={modalMode === 'view' ? -1 : 0}
+                    className={`w-full px-4 py-2 border rounded-lg bg-white ${modalMode === 'view' ? 'opacity-70 cursor-not-allowed bg-slate-50' : 'cursor-pointer'} border-slate-200 focus:ring-2 focus:ring-rose-500 focus:outline-none focus-within:ring-2 focus-within:ring-rose-500`}
+                    onClick={() => {
+                      if (modalMode !== 'view') {
+                        setIsVendorDropdownOpen(!isVendorDropdownOpen);
+                        setVendorSearchTerm('');
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        if (modalMode !== 'view') {
+                          setIsVendorDropdownOpen(!isVendorDropdownOpen);
+                          setVendorSearchTerm('');
+                        }
+                      }
+                    }}
                   >
-                    <option value="">Selecione o Fornecedor...</option>
-                    {vendors
-                      .filter(v => v.isActive !== false || v.id === formData.vendorId)
-                      .map(v => <option key={v.id} value={v.id}>{v.name}</option>)
-                    }
-                  </select>
+                    <div className="flex justify-between items-center whitespace-nowrap overflow-hidden">
+                      <span className={`truncate ${!formData.vendorId ? 'text-slate-500' : 'text-slate-800 font-bold'}`}>
+                        {formData.vendorId ? vendors.find(v => v.id === formData.vendorId)?.name || 'Fornecedor não encontrado' : 'Selecione o Fornecedor...'}
+                      </span>
+                    </div>
+                  </div>
+                  {isVendorDropdownOpen && (
+                    <div className="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-64 flex flex-col overflow-hidden">
+                      <div className="p-2 border-b">
+                        <input
+                          autoFocus
+                          type="text"
+                          placeholder="Pesquisar fornecedor..."
+                          className="w-full px-3 py-1.5 border rounded-md outline-none focus:ring-2 focus:ring-rose-500 text-sm"
+                          value={vendorSearchTerm}
+                          onChange={(e) => setVendorSearchTerm(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                      <div className="overflow-y-auto overflow-x-hidden flex-1 max-h-48 drop-scrollbar">
+                        {filteredVendorsForDropdown.length > 0 ? filteredVendorsForDropdown.map(v => (
+                          <div
+                            key={v.id}
+                            className={`px-4 py-2 hover:bg-rose-50 cursor-pointer text-sm truncate ${formData.vendorId === v.id ? 'bg-rose-100 font-bold text-rose-700' : 'text-slate-700'}`}
+                            onClick={() => {
+                              const newFormData = { ...formData, vendorId: v.id };
+                              // Se o fornecedor tiver uma categoria vinculada, preencher automaticamente
+                              if (v.categoryId) {
+                                newFormData.accountPlanId = v.categoryId;
+                              }
+                              setFormData(newFormData);
+                              setIsVendorDropdownOpen(false);
+                            }}
+                          >
+                            <span className="font-bold">{v.name}</span>
+                          </div>
+                        )) : (
+                          <div className="px-4 py-3 text-sm text-slate-500 text-center italic">Nenhum fornecedor encontrado.</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Row 3: Forma Pagto, Vencimento, Status Inicial */}
+                {/* Row 3: Situação Pgto, Forma Pagto, Vencimento */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Situação Pgto</label>
+                    <select
+                      disabled={modalMode === 'view'}
+                      className="w-full px-4 py-2 border rounded-lg bg-white border-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
+                      value={formData.status} onChange={(e) => {
+                        const newStatus = e.target.value as any;
+                        const updates: any = { status: newStatus };
+                        if (newStatus === 'Pago' && formData.date) {
+                          updates.dueDate = formData.date;
+                        }
+                        setFormData({ ...formData, ...updates });
+                      }}
+                    >
+                      <option value="Pendente">A Pagar</option>
+                      <option value="Pago">Pago (Baixado)</option>
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Forma Pagto</label>
                     <select
@@ -424,6 +595,8 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                       <option value="Transferência">Transferência</option>
                       <option value="Cartão Corporativo">Cartão Corporativo</option>
                       <option value="Dinheiro">Dinheiro</option>
+                      <option value="Débito">Débito</option>
+                      <option value="Cheque">Cheque</option>
                     </select>
                   </div>
                   <div>
@@ -434,35 +607,102 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                       value={formData.dueDate} onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Status Inicial</label>
-                    <select
-                      disabled={modalMode === 'view'}
-                      className="w-full px-4 py-2 border rounded-lg bg-white border-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
-                      value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                    >
-                      <option value="Pendente">A Pagar</option>
-                      <option value="Pago">Pago (Baixado)</option>
-                    </select>
-                  </div>
                 </div>
+
+                {/* Sub Row: Details when Status is Pago */}
+                {formData.status === 'Pago' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                    <div>
+                      <label className="block text-sm font-semibold text-emerald-800 mb-1">Conta Bancária (Pago) *</label>
+                      <select
+                        disabled={modalMode === 'view'}
+                        required
+                        className="w-full px-4 py-2 border rounded-lg bg-white border-emerald-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                        value={formData.bankAccountId || ''}
+                        onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
+                      >
+                        <option value="">Selecione a Conta Origem...</option>
+                        {bankAccounts
+                          .filter(b => !b.isBlocked || b.id === formData.bankAccountId)
+                          .map(b => (
+                            <option key={b.id} value={b.id}>{b.bankName} / {b.accountNumber}</option>
+                          ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-emerald-800 mb-1">Data de Pagamento *</label>
+                      <input
+                        disabled={modalMode === 'view'}
+                        required
+                        type="date"
+                        className="w-full px-4 py-2 border rounded-lg bg-white border-emerald-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                        value={formData.paymentDate || formData.date || ''}
+                        onChange={(e) => setFormData({ ...formData, paymentDate: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Row 4: Tipo de Despesa e Anexo */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
+                  <div className="relative z-10" ref={accountDropdownRef}>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Tipo de Despesa *</label>
-                    <select
-                      disabled={modalMode === 'view'}
-                      required
-                      className="w-full px-4 py-2 border rounded-lg bg-white disabled:bg-slate-50 border-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
-                      value={formData.accountPlanId}
-                      onChange={(e) => setFormData({ ...formData, accountPlanId: e.target.value })}
+                    <div
+                      tabIndex={modalMode === 'view' ? -1 : 0}
+                      className={`w-full px-4 py-2 border rounded-lg bg-white ${modalMode === 'view' ? 'opacity-70 cursor-not-allowed bg-slate-50' : 'cursor-pointer'} border-slate-200 focus:ring-2 focus:ring-rose-500 focus:outline-none focus-within:ring-2 focus-within:ring-rose-500`}
+                      onClick={() => {
+                        if (modalMode !== 'view') {
+                          setIsAccountDropdownOpen(!isAccountDropdownOpen);
+                          setAccountSearchTerm('');
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          if (modalMode !== 'view') {
+                            setIsAccountDropdownOpen(!isAccountDropdownOpen);
+                            setAccountSearchTerm('');
+                          }
+                        }
+                      }}
                     >
-                      <option value="">Selecione a Categoria de Despesa...</option>
-                      {accountPlan.filter(p => p.type === 'Despesa').map(p => (
-                        <option key={p.id} value={p.id}>{p.category} / {p.subcategory}</option>
-                      ))}
-                    </select>
+                      <div className="flex justify-between items-center whitespace-nowrap overflow-hidden">
+                        <span className={`truncate ${!formData.accountPlanId ? 'text-slate-500' : 'text-slate-800'}`}>
+                          {formData.accountPlanId ? sortedExpenseAccounts.find(p => p.id === formData.accountPlanId) ? `${sortedExpenseAccounts.find(p => p.id === formData.accountPlanId)?.subcategory} / ${sortedExpenseAccounts.find(p => p.id === formData.accountPlanId)?.description}` : 'Conta selecionada não encontrada' : 'Selecione a Conta de Despesa...'}
+                        </span>
+                      </div>
+                    </div>
+                    {isAccountDropdownOpen && (
+                      <div className="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-64 flex flex-col overflow-hidden">
+                        <div className="p-2 border-b">
+                          <input
+                            autoFocus
+                            type="text"
+                            placeholder="Pesquisar conta..."
+                            className="w-full px-3 py-1.5 border rounded-md outline-none focus:ring-2 focus:ring-rose-500 text-sm"
+                            value={accountSearchTerm}
+                            onChange={(e) => setAccountSearchTerm(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                        <div className="overflow-y-auto overflow-x-hidden flex-1 max-h-48 drop-scrollbar">
+                          {filteredExpenseAccountsForDropdown.length > 0 ? filteredExpenseAccountsForDropdown.map(p => (
+                            <div
+                              key={p.id}
+                              className={`px-4 py-2 hover:bg-rose-50 cursor-pointer text-sm truncate ${formData.accountPlanId === p.id ? 'bg-rose-100 font-bold text-rose-700' : 'text-slate-700'}`}
+                              onClick={() => {
+                                setFormData({ ...formData, accountPlanId: p.id });
+                                setIsAccountDropdownOpen(false);
+                              }}
+                            >
+                              {p.subcategory} / {p.description}
+                            </div>
+                          )) : (
+                            <div className="px-4 py-3 text-sm text-slate-500 text-center italic">Nenhuma conta encontrada.</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center justify-between">
@@ -547,8 +787,8 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                   {modalMode === 'view' ? 'Fechar' : 'Cancelar'}
                 </button>
                 {modalMode !== 'view' && (
-                  <button type="submit" disabled={isUploading} className="px-10 py-2 text-white font-bold rounded-lg shadow-xl transition-all bg-rose-500 hover:bg-rose-600 shadow-rose-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                    {editingId ? 'Salvar Alterações' : 'Confirmar Lançamento'}
+                  <button type="submit" disabled={isUploading || isSubmitting} className={`px-10 py-2 text-white font-bold rounded-lg shadow-xl transition-all shadow-rose-200 disabled:opacity-50 disabled:cursor-not-allowed ${isSubmitting ? 'bg-rose-400' : 'bg-rose-500 hover:bg-rose-600'}`}>
+                    {isSubmitting ? 'Salvando...' : (editingId ? 'Salvar Alterações' : 'Confirmar Lançamento')}
                   </button>
                 )}
               </div>
