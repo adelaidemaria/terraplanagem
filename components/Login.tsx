@@ -7,7 +7,7 @@ interface LoginProps {
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -17,7 +17,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         setError('');
         setLoading(true);
 
-        const success = await onLogin(username, password);
+        const success = await onLogin(email, password);
         if (!success) {
             setError('Credenciais inválidas. Tente novamente.');
         }
@@ -45,18 +45,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div>
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">
-                            Usuário
+                            E-mail
                         </label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <User size={18} className="text-slate-500" />
                             </div>
                             <input
-                                type="text"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                                 className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
-                                placeholder="Ex: admin"
+                                placeholder="E-mail"
                                 required
                             />
                         </div>

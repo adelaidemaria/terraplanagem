@@ -53,7 +53,7 @@ import SettingsManager from './components/SettingsManager';
 import Login from './components/Login';
 import Logo from './components/Logo';
 import { useSupabaseSync } from './lib/useSupabaseSync';
-import { isSupabaseConfigured } from './lib/supabase';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 const App: React.FC = () => {
   if (!isSupabaseConfigured) {
@@ -94,7 +94,25 @@ const App: React.FC = () => {
 
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentAdminUser, setCurrentAdminUser] = useState<AdminUser | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+      setCurrentUserEmail(session?.user?.email || null);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+      setCurrentUserEmail(session?.user?.email || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Date range for Dashboard
   const [dashStartDate, setDashStartDate] = useState(() => {
@@ -104,7 +122,6 @@ const App: React.FC = () => {
   const [dashEndDate, setDashEndDate] = useState(new Date().toLocaleDateString('en-CA'));
 
   // Data State
-  const [adminUsers, setAdminUsers, adminLoaded] = useSupabaseSync<AdminUser>('admin_users');
   const [customers, setCustomers, customersLoaded] = useSupabaseSync<Customer>('customers');
   const [vendors, setVendors, vendorsLoaded] = useSupabaseSync<Vendor>('vendors');
   const [vendorCategories, setVendorCategories, vcLoaded] = useSupabaseSync<VendorCategory>('vendor_categories');
@@ -121,7 +138,7 @@ const App: React.FC = () => {
   const [fleet, setFleet, fleetLoaded] = useSupabaseSync<Equipment>('equipment');
   const [maintenanceRecords, setMaintenanceRecords, mrLoaded] = useSupabaseSync<MaintenanceRecord>('maintenance_records');
 
-  const allLoaded = adminLoaded && customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && fleetLoaded && mrLoaded;
+  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && fleetLoaded && mrLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -193,15 +210,17 @@ const App: React.FC = () => {
     return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-pulse flex items-center space-x-3"><div className="w-8 h-8 rounded-full border-4 border-amber-500 border-t-transparent animate-spin"></div><span className="text-xl font-bold text-slate-500">Sincronizando com Supabase...</span></div></div>;
   }
 
-  const handleLogin = async (username: string, pass: string) => {
-    // Basic verification against the synced table
-    const user = adminUsers.find(u => u.username === username && u.password === pass);
-    if (user) {
-      setCurrentAdminUser(user);
-      setIsAuthenticated(true);
-      return true;
+  const handleLogin = async (email: string, pass: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password: pass,
+    });
+
+    if (error) {
+      console.error("Login error:", error.message);
+      return false;
     }
-    return false;
+    return true;
   };
 
   if (!isAuthenticated) {
@@ -337,11 +356,9 @@ const App: React.FC = () => {
         />;
       case 'settings':
         return <SettingsManager
-          adminUser={currentAdminUser}
+          adminUser={{ username: currentUserEmail || 'Usuário', password: '' } as AdminUser}
           onUpdateUser={() => {
-            // When password updates, force re-fetch or sync state
-            // Since it's synced real-time or on mount, we can let the hook do its job, 
-            // but minimally we can clear auth or just leave it.
+            // Placeholder temporário, daremos update depois.
           }}
         />;
       default:
@@ -431,9 +448,9 @@ const App: React.FC = () => {
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center space-x-3 text-slate-400">
             <div className={`w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold text-[10px] uppercase`}>
-              {currentAdminUser?.username.substring(0, 2) || 'AD'}
+              {currentUserEmail ? currentUserEmail.substring(0, 2) : 'AD'}
             </div>
-            {isSidebarOpen && <span className="text-xs font-semibold text-white capitalize">{currentAdminUser?.username || 'Administração'}</span>}
+            {isSidebarOpen && <span className="text-xs font-semibold text-white truncate" title={currentUserEmail || 'Sistema'}>{currentUserEmail || 'Administração'}</span>}
           </div>
         </div>
       </aside>
@@ -456,9 +473,9 @@ const App: React.FC = () => {
             {currentView === 'settings' && 'Configurações do Sistema'}
           </h1>
           <button
-            onClick={() => {
+            onClick={async () => {
               sessionStorage.removeItem('dashboard_welcome_shown');
-              setIsAuthenticated(false);
+              await supabase.auth.signOut();
             }}
             className="text-sm font-bold text-slate-500 hover:text-rose-500 transition-colors"
           >

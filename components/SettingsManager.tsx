@@ -9,7 +9,7 @@ interface SettingsManagerProps {
 }
 
 const SettingsManager: React.FC<SettingsManagerProps> = ({ adminUser, onUpdateUser }) => {
-    const [username, setUsername] = useState(adminUser?.username || '');
+    const [email, setEmail] = useState(adminUser?.username || '');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
@@ -24,23 +24,24 @@ const SettingsManager: React.FC<SettingsManagerProps> = ({ adminUser, onUpdateUs
         setErrorMsg('');
 
         try {
-            const updates: any = { username };
+            const updates: any = {};
+            if (email && email !== adminUser.username) {
+                updates.email = email;
+            }
             if (password.trim() !== '') {
                 updates.password = password;
             }
 
-            const { error } = await supabase
-                .from('admin_users')
-                .update(updates)
-                .eq('id', adminUser.id);
+            if (Object.keys(updates).length > 0) {
+                const { error } = await supabase.auth.updateUser(updates);
+                if (error) throw error;
+            }
 
-            if (error) throw error;
-
-            setSuccessMsg('Credenciais atualizadas com sucesso!');
+            setSuccessMsg('Credenciais atualizadas com sucesso! Talvez seja necessário confirmar o email ou relogar.');
             setPassword(''); // clear password field after save
             onUpdateUser(); // trigger a re-fetch of the user record to keep sync
         } catch (err: any) {
-            setErrorMsg(err.message || 'Erro ao atualizar credenciais.');
+            setErrorMsg(err.message || 'Erro ao atualizar credenciais. (É preciso estar logado recentemente para alterar a senha).');
         } finally {
             setLoading(false);
         }
@@ -83,12 +84,12 @@ const SettingsManager: React.FC<SettingsManagerProps> = ({ adminUser, onUpdateUs
                     <div className="space-y-6">
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">
-                                Nome de Usuário
+                                E-mail de Acesso
                             </label>
                             <input
-                                type="text"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all font-medium text-slate-800"
                                 required
                             />
