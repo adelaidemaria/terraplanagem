@@ -40,7 +40,22 @@ export function useSupabaseSync<T extends { id: string }>(tableName: string, ini
             }
             setLoaded(true);
         };
+
+        // Fetch inicial
         fetchData();
+
+        // Se o usuário logar depois que a página iniciou, refazer o fetch da tabela!
+        const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'SIGNED_IN') {
+                fetchData();
+            } else if (event === 'SIGNED_OUT') {
+                setData([]);
+            }
+        });
+
+        return () => {
+            authListener.subscription.unsubscribe();
+        };
     }, [tableName]);
 
     const setSyncedData = (action: React.SetStateAction<T[]>) => {

@@ -8,6 +8,7 @@ ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vendor_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vendors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE account_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE account_subcategories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE account_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bank_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE equipment ENABLE ROW LEVEL SECURITY;
@@ -23,6 +24,7 @@ CREATE POLICY "Acesso restrito auth" ON customers FOR ALL TO authenticated USING
 CREATE POLICY "Acesso restrito auth" ON vendor_categories FOR ALL TO authenticated USING (auth.uid() IS NOT NULL);
 CREATE POLICY "Acesso restrito auth" ON vendors FOR ALL TO authenticated USING (auth.uid() IS NOT NULL);
 CREATE POLICY "Acesso restrito auth" ON account_categories FOR ALL TO authenticated USING (auth.uid() IS NOT NULL);
+CREATE POLICY "Acesso restrito auth" ON account_subcategories FOR ALL TO authenticated USING (auth.uid() IS NOT NULL);
 CREATE POLICY "Acesso restrito auth" ON account_plans FOR ALL TO authenticated USING (auth.uid() IS NOT NULL);
 CREATE POLICY "Acesso restrito auth" ON bank_accounts FOR ALL TO authenticated USING (auth.uid() IS NOT NULL);
 CREATE POLICY "Acesso restrito auth" ON equipment FOR ALL TO authenticated USING (auth.uid() IS NOT NULL);
