@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Plus, Search, Edit, Trash2, X, FileText, Eye, AlertTriangle, Printer, ScrollText, FileX
 } from 'lucide-react';
@@ -42,6 +42,14 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isModalOpen && (modalMode === 'add' || modalMode === 'edit')) {
+      setTimeout(() => dateInputRef.current?.focus(), 100);
+    }
+  }, [isModalOpen, modalMode]);
+
   const [formData, setFormData] = useState<Partial<Sale>>({
     customerId: '',
     accountPlanId: '',
@@ -74,8 +82,8 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
     return [...accountPlan]
       .filter(p => p.type === 'Receita')
       .sort((a, b) => {
-        const textA = `${a.category} / ${a.subcategory}`;
-        const textB = `${b.category} / ${b.subcategory}`;
+        const textA = a.description || '';
+        const textB = b.description || '';
         return textA.localeCompare(textB);
       });
   }, [accountPlan]);
@@ -101,8 +109,8 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
     setEditingId(null);
     setModalMode('add');
     setFormData({
-      customerId: '', accountPlanId: '', items: [{ id: crypto.randomUUID(), description: '', value: 0 }],
-      nfNumber: '', isNoNF: false, saleType: 'Serviço', paymentMethod: 'PIX', paymentCondition: 'A Vista',
+      customerId: '', customerName: '', accountPlanId: '', items: [{ id: crypto.randomUUID(), description: '', value: 0 }],
+      nfNumber: '', isNoNf: false, saleType: 'Serviço', paymentMethod: 'PIX', paymentCondition: 'A Vista',
       installments: 1, date: new Date().toLocaleDateString('en-CA'),
       dueDate: new Date().toLocaleDateString('en-CA'), observations: '', deductions: 0
     });
@@ -275,7 +283,29 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
     } else {
       setSales(prev => [saleData, ...prev]);
     }
-    setIsModalOpen(false);
+
+    // Resetar formulário e manter aberto
+    setEditingId(null);
+    setModalMode('add');
+    setFormData({
+      customerId: '', 
+      customerName: '',
+      accountPlanId: '', 
+      items: [{ id: crypto.randomUUID(), description: '', value: 0 }],
+      nfNumber: '', 
+      isNoNf: false, 
+      saleType: 'Serviço', 
+      paymentMethod: 'PIX', 
+      paymentCondition: 'A Vista',
+      installments: 1, 
+      date: new Date().toLocaleDateString('en-CA'),
+      dueDate: new Date().toLocaleDateString('en-CA'), 
+      observations: '', 
+      deductions: 0
+    });
+    setIsNoNf(false);
+    
+    setTimeout(() => dateInputRef.current?.focus(), 100);
   };
 
   return (
@@ -454,6 +484,7 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                     <div>
                       <label className="block text-sm font-bold text-slate-700 mb-1">Data Emissão *</label>
                       <input
+                        ref={dateInputRef}
                         autoFocus
                         readOnly={modalMode === 'view'}
                         required type="date" className="w-full px-4 py-2 border rounded-lg bg-white"
@@ -546,7 +577,7 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                       >
                         <option value="">Selecione a Conta de Receita...</option>
                         {sortedRevenueAccounts.map(p => (
-                          <option key={p.id} value={p.id}>{p.category} / {p.subcategory}</option>
+                          <option key={p.id} value={p.id}>{p.description}</option>
                         ))}
                       </select>
                     </div>
@@ -555,16 +586,29 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                   {/* Linha 3: Cliente */}
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1">Cliente *</label>
-                    <select
+                    <input
                       disabled={modalMode === 'view'}
                       required
+                      placeholder="Pesquise o cliente..."
+                      list="customers-list"
                       className="w-full px-4 py-2 border rounded-lg bg-white disabled:bg-slate-50"
-                      value={formData.customerId}
-                      onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
-                    >
-                      <option value="">Selecione o Cliente...</option>
-                      {customers.filter(c => c.isActive !== false || c.id === formData.customerId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+                      value={formData.customerName || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const found = customers.find(c => c.name === val);
+                        setFormData({ ...formData, customerName: val, customerId: found ? found.id : '' });
+                      }}
+                      onBlur={() => {
+                        if (!formData.customerId && formData.customerName) {
+                           setFormData({ ...formData, customerName: '', customerId: ''});
+                        }
+                      }}
+                    />
+                    <datalist id="customers-list">
+                      {customers.filter(c => c.isActive !== false || c.id === formData.customerId).map(c => (
+                        <option key={c.id} value={c.name} />
+                      ))}
+                    </datalist>
                   </div>
 
                   {/* Linha 4: Condição, Forma e Vencimento */}
