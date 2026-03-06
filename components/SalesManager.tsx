@@ -101,7 +101,13 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
 
   const sortedRevenueAccounts = useMemo(() => {
     return [...accountPlan]
-      .filter(p => p.type === 'Receita' && (!p.category || !p.category.includes('1.02')))
+      .filter(p => {
+        if (p.type !== 'Receita') return false;
+        const text = `${p.category} ${p.subcategory} ${p.description}`.toUpperCase();
+        if (text.includes('FINANCEIRA') || text.includes('OUTRAS') || text.includes('OUTRA')) return false;
+        if (text.includes('LOCAÇÃO') || text.includes('LOCACAO') || text.includes('SERVIÇO') || text.includes('SERVICO')) return true;
+        return false;
+      })
       .sort((a, b) => {
         const textA = `${a.subcategory} / ${a.description}`;
         const textB = `${b.subcategory} / ${b.description}`;
@@ -320,6 +326,8 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
 
     if (editingId) {
       setSales(prev => prev.map(s => s.id === editingId ? saleData : s));
+      setIsModalOpen(false);
+      return;
     } else {
       setSales(prev => [saleData, ...prev]);
     }
