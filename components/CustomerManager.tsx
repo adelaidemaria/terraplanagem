@@ -131,12 +131,14 @@ const CustomerManager: React.FC<CustomerManagerProps> = ({ customers, setCustome
     e.preventDefault();
     if (!formData.name || !formData.document) return alert('Nome e Documento são obrigatórios.');
 
+    const customerName = formData.name!.toUpperCase();
+
     if (editingId) {
-      setCustomers(prev => prev.map(c => c.id === editingId ? { ...c, ...formData } as Customer : c));
+      setCustomers(prev => prev.map(c => c.id === editingId ? { ...c, ...formData, name: customerName } as Customer : c));
     } else {
       const newCustomer: Customer = {
         id: crypto.randomUUID(),
-        name: formData.name!,
+        name: customerName,
         personType: formData.personType || 'PJ',
         document: formData.document!,
         address: formData.address || '',
@@ -149,7 +151,23 @@ const CustomerManager: React.FC<CustomerManagerProps> = ({ customers, setCustome
       };
       setCustomers(prev => [newCustomer, ...prev]);
     }
-    setIsModalOpen(false);
+
+    // Limpar formulário e manter aberto para novo cadastro
+    setEditingId(null);
+    setFormData({ 
+      name: '', 
+      personType: 'PJ', 
+      document: '', 
+      address: '', 
+      contactPerson: '', 
+      phone: '', 
+      email: '', 
+      interactions: [], 
+      isActive: true 
+    });
+    setNewInteractionDate(new Date().toLocaleDateString('en-CA'));
+    setNewInteractionText('');
+    // setIsModalOpen(false); // Mantém aberto conforme solicitado
   };
 
   return (
@@ -292,8 +310,8 @@ const CustomerManager: React.FC<CustomerManagerProps> = ({ customers, setCustome
                   </div>
                   <input
                     autoFocus
-                    required className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none font-medium"
-                    value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none font-medium uppercase"
+                    value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value.toUpperCase() })}
                   />
                 </div>
                 <div>
