@@ -611,7 +611,53 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                     </datalist>
                   </div>
 
-                  {/* Linha 4: Condição, Forma e Vencimento */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="font-bold text-slate-800 text-sm flex items-center">
+                      <FileText size={16} className="mr-2 text-amber-500" /> Descritivo dos Serviços de Locação
+                    </h4>
+                    {modalMode !== 'view' && (
+                      <button type="button" onClick={handleAddItem} className="bg-amber-50 text-amber-600 hover:bg-amber-100 px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-colors flex items-center border border-amber-200 shadow-sm">
+                        <Plus size={12} className="mr-1" /> Adicionar Novo Item
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    {(formData.items || []).map((item, index) => (
+                      <div key={item.id} className="flex gap-3 bg-white p-3 rounded-lg shadow-sm border">
+                        <div className="flex-1">
+                          <input
+                            readOnly={modalMode === 'view'}
+                            required placeholder="Ex: Diária de Maquina Bobcat, Caminhão Basculante..."
+                            className="w-full text-sm font-medium border-b border-transparent focus:border-amber-500 outline-none"
+                            value={item.description}
+                            onChange={(e) => updateItem(item.id, 'description', e.target.value)}
+                          />
+                        </div>
+                        <div className="w-32">
+                          <div className="relative">
+                            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">R$</span>
+                            <input
+                              readOnly={modalMode === 'view'}
+                              required className="w-full text-right text-sm font-black border-b border-transparent focus:border-amber-500 outline-none pl-6"
+                              value={formatInputCurrency(item.value)}
+                              onChange={(e) => updateItem(item.id, 'value', parseCurrencyInput(e.target.value))}
+                            />
+                          </div>
+                        </div>
+                        {modalMode !== 'view' && (formData.items?.length || 0) > 1 && (
+                          <button type="button" onClick={() => handleRemoveItem(item.id)} className="text-slate-300 hover:text-rose-500"><X size={16} /></button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 pt-4 border-t flex justify-between items-center px-2">
+                    <span className="font-bold text-slate-500 uppercase text-xs">Valor Bruto</span>
+                    <span className="font-black text-2xl text-slate-900">{formatCurrency(calculateTotal())}</span>
+                  </div>
+                </div>
+
+                {/* Linha 4: Condição, Forma e Vencimento */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-bold text-slate-700 mb-1">Condições PG</label>
@@ -731,51 +777,7 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                   )}
                 </div>
 
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <div className="flex justify-between items-center mb-4">
-                    <h4 className="font-bold text-slate-800 text-sm flex items-center">
-                      <FileText size={16} className="mr-2 text-amber-500" /> Descritivo dos Serviços de Locação
-                    </h4>
-                    {modalMode !== 'view' && (
-                      <button type="button" onClick={handleAddItem} className="bg-amber-50 text-amber-600 hover:bg-amber-100 px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-colors flex items-center border border-amber-200 shadow-sm">
-                        <Plus size={12} className="mr-1" /> Adicionar Novo Item
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-3">
-                    {(formData.items || []).map((item, index) => (
-                      <div key={item.id} className="flex gap-3 bg-white p-3 rounded-lg shadow-sm border">
-                        <div className="flex-1">
-                          <input
-                            readOnly={modalMode === 'view'}
-                            required placeholder="Ex: Diária de Maquina Bobcat, Caminhão Basculante..."
-                            className="w-full text-sm font-medium border-b border-transparent focus:border-amber-500 outline-none"
-                            value={item.description}
-                            onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                          />
-                        </div>
-                        <div className="w-32">
-                          <div className="relative">
-                            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">R$</span>
-                            <input
-                              readOnly={modalMode === 'view'}
-                              required className="w-full text-right text-sm font-black border-b border-transparent focus:border-amber-500 outline-none pl-6"
-                              value={formatInputCurrency(item.value)}
-                              onChange={(e) => updateItem(item.id, 'value', parseCurrencyInput(e.target.value))}
-                            />
-                          </div>
-                        </div>
-                        {modalMode !== 'view' && (formData.items?.length || 0) > 1 && (
-                          <button type="button" onClick={() => handleRemoveItem(item.id)} className="text-slate-300 hover:text-rose-500"><X size={16} /></button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-4 pt-4 border-t flex justify-between items-center px-2">
-                    <span className="font-bold text-slate-500 uppercase text-xs">Valor Bruto</span>
-                    <span className="font-black text-2xl text-slate-900">{formatCurrency(calculateTotal())}</span>
-                  </div>
-                </div>
+                {/* Descritivo dos Serviços de Locação foi movido para cima */}
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">Observações Técnicas / Faturamento (Saem na Fatura de Locação)</label>
