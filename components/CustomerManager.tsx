@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Plus, Search, Edit, Trash2, UserPlus, X, AlertTriangle, CreditCard, User, History
 } from 'lucide-react';
@@ -25,6 +25,14 @@ const CustomerManager: React.FC<CustomerManagerProps> = ({ customers, setCustome
   const [formData, setFormData] = useState<Partial<Customer>>({
     name: '', personType: 'PJ', document: '', address: '', contactPerson: '', phone: '', email: '', interactions: [], isActive: true
   });
+
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isModalOpen) {
+      setTimeout(() => nameInputRef.current?.focus(), 100);
+    }
+  }, [isModalOpen]);
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => {
@@ -167,6 +175,9 @@ const CustomerManager: React.FC<CustomerManagerProps> = ({ customers, setCustome
     });
     setNewInteractionDate(new Date().toLocaleDateString('en-CA'));
     setNewInteractionText('');
+    
+    // Garantir o foco no campo de nome para o próximo cadastro
+    setTimeout(() => nameInputRef.current?.focus(), 100);
     // setIsModalOpen(false); // Mantém aberto conforme solicitado
   };
 
@@ -309,6 +320,7 @@ const CustomerManager: React.FC<CustomerManagerProps> = ({ customers, setCustome
                     </div>
                   </div>
                   <input
+                    ref={nameInputRef}
                     autoFocus
                     required className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none font-medium uppercase"
                     value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value.toUpperCase() })}
