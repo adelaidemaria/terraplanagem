@@ -46,10 +46,17 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const customerDropdownRef = useRef<HTMLDivElement>(null);
 
+  const [accountSearchTerm, setAccountSearchTerm] = useState('');
+  const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
+  const accountDropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (customerDropdownRef.current && !customerDropdownRef.current.contains(event.target as Node)) {
         setIsCustomerDropdownOpen(false);
+      }
+      if (accountDropdownRef.current && !accountDropdownRef.current.contains(event.target as Node)) {
+        setIsAccountDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -94,13 +101,21 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
 
   const sortedRevenueAccounts = useMemo(() => {
     return [...accountPlan]
-      .filter(p => p.type === 'Receita')
+      .filter(p => p.type === 'Receita' && (!p.category || !p.category.includes('1.02')))
       .sort((a, b) => {
-        const textA = a.description || '';
-        const textB = b.description || '';
+        const textA = `${a.subcategory} / ${a.description}`;
+        const textB = `${b.subcategory} / ${b.description}`;
         return textA.localeCompare(textB);
       });
   }, [accountPlan]);
+
+  const filteredRevenueAccountsForDropdown = useMemo(() => {
+    if (!accountSearchTerm) return sortedRevenueAccounts;
+    return sortedRevenueAccounts.filter(p => {
+      const text = `${p.subcategory} / ${p.description}`.toLowerCase();
+      return text.includes(accountSearchTerm.toLowerCase());
+    });
+  }, [sortedRevenueAccounts, accountSearchTerm]);
 
   const filteredCustomersForDropdown = useMemo(() => {
     const activeCustomers = customers.filter(c => c.isActive !== false || c.id === formData.customerId);
@@ -546,39 +561,7 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                     </div>
                   </div>
 
-                  {/* Anexo da Nota Fiscal (Aparece apenas se NÃO for S/NF) */}
-                  {!isNoNf && (
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mt-2">
-                      <label className="block text-sm font-bold text-slate-700 mb-1 flex items-center justify-between">
-                        <span className="flex items-center text-sm font-bold text-slate-700"><FileText size={14} className="mr-1" /> Anexo (Nota Fiscal / Fatura)</span>
-                        {isUploading && <span className="text-[10px] text-amber-500 font-bold animate-pulse">Enviando...</span>}
-                      </label>
-                      <div className="flex items-center gap-3 w-full">
-                        {formData.receiptUrl ? (
-                          <div className="flex items-center justify-between w-full bg-white px-4 py-2 rounded-lg border border-slate-200">
-                            <a href={formData.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm font-bold flex items-center truncate max-w-[300px]" title="Ver Anexo">
-                              <FileText size={16} className="mr-1 flex-shrink-0" /> {formData.receiptUrl.split('/').pop()?.substring(0, 20)}... Anexado
-                            </a>
-                            {modalMode !== 'view' && (
-                              <button type="button" onClick={() => setFormData({ ...formData, receiptUrl: undefined })} className="text-rose-500 hover:text-rose-700 p-1.5 rounded-full hover:bg-rose-50 transition-colors" title="Remover Documento">
-                                <X size={16} />
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex-1 w-full bg-white px-3 py-2 rounded-lg border border-slate-200">
-                            <input
-                              type="file"
-                              disabled={modalMode === 'view' || isUploading}
-                              onChange={handleFileUpload}
-                              className="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] file:font-bold file:uppercase file:tracking-wider file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 disabled:opacity-50 outline-none cursor-pointer"
-                            />
-                          </div>
-                        )}
-                      </div>
-                      {uploadError && <p className="text-[10px] text-rose-500 mt-1 font-bold">{uploadError}</p>}
-                    </div>
-                  )}
+
 
                   {/* Linha 2: Tipo e Categoria */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -595,20 +578,64 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                         <option value="Locação">Locação</option>
                       </select>
                     </div>
-                    <div>
+                    <div className="relative z-30" ref={accountDropdownRef}>
                       <label className="block text-sm font-bold text-slate-700 mb-1">Conta de Receitas *</label>
-                      <select
-                        disabled={modalMode === 'view'}
-                        required
-                        className="w-full px-4 py-2 border rounded-lg bg-white disabled:bg-slate-50"
-                        value={formData.accountPlanId}
-                        onChange={(e) => setFormData({ ...formData, accountPlanId: e.target.value })}
+                      <div
+                        tabIndex={modalMode === 'view' ? -1 : 0}
+                        className={`w-full px-4 py-2 border rounded-lg bg-white ${modalMode === 'view' ? 'opacity-70 cursor-not-allowed bg-slate-50' : 'cursor-pointer'} border-slate-200 focus:ring-2 focus:ring-amber-500 focus:outline-none focus-within:ring-2 focus-within:ring-amber-500`}
+                        onClick={() => {
+                          if (modalMode !== 'view') {
+                            setIsAccountDropdownOpen(!isAccountDropdownOpen);
+                            setAccountSearchTerm('');
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            if (modalMode !== 'view') {
+                              setIsAccountDropdownOpen(!isAccountDropdownOpen);
+                              setAccountSearchTerm('');
+                            }
+                          }
+                        }}
                       >
-                        <option value="">Selecione a Conta de Receita...</option>
-                        {sortedRevenueAccounts.map(p => (
-                          <option key={p.id} value={p.id}>{p.description}</option>
-                        ))}
-                      </select>
+                        <div className="flex justify-between items-center whitespace-nowrap overflow-hidden">
+                          <span className={`truncate ${!formData.accountPlanId ? 'text-slate-500' : 'text-slate-800 font-bold'}`}>
+                            {formData.accountPlanId ? sortedRevenueAccounts.find(p => p.id === formData.accountPlanId) ? `${sortedRevenueAccounts.find(p => p.id === formData.accountPlanId)?.subcategory} / ${sortedRevenueAccounts.find(p => p.id === formData.accountPlanId)?.description}` : 'Conta selecionada não encontrada' : 'Selecione a Conta de Receita...'}
+                          </span>
+                        </div>
+                      </div>
+                      {isAccountDropdownOpen && (
+                        <div className="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-64 flex flex-col overflow-hidden">
+                          <div className="p-2 border-b">
+                            <input
+                              autoFocus
+                              type="text"
+                              placeholder="Pesquisar conta..."
+                              className="w-full px-3 py-1.5 border rounded-md outline-none focus:ring-2 focus:ring-amber-500 text-sm"
+                              value={accountSearchTerm}
+                              onChange={(e) => setAccountSearchTerm(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                          <div className="overflow-y-auto overflow-x-hidden flex-1 max-h-48 drop-scrollbar">
+                            {filteredRevenueAccountsForDropdown.length > 0 ? filteredRevenueAccountsForDropdown.map(p => (
+                              <div
+                                key={p.id}
+                                className={`px-4 py-2 hover:bg-amber-50 cursor-pointer text-sm truncate ${formData.accountPlanId === p.id ? 'bg-amber-100 font-bold text-amber-700' : 'text-slate-700'}`}
+                                onClick={() => {
+                                  setFormData({ ...formData, accountPlanId: p.id });
+                                  setIsAccountDropdownOpen(false);
+                                }}
+                              >
+                                {p.subcategory} / {p.description}
+                              </div>
+                            )) : (
+                              <div className="px-4 py-3 text-sm text-slate-500 text-center italic">Nenhuma conta encontrada.</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -840,6 +867,40 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                 </div>
 
                 {/* Descritivo dos Serviços de Locação foi movido para cima */}
+
+                  {/* Anexo da Nota Fiscal (Aparece apenas se NÃO for S/NF) */}
+                  {!isNoNf && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mt-4 mb-4">
+                      <label className="block text-sm font-bold text-slate-700 mb-1 flex items-center justify-between">
+                        <span className="flex items-center text-sm font-bold text-slate-700"><FileText size={14} className="mr-1" /> Anexo (Nota Fiscal / Fatura)</span>
+                        {isUploading && <span className="text-[10px] text-amber-500 font-bold animate-pulse">Enviando...</span>}
+                      </label>
+                      <div className="flex items-center gap-3 w-full">
+                        {formData.receiptUrl ? (
+                          <div className="flex items-center justify-between w-full bg-white px-4 py-2 rounded-lg border border-slate-200">
+                            <a href={formData.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm font-bold flex items-center truncate max-w-[300px]" title="Ver Anexo">
+                              <FileText size={16} className="mr-1 flex-shrink-0" /> {formData.receiptUrl.split('/').pop()?.substring(0, 20)}... Anexado
+                            </a>
+                            {modalMode !== 'view' && (
+                              <button type="button" onClick={() => setFormData({ ...formData, receiptUrl: undefined })} className="text-rose-500 hover:text-rose-700 p-1.5 rounded-full hover:bg-rose-50 transition-colors" title="Remover Documento">
+                                <X size={16} />
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex-1 w-full bg-white px-3 py-2 rounded-lg border border-slate-200">
+                            <input
+                              type="file"
+                              disabled={modalMode === 'view' || isUploading}
+                              onChange={handleFileUpload}
+                              className="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] file:font-bold file:uppercase file:tracking-wider file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 disabled:opacity-50 outline-none cursor-pointer"
+                            />
+                          </div>
+                        )}
+                      </div>
+                      {uploadError && <p className="text-[10px] text-rose-500 mt-1 font-bold">{uploadError}</p>}
+                    </div>
+                  )}
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">Observações Técnicas / Faturamento (Saem na Fatura de Locação)</label>
