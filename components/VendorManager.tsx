@@ -27,6 +27,7 @@ const VendorManager: React.FC<VendorManagerProps> = ({ vendors, setVendors, acco
   const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
   const [accountSearchTerm, setAccountSearchTerm] = useState('');
   const accountDropdownRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const sortedExpenseAccounts = useMemo(() => {
     return [...accountPlan]
@@ -139,6 +140,7 @@ const VendorManager: React.FC<VendorManagerProps> = ({ vendors, setVendors, acco
 
     if (editingId) {
       setVendors(prev => prev.map(v => v.id === editingId ? { ...v, ...formData, categoryId: formData.categoryId || null } as Vendor : v));
+      setIsModalOpen(false);
     } else {
       const newVendor: Vendor = {
         id: crypto.randomUUID(),
@@ -155,8 +157,11 @@ const VendorManager: React.FC<VendorManagerProps> = ({ vendors, setVendors, acco
         createdAt: Date.now()
       };
       setVendors(prev => [newVendor, ...prev]);
+      setFormData({ name: '', personType: 'PJ', categoryId: '', document: '', address: '', contactPerson: '', phone: '', email: '', notes: '', isActive: true });
+      setTimeout(() => {
+        nameInputRef.current?.focus();
+      }, 0);
     }
-    setIsModalOpen(false);
   };
 
   return (
@@ -281,9 +286,10 @@ const VendorManager: React.FC<VendorManagerProps> = ({ vendors, setVendors, acco
                     </div>
                   </div>
                   <input
+                    ref={nameInputRef}
                     autoFocus
-                    required className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none font-medium text-lg"
-                    value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none font-medium text-lg uppercase"
+                    value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value.toUpperCase() })}
                   />
                 </div>
 
