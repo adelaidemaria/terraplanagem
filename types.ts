@@ -196,7 +196,7 @@ export interface BankTransfer {
   createdAt: number;
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'reports' | 'fleet' | 'settings';
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'reports' | 'fleet' | 'settings' | 'agenda';
 
 export interface AdminUser {
   id: string;
@@ -211,4 +211,14 @@ export interface DashboardStats {
   totalExpenses: number;
   totalPaidExpenses: number;
   customerCount: number;
+}
+
+export interface AgendaItem {
+  id: string;
+  scheduledDate: string;
+  title: string;
+  description: string;
+  category: 'Urgente' | 'Lembrete';
+  completed: boolean;
+  createdAt: number;
 }

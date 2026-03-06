@@ -15,7 +15,8 @@ import {
   Wrench,
   User,
   CreditCard,
-  ArrowRightLeft
+  ArrowRightLeft,
+  CalendarDays
 } from 'lucide-react';
 import {
   Customer,
@@ -33,7 +34,8 @@ import {
   Equipment,
   MaintenanceRecord,
   AdminUser,
-  BankTransfer
+  BankTransfer,
+  AgendaItem
 } from './types';
 
 // Components
@@ -50,6 +52,7 @@ import TransferManager from './components/TransferManager';
 import ReportsManager from './components/ReportsManager';
 import FleetManager from './components/FleetManager';
 import SettingsManager from './components/SettingsManager';
+import AgendaManager from './components/AgendaManager';
 import Login from './components/Login';
 import Logo from './components/Logo';
 import { useSupabaseSync } from './lib/useSupabaseSync';
@@ -133,12 +136,13 @@ const App: React.FC = () => {
   const [accountSubcategories, setAccountSubcategories, ascLoaded] = useSupabaseSync<AccountSubcategory>('account_subcategories');
   const [bankAccounts, setBankAccounts, baLoaded] = useSupabaseSync<BankAccount>('bank_accounts');
   const [bankTransfers, setBankTransfers, btLoaded] = useSupabaseSync<BankTransfer>('bank_transfers');
+  const [agendaItems, setAgendaItems, agendaLoaded] = useSupabaseSync<AgendaItem>('agenda_items');
 
   // Fleet State
   const [fleet, setFleet, fleetLoaded] = useSupabaseSync<Equipment>('equipment');
   const [maintenanceRecords, setMaintenanceRecords, mrLoaded] = useSupabaseSync<MaintenanceRecord>('maintenance_records');
 
-  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && fleetLoaded && mrLoaded;
+  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && fleetLoaded && mrLoaded && agendaLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -247,6 +251,15 @@ const App: React.FC = () => {
             onNavigateToFleet={() => setCurrentView('fleet')}
           />
         );
+      case 'agenda':
+        return <AgendaManager
+          agendaItems={agendaItems}
+          setAgendaItems={setAgendaItems}
+          onNavigateToReports={() => {
+            setSelectedReportType('agenda');
+            setCurrentView('reports');
+          }}
+        />;
       case 'customers':
         return <CustomerManager
           customers={customers} setCustomers={setCustomers}
@@ -347,6 +360,7 @@ const App: React.FC = () => {
           bankTransfers={bankTransfers}
           fleet={fleet}
           maintenanceRecords={maintenanceRecords}
+          agendaItems={agendaItems}
           initialReport={selectedReportType as any}
         />;
       case 'fleet':
@@ -431,7 +445,12 @@ const App: React.FC = () => {
           <div className="pt-6 pb-2 px-4 border-t border-slate-800 mt-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Relatórios</span>
           </div>
-          <NavItem id="reports" label="Imprimir Relatórios" icon={Printer} />
+          <NavItem id="reports" label="Relatórios" icon={Printer} />
+
+          <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
+            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Tarefas</span>
+          </div>
+          <NavItem id="agenda" label="Agenda de Tarefas" icon={CalendarDays} />
 
           <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Equipamentos</span>
@@ -459,6 +478,7 @@ const App: React.FC = () => {
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-40 print:hidden">
           <h1 className="text-xl font-bold text-slate-800">
             {currentView === 'dashboard' && 'Visão Geral'}
+            {currentView === 'agenda' && 'Agenda de Tarefas'}
             {currentView === 'customers' && 'Gestão de Clientes'}
             {currentView === 'vendors' && 'Cadastro de Fornecedores'}
             {currentView === 'sales' && 'Faturamento'}

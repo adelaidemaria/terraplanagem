@@ -34,11 +34,12 @@ import {
   Equipment,
   MaintenanceRecord,
   MaintenanceIntervals,
-  BankTransfer
+  BankTransfer,
+  AgendaItem
 } from '../types';
 import Logo from './Logo';
 
-type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetOverdue' | 'fleetDue2' | 'fleetDue15' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre';
+type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetOverdue' | 'fleetDue2' | 'fleetDue15' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda';
 
 interface ReportsManagerProps {
   customers: Customer[];
@@ -54,6 +55,7 @@ interface ReportsManagerProps {
   bankTransfers: BankTransfer[];
   fleet: Equipment[];
   maintenanceRecords: MaintenanceRecord[];
+  agendaItems?: AgendaItem[];
   initialReport?: ReportType | null;
 }
 
@@ -75,12 +77,20 @@ const formatDateDisplay = (dateStr: string | undefined) => {
 };
 
 const ReportsManager: React.FC<ReportsManagerProps> = ({
-  customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, accountCategories, accountSubcategories, bankAccounts, bankTransfers, fleet, maintenanceRecords, initialReport
+  customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, accountCategories, accountSubcategories, bankAccounts, bankTransfers, fleet, maintenanceRecords, agendaItems = [], initialReport
 }) => {
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(initialReport || 'sales');
 
   useEffect(() => {
-    if (initialReport) {
+    if (initialReport === 'agenda') {
+      setSelectedReport('agenda');
+      setPeriod('7days');
+      const today = new Date();
+      setStartDate(today.toLocaleDateString('en-CA'));
+      const end = new Date();
+      end.setDate(today.getDate() + 6);
+      setEndDate(end.toLocaleDateString('en-CA'));
+    } else if (initialReport) {
       setSelectedReport(initialReport);
     }
   }, [initialReport]);
@@ -98,7 +108,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'Todos' | 'Ativos' | 'Inativos'>('Ativos');
-  const [period, setPeriod] = useState<'current' | 'last' | '7days' | 'year' | 'custom'>('current');
+  const [period, setPeriod] = useState<'current' | 'last' | '7days' | 'year' | 'custom' | 'today'>('current');
+  const [agendaStatus, setAgendaStatus] = useState<'all' | 'pending' | 'scheduled' | 'completed'>('all');
+  const [agendaCategory, setAgendaCategory] = useState<'all' | 'Lembrete' | 'Urgente'>('all');
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -174,6 +186,54 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
     };
 
     switch (selectedReport) {
+      case 'agenda': {
+        const todayStr = new Date().toLocaleDateString('en-CA');
+
+        const filteredAgenda = agendaItems
+          .filter(a => {
+            // Date Filter
+            const dStr = a.scheduledDate;
+            const d = new Date(dStr).getTime();
+            const inDateRange = d >= startTimestamp && d <= endTimestamp;
+            if (!inDateRange) return false;
+
+            // Category Filter
+            if (agendaCategory !== 'all' && a.category !== agendaCategory) return false;
+
+            // Status Filter
+            const status = a.completed ? 'completed' : (a.scheduledDate < todayStr ? 'pending' : 'scheduled');
+            if (agendaStatus === 'all') {
+              // Return only non-completed if "Todos" (matching AgendaManager behavior)
+              // but usually for reports "Todos" means everything. 
+              // However user said "igual tem na tela de cadastro agenda".
+              // In AgendaManager I made "all" hide completed.
+              // Let's check user's previous request: "NA OPÇÃO TODOS, MOSTRAR SOMENTE OS AGENDADOS E PENDENTES"
+              return !a.completed;
+            }
+            return status === agendaStatus;
+          })
+          .sort((a, b) => {
+            const dateCmp = (a.scheduledDate || '').localeCompare(b.scheduledDate || '');
+            if (dateCmp !== 0) return dateCmp;
+            return a.category === 'Urgente' ? -1 : 1;
+          });
+
+        return {
+          title: `Relatório de Agendamentos / Tarefas - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headerInfo: 'Listagem dos lembretes e tarefas urgentes.',
+          headers: ['Data Programada', 'Título / Descrição', 'Categoria', 'Status'],
+          rows: filteredAgenda.map(item => {
+            const todayStr = new Date().toLocaleDateString('en-CA');
+            const statusLabel = item.completed ? 'CONCLUÍDO' : (item.scheduledDate < todayStr ? 'PENDENTE' : 'AGENDADO');
+            return [
+              formatDateDisplay(item.scheduledDate),
+              `${item.title}\n${item.description || ''}`,
+              (item.category || '').toUpperCase(),
+              statusLabel
+            ];
+          })
+        };
+      }
       case 'expensesPending': {
         const pending = expenses
           .filter(e => {
@@ -1095,7 +1155,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       default:
         return null;
     }
-  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, receivablesFilter, selectedCategoryId, selectedCustomerId, statusFilter]);
+  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, statusFilter, agendaStatus, agendaCategory]);
 
   return (
     <div className="space-y-8">
@@ -1150,6 +1210,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
                   <option value="accountCategoriesList">📖 PLANO DE CONTAS</option>
                   <option value="banks">🏛️ Contas Bancárias</option>
+                  <option value="agenda">📅 Agenda de Tarefas</option>
                 </select>
                 <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-blue-500 transition-transform rotate-90" size={18} />
               </div>
@@ -1290,13 +1351,19 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
                         <Calendar size={14} className="mr-1" /> Data Inicial
                       </label>
-                      <input type="date" className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                      <input type="date" className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" value={startDate} onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setPeriod('custom');
+                      }} />
                     </div>
                     <div className="flex-1 space-y-2">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
                         <Calendar size={14} className="mr-1" /> Data Final
                       </label>
-                      <input type="date" className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                      <input type="date" className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" value={endDate} onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setPeriod('custom');
+                      }} />
                     </div>
 
                     <div className="flex-1 space-y-2">
@@ -1310,11 +1377,17 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                           const val = e.target.value as any;
                           setPeriod(val);
                           const today = new Date();
-                          if (val === '7days') {
-                            const start = new Date();
-                            start.setDate(today.getDate() - 7);
-                            setStartDate(start.toLocaleDateString('en-CA'));
+                          if (val === 'today') {
+                            setStartDate(today.toLocaleDateString('en-CA'));
                             setEndDate(today.toLocaleDateString('en-CA'));
+                          } else if (val === '7days') {
+                            const start = new Date();
+                            // If agenda, maybe follow the "from tomorrow + 6" or just "next 7 days starting today"
+                            // For reports, usually it's "today + next 6 days"
+                            setStartDate(today.toLocaleDateString('en-CA'));
+                            const end = new Date();
+                            end.setDate(today.getDate() + 6);
+                            setEndDate(end.toLocaleDateString('en-CA'));
                           } else if (val === 'current') {
                             setStartDate(new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString('en-CA'));
                             setEndDate(new Date(today.getFullYear(), today.getMonth() + 1, 0).toLocaleDateString('en-CA'));
@@ -1327,9 +1400,10 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                           }
                         }}
                       >
+                        <option value="today">Hoje</option>
                         <option value="current">Mês Atual</option>
                         <option value="last">Mês Passado</option>
-                        <option value="7days">Últimos 7 dias</option>
+                        <option value="7days">Próximos 7 Dias</option>
                         <option value="year">Ano Atual</option>
                         <option value="custom">Personalizado</option>
                       </select>
@@ -1360,6 +1434,96 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   </div>
                 )}
 
+                {selectedReport === 'agenda' && (
+                  <>
+                    <div className="flex-1 space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                        <Clock size={14} className="mr-1" /> Status
+                      </label>
+                      <select
+                        className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold uppercase"
+                        value={agendaStatus}
+                        onChange={(e) => setAgendaStatus(e.target.value as any)}
+                      >
+                        <option value="all">TODOS</option>
+                        <option value="pending">PENDENTE</option>
+                        <option value="scheduled">AGENDADO</option>
+                        <option value="completed">CONCLUÍDO</option>
+                      </select>
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                        <AlertTriangle size={14} className="mr-1" /> Categoria
+                      </label>
+                      <select
+                        className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold uppercase"
+                        value={agendaCategory}
+                        onChange={(e) => setAgendaCategory(e.target.value as any)}
+                      >
+                        <option value="all">TODOS</option>
+                        <option value="Lembrete">LEMBRETE</option>
+                        <option value="Urgente">URGENTE</option>
+                      </select>
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                        <Calendar size={14} className="mr-1" /> Data Inicial
+                      </label>
+                      <input type="date" className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" value={startDate} onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setPeriod('custom');
+                      }} />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                        <Calendar size={14} className="mr-1" /> Data Final
+                      </label>
+                      <input type="date" className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" value={endDate} onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setPeriod('custom');
+                      }} />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                        <Clock size={14} className="mr-1" /> Período
+                      </label>
+                      <select
+                        className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+                        value={period}
+                        onChange={(e) => {
+                          const val = e.target.value as any;
+                          setPeriod(val);
+                          const today = new Date();
+                          if (val === 'today') {
+                            setStartDate(today.toLocaleDateString('en-CA'));
+                            setEndDate(today.toLocaleDateString('en-CA'));
+                          } else if (val === '7days') {
+                            setStartDate(today.toLocaleDateString('en-CA'));
+                            const end = new Date();
+                            end.setDate(today.getDate() + 6);
+                            setEndDate(end.toLocaleDateString('en-CA'));
+                          } else if (val === 'current') {
+                            setStartDate(new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString('en-CA'));
+                            setEndDate(new Date(today.getFullYear(), today.getMonth() + 1, 0).toLocaleDateString('en-CA'));
+                          } else if (val === 'last') {
+                            setStartDate(new Date(today.getFullYear(), today.getMonth() - 1, 1).toLocaleDateString('en-CA'));
+                            setEndDate(new Date(today.getFullYear(), today.getMonth(), 0).toLocaleDateString('en-CA'));
+                          } else if (val === 'year') {
+                            setStartDate(new Date(today.getFullYear(), 0, 1).toLocaleDateString('en-CA'));
+                            setEndDate(new Date(today.getFullYear(), 11, 31).toLocaleDateString('en-CA'));
+                          }
+                        }}
+                      >
+                        <option value="today">Hoje</option>
+                        <option value="current">Mês Atual</option>
+                        <option value="last">Mês Passado</option>
+                        <option value="7days">Próximos 7 Dias</option>
+                        <option value="year">Ano Atual</option>
+                        <option value="custom">Personalizado</option>
+                      </select>
+                    </div>
+                  </>
+                )}
                 {/* Period selector now inside the common area */}
               </div>
             </div>
@@ -1503,6 +1667,12 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                       k === 4 ? 'w-[140px] text-left' :
                                         k === 5 ? 'w-[100px] text-left' :
                                           k === 6 ? 'w-[110px] text-left' : ''
+                            ) : ''}
+                          ${selectedReport === 'agenda' ? (
+                              k === 0 ? 'w-[150px] text-left' :
+                                k === 1 ? 'w-full text-left' :
+                                  k === 2 ? 'w-[150px] text-left' :
+                                    k === 3 ? 'w-[150px] text-left' : ''
                             ) : ''}
                           ${(['customersSummary', 'vendorsSummary'].includes(selectedReport || '')) ? (
                               k === 0 ? 'w-[280px]' :
@@ -1848,7 +2018,12 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                 ${isTotalMonthRow && j === 0 ? 'font-black text-slate-900 text-sm' : ''}
                             `}
                             >
-                              {typeof cell === 'string' && cell.includes('(BLOQUEADO)') ? (
+                              {selectedReport === 'agenda' && j === 1 && typeof cell === 'string' ? (
+                                <>
+                                  <span className="font-bold text-slate-900 block">{cell.split('\n')[0]}</span>
+                                  {cell.includes('\n') && <span className="text-slate-500 block mt-0.5">{cell.split('\n').slice(1).join('\n')}</span>}
+                                </>
+                              ) : typeof cell === 'string' && cell.includes('(BLOQUEADO)') ? (
                                 <>
                                   {cell.split('(BLOQUEADO)')[0]}
                                   <span className="font-black text-rose-600">(BLOQUEADO)</span>
