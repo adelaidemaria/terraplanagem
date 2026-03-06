@@ -42,6 +42,20 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const customerDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(event.target as Node)) {
+        setIsCustomerDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -87,6 +101,17 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
         return textA.localeCompare(textB);
       });
   }, [accountPlan]);
+
+  const filteredCustomersForDropdown = useMemo(() => {
+    const activeCustomers = customers.filter(c => c.isActive !== false || c.id === formData.customerId);
+    const sorted = [...activeCustomers].sort((a, b) => a.name.localeCompare(b.name));
+    if (!customerSearchTerm) return sorted;
+    const search = customerSearchTerm.toLowerCase();
+    return sorted.filter(c =>
+      c.name.toLowerCase().includes(search) ||
+      (c.document && c.document.includes(search))
+    );
+  }, [customers, customerSearchTerm, formData.customerId]);
 
   const filteredSales = useMemo(() => {
     return sales
@@ -588,31 +613,64 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                   </div>
 
                   {/* Linha 3: Cliente */}
-                  <div>
+                  <div className="relative z-20" ref={customerDropdownRef}>
                     <label className="block text-sm font-bold text-slate-700 mb-1">Cliente *</label>
-                    <input
-                      disabled={modalMode === 'view'}
-                      required
-                      placeholder="Pesquise o cliente..."
-                      list="customers-list"
-                      className="w-full px-4 py-2 border rounded-lg bg-white disabled:bg-slate-50"
-                      value={formData.customerName || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        const found = customers.find(c => c.name === val);
-                        setFormData({ ...formData, customerName: val, customerId: found ? found.id : '' });
-                      }}
-                      onBlur={() => {
-                        if (!formData.customerId && formData.customerName) {
-                           setFormData({ ...formData, customerName: '', customerId: ''});
+                    <div
+                      tabIndex={modalMode === 'view' ? -1 : 0}
+                      className={`w-full px-4 py-2 border rounded-lg bg-white ${modalMode === 'view' ? 'opacity-70 cursor-not-allowed bg-slate-50' : 'cursor-pointer'} border-slate-200 focus:ring-2 focus:ring-amber-500 focus:outline-none focus-within:ring-2 focus-within:ring-amber-500`}
+                      onClick={() => {
+                        if (modalMode !== 'view') {
+                          setIsCustomerDropdownOpen(!isCustomerDropdownOpen);
+                          setCustomerSearchTerm('');
                         }
                       }}
-                    />
-                    <datalist id="customers-list">
-                      {customers.filter(c => c.isActive !== false || c.id === formData.customerId).map(c => (
-                        <option key={c.id} value={c.name} />
-                      ))}
-                    </datalist>
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          if (modalMode !== 'view') {
+                            setIsCustomerDropdownOpen(!isCustomerDropdownOpen);
+                            setCustomerSearchTerm('');
+                          }
+                        }
+                      }}
+                    >
+                      <div className="flex justify-between items-center whitespace-nowrap overflow-hidden">
+                        <span className={`truncate ${!formData.customerId ? 'text-slate-500' : 'text-slate-800 font-bold'}`}>
+                          {formData.customerId ? customers.find(c => c.id === formData.customerId)?.name || 'Cliente não encontrado' : 'Pesquise o Cliente...'}
+                        </span>
+                      </div>
+                    </div>
+                    {isCustomerDropdownOpen && (
+                      <div className="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-64 flex flex-col overflow-hidden">
+                        <div className="p-2 border-b">
+                          <input
+                            autoFocus
+                            type="text"
+                            placeholder="Pesquisar cliente..."
+                            className="w-full px-3 py-1.5 border rounded-md outline-none focus:ring-2 focus:ring-amber-500 text-sm"
+                            value={customerSearchTerm}
+                            onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                        <div className="overflow-y-auto overflow-x-hidden flex-1 max-h-48 drop-scrollbar">
+                          {filteredCustomersForDropdown.length > 0 ? filteredCustomersForDropdown.map(c => (
+                            <div
+                              key={c.id}
+                              className={`px-4 py-2 hover:bg-amber-50 cursor-pointer text-sm truncate ${formData.customerId === c.id ? 'bg-amber-100 font-bold text-amber-700' : 'text-slate-700'}`}
+                              onClick={() => {
+                                setFormData({ ...formData, customerId: c.id, customerName: c.name });
+                                setIsCustomerDropdownOpen(false);
+                              }}
+                            >
+                              <span className="font-bold">{c.name}</span>
+                            </div>
+                          )) : (
+                            <div className="px-4 py-3 text-sm text-slate-500 text-center italic">Nenhum cliente encontrado.</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
