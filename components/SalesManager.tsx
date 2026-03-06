@@ -31,7 +31,7 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 7)).toLocaleDateString('en-CA'));
   const [endDate, setEndDate] = useState(new Date().toLocaleDateString('en-CA'));
-  const [period, setPeriod] = useState<'7days' | 'current' | 'last' | 'custom'>('7days');
+  const [period, setPeriod] = useState<'7days' | 'current' | 'last' | 'currentYear' | 'custom'>('7days');
   const [isNoNf, setIsNoNf] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view' | 'print'>('add');
@@ -359,12 +359,16 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                 } else if (val === 'last') {
                   setStartDate(new Date(today.getFullYear(), today.getMonth() - 1, 1).toLocaleDateString('en-CA'));
                   setEndDate(new Date(today.getFullYear(), today.getMonth(), 0).toLocaleDateString('en-CA'));
+                } else if (val === 'currentYear') {
+                  setStartDate(new Date(today.getFullYear(), 0, 1).toLocaleDateString('en-CA'));
+                  setEndDate(new Date(today.getFullYear(), 11, 31).toLocaleDateString('en-CA'));
                 }
               }}
             >
               <option value="7days">Últimos 7 dias</option>
               <option value="current">Mês Atual</option>
               <option value="last">Mês Anterior</option>
+              <option value="currentYear">Ano Atual</option>
               <option value="custom">Personalizado</option>
             </select>
           </div>
