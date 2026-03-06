@@ -791,7 +791,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                 formatDateDisplay(s.date),
                 s.nfNumber || 'S/N',
                 s.customerName,
-                `${plan?.category || '---'}/${plan?.subcategory || '---'}`,
+                `${plan?.subcategory || '---'} / ${plan?.description || '---'}`,
                 `${s.status === 'Pago' ? '' : ''}${s.paymentCondition} (${s.paymentMethod})`,
                 formatDateDisplay(s.dueDate),
                 formatCurrency(s.totalValue)
@@ -812,7 +812,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                 formatDateDisplay(s.date),
                 'S/NF',
                 s.customerName,
-                `${plan?.category || '---'}/${plan?.subcategory || '---'}`,
+                `${plan?.subcategory || '---'} / ${plan?.description || '---'}`,
                 `${s.paymentCondition} (${s.paymentMethod})`,
                 formatDateDisplay(s.dueDate),
                 formatCurrency(s.totalValue)
@@ -1663,10 +1663,10 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                               k === 0 ? 'w-[80px] text-left' :
                                 k === 1 ? 'w-[60px] text-left' :
                                   k === 2 ? 'w-full min-w-[150px] text-left' :
-                                    k === 3 ? 'w-[250px] text-left' :
-                                      k === 4 ? 'w-[140px] text-left' :
-                                        k === 5 ? 'w-[100px] text-left' :
-                                          k === 6 ? 'w-[110px] text-left' : ''
+                                    k === 3 ? 'w-[200px] text-left' :
+                                      k === 4 ? 'w-[100px] text-left' :
+                                        k === 5 ? 'w-[90px] text-left' :
+                                          k === 6 ? 'w-[100px] text-left' : ''
                             ) : ''}
                           ${selectedReport === 'agenda' ? (
                               k === 0 ? 'w-[150px] text-left' :
@@ -1835,10 +1835,10 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                   k === 0 ? 'w-[80px]' :
                                     k === 1 ? 'w-[60px]' :
                                       k === 2 ? 'w-full min-w-[150px]' :
-                                        k === 3 ? 'w-[250px]' :
-                                          k === 4 ? 'w-[140px]' :
-                                            k === 5 ? 'w-[100px]' :
-                                              k === 6 ? 'w-[110px]' : ''
+                                        k === 3 ? 'w-[200px]' :
+                                          k === 4 ? 'w-[100px]' :
+                                            k === 5 ? 'w-[90px]' :
+                                              k === 6 ? 'w-[100px]' : ''
                                 ) : selectedReport === 'receivables' ? (
                                   k === 0 ? 'w-full min-w-[180px]' :
                                     k === 1 ? 'w-[70px]' :
@@ -2006,12 +2006,12 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                   j === 0 ? 'w-[80px]' :
                                     j === 1 ? 'w-[60px]' :
                                       j === 2 ? 'w-full min-w-[150px]' :
-                                        j === 3 ? 'w-[250px]' :
-                                          j === 4 ? 'w-[140px]' :
-                                            j === 5 ? 'w-[100px]' :
-                                              j === 6 ? 'w-[110px]' : ''
+                                        j === 3 ? 'w-[200px]' :
+                                          j === 4 ? 'w-[100px]' :
+                                            j === 5 ? 'w-[90px]' :
+                                              j === 6 ? 'w-[100px]' : ''
                                 ) : (selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1 ? 'min-w-[180px]' : ''}
-                                 ${((selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1) || ((selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && (j >= 0 && j <= 4)) || (selectedReport === 'sales' && [2, 3, 4].includes(j)) || (selectedReport === 'payments' && j === 4) || (selectedReport === 'expensesPending' && j === 0) ? 'whitespace-nowrap' : (isSectionHeader ? '' : 'whitespace-pre-line')}
+                                 ${((selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1) || ((selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && (j >= 0 && j <= 4)) || (selectedReport === 'payments' && j === 4) || (selectedReport === 'expensesPending' && j === 0) ? 'whitespace-nowrap' : (isSectionHeader ? '' : 'whitespace-pre-line')}
                                 ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1 ? 'min-w-[180px]' : ''}
                                 ${(selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && j === 3 ? 'text-left' : ''}
                                 ${(isSubtotalRow && (j === 0 || j === 1)) ? 'whitespace-nowrap text-left' : ''}
