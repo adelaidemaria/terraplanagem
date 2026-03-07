@@ -732,10 +732,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         });
         return {
           title: 'Listagem de Fornecedores (Resumo)',
-          headers: ['Nome do Fornecedor', 'CNPJ / CPF', 'Telefone', 'Status'],
+          headers: ['Nome do Fornecedor', 'Nome Fantasia', 'CPF / CNPJ', 'Telefone', 'Status'],
           rows: filtered.map(v => {
             return [
               v.name,
+              v.contactPerson || '---',
               v.document,
               v.phone,
               v.isActive === false ? 'INATIVO' : 'ATIVO'
@@ -1675,11 +1676,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                     k === 3 ? 'w-[150px] text-left' : ''
                             ) : ''}
                           ${(['customersSummary', 'vendorsSummary'].includes(selectedReport || '')) ? (
-                              k === 0 ? 'w-[280px]' :
-                                k === 1 ? 'w-[170px]' :
-                                  k === 2 ? 'w-[170px]' :
-                                    k === 3 ? (selectedReport === 'customersSummary' ? 'w-full text-left' : 'w-[100px] text-left') :
-                                      k === 4 ? 'w-full text-left' : ''
+                              k === 0 ? (selectedReport === 'vendorsSummary' ? 'w-[200px]' : 'w-[280px]') :
+                                k === 1 ? (selectedReport === 'vendorsSummary' ? 'w-[200px]' : 'w-[170px]') :
+                                  k === 2 ? (selectedReport === 'vendorsSummary' ? 'w-[140px]' : 'w-[170px]') :
+                                    k === 3 ? (selectedReport === 'customersSummary' ? 'w-full text-left' : 'w-[130px] text-left') :
+                                      k === 4 ? (selectedReport === 'vendorsSummary' ? 'w-full text-left' : 'w-full text-left') : ''
                             ) : ''}
                           ${selectedReport === 'dre' ? (
                               k === 0 ? 'w-[120px]' :
@@ -1790,7 +1791,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                 <p className="text-slate-900 font-normal text-[12px] tracking-wide">{row[3] || '---'}</p>
                               </div>
                               <div>
-                                <p className="text-slate-400 text-[10px] font-black uppercase mb-1 tracking-widest">Responsável</p>
+                                <p className="text-slate-400 text-[10px] font-black uppercase mb-1 tracking-widest">
+                                  {selectedReport === 'vendors' ? 'Nome Fantasia' : 'Responsável'}
+                                </p>
                                 <p className="text-slate-900 font-normal text-[12px] uppercase">{row[4] || '---'}</p>
                               </div>
                               <div>

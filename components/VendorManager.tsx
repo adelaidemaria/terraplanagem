@@ -214,7 +214,7 @@ const VendorManager: React.FC<VendorManagerProps> = ({ vendors, setVendors, acco
             <tr>
               <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Fornecedor / Documento</th>
               <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Tipo</th>
-              <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Responsável</th>
+              <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Nome Fantasia</th>
               <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Fone</th>
               <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600 text-right">Ações</th>
             </tr>
@@ -312,7 +312,7 @@ const VendorManager: React.FC<VendorManagerProps> = ({ vendors, setVendors, acco
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold mb-1 text-slate-700">Nome do Responsável</label>
+                  <label className="block text-sm font-semibold mb-1 text-slate-700">Nome Fantasia</label>
                   <input className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none" value={formData.contactPerson} onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })} />
                 </div>
 
@@ -333,8 +333,9 @@ const VendorManager: React.FC<VendorManagerProps> = ({ vendors, setVendors, acco
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-slate-700 mb-1 font-black uppercase text-[10px] text-amber-600">Vincular a uma Conta do Plano de Contas (Opcional)</label>
                   <div className="relative" ref={accountDropdownRef}>
-                    <div
-                      className="w-full px-4 py-2 border rounded-lg bg-white border-slate-200 outline-none focus-within:ring-2 focus-within:ring-amber-500 cursor-pointer"
+                    <button
+                      type="button"
+                      className="w-full px-4 py-2 border rounded-lg bg-white border-slate-200 outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer text-left"
                       onClick={() => {
                         setIsAccountDropdownOpen(!isAccountDropdownOpen);
                         setAccountSearchTerm('');
@@ -345,7 +346,7 @@ const VendorManager: React.FC<VendorManagerProps> = ({ vendors, setVendors, acco
                           {formData.categoryId ? sortedExpenseAccounts.find(p => p.id === formData.categoryId) ? `${sortedExpenseAccounts.find(p => p.id === formData.categoryId)?.category} / ${sortedExpenseAccounts.find(p => p.id === formData.categoryId)?.subcategory} (${sortedExpenseAccounts.find(p => p.id === formData.categoryId)?.description})` : 'Conta selecionada não encontrada' : 'Nenhuma conta vinculada...'}
                         </span>
                       </div>
-                    </div>
+                    </button>
                     {isAccountDropdownOpen && (
                       <div className="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-64 flex flex-col overflow-hidden">
                         <div className="p-2 border-b">
