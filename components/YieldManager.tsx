@@ -1,15 +1,16 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Plus, Trash2, Edit, AlertTriangle, ArrowRightLeft, X, Building2, Printer } from 'lucide-react';
-import { BankAccount, BankTransfer } from '../types';
+import { Plus, Trash2, Edit, AlertTriangle, ArrowRightLeft, X, Building2, Printer, PiggyBank } from 'lucide-react';
+import { BankAccount, FinancialYield, AccountPlan } from '../types';
 
-interface TransferManagerProps {
+interface YieldManagerProps {
     bankAccounts: BankAccount[];
-    transfers: BankTransfer[];
-    setTransfers: React.Dispatch<React.SetStateAction<BankTransfer[]>>;
+    yields: FinancialYield[];
+    setYields: React.Dispatch<React.SetStateAction<FinancialYield[]>>;
+    accountPlan: AccountPlan[];
     onGoToReports: (type?: string) => void;
 }
 
-const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfers, setTransfers, onGoToReports }) => {
+const YieldManager: React.FC<YieldManagerProps> = ({ bankAccounts, yields, setYields, accountPlan, onGoToReports }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -18,7 +19,6 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
 
     useEffect(() => {
         if (isModalOpen) {
-            // Pequeno delay para garantir que o modal terminou de renderizar/animar
             setTimeout(() => {
                 dateInputRef.current?.focus();
             }, 100);
@@ -29,9 +29,9 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
     const [endDate, setEndDate] = useState(new Date().toLocaleDateString('en-CA'));
     const [period, setPeriod] = useState<'7days' | 'current' | 'last' | 'thisYear' | 'custom'>('7days');
 
-    const [formData, setFormData] = useState<Partial<BankTransfer>>({
-        sourceAccountId: '',
-        destinationAccountId: '',
+    const [formData, setFormData] = useState<Partial<FinancialYield>>({
+        accountPlanId: '',
+        bankAccountId: '',
         amount: 0,
         date: new Date().toLocaleDateString('en-CA'),
         description: ''
@@ -53,8 +53,8 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
         setEditingId(null);
         setIsSubmitting(false);
         setFormData({
-            sourceAccountId: '',
-            destinationAccountId: '',
+            accountPlanId: '',
+            bankAccountId: '',
             amount: 0,
             date: new Date().toLocaleDateString('en-CA'),
             description: ''
@@ -62,15 +62,15 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
         setIsModalOpen(true);
     };
 
-    const handleOpenEdit = (transfer: BankTransfer) => {
-        setEditingId(transfer.id);
+    const handleOpenEdit = (financialYield: FinancialYield) => {
+        setEditingId(financialYield.id);
         setIsSubmitting(false);
-        setFormData(transfer);
+        setFormData(financialYield);
         setIsModalOpen(true);
     };
 
     const handleDelete = (id: string) => {
-        setTransfers(prev => prev.filter(t => t.id !== id));
+        setYields(prev => prev.filter(t => t.id !== id));
         setDeleteConfirmId(null);
     };
 
@@ -78,18 +78,13 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
         e.preventDefault();
         if (isSubmitting) return;
 
-        if (!formData.sourceAccountId || !formData.destinationAccountId) {
-            alert('Selecione a conta de origem e a conta de destino.');
-            return;
-        }
-
-        if (formData.sourceAccountId === formData.destinationAccountId) {
-            alert('A Conta de Origem e a Conta de Destino não podem ser a mesma.');
+        if (!formData.accountPlanId || !formData.bankAccountId) {
+            alert('Selecione a conta de origem (Receita) e a conta de destino (Banco).');
             return;
         }
 
         if (!formData.amount || formData.amount <= 0) {
-            alert('O valor da transferência deve ser maior que zero.');
+            alert('O valor do rendimento deve ser maior que zero.');
             return;
         }
 
@@ -100,53 +95,68 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
 
         setIsSubmitting(true);
 
-        const transferData = {
+        const yieldData = {
             ...formData,
-        } as BankTransfer;
+        } as FinancialYield;
 
         if (editingId) {
-            setTransfers(prev => prev.map(t => t.id === editingId ? { ...t, ...transferData } : t));
+            setYields(prev => prev.map(t => t.id === editingId ? { ...t, ...yieldData } : t));
             setIsModalOpen(false);
         } else {
             const newId = crypto.randomUUID();
             const newCreatedAt = Date.now();
-            setTransfers(prev => [{
-                ...transferData,
+            setYields(prev => [{
+                ...yieldData,
                 id: newId,
                 createdAt: newCreatedAt
             }, ...prev]);
 
-            // Reseta para possibilitar novo lançamento rápido, mantendo a data
             setFormData({
-                sourceAccountId: '',
-                destinationAccountId: '',
+                accountPlanId: '',
+                bankAccountId: formData.bankAccountId, // Mantém a conta de destino preenchida
                 amount: 0,
                 date: formData.date,
                 description: ''
             });
         }
 
-        // Mantém o foco na data para o próximo lançamento ou conferência
         setTimeout(() => {
             dateInputRef.current?.focus();
-            setIsSubmitting(false); // unlock after giving time for state updates
+            setIsSubmitting(false);
         }, 500);
     };
 
-    const filteredTransfers = useMemo(() => {
-        return transfers
+    const filteredYields = useMemo(() => {
+        return yields
             .filter(t => {
-                const transferDate = t.date;
-                return (!startDate || transferDate >= startDate) && (!endDate || transferDate <= endDate);
+                const yieldDate = t.date;
+                return (!startDate || yieldDate >= startDate) && (!endDate || yieldDate <= endDate);
             })
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [transfers, startDate, endDate]);
+    }, [yields, startDate, endDate]);
+
+    const financialRevenueAccounts = useMemo(() => {
+        return accountPlan.filter(p => {
+            if (p.type !== 'Receita') return false;
+            const catUpper = p.category.toUpperCase();
+            const subUpper = p.subcategory.toUpperCase();
+            
+            // Inclui explicitamente as financeiras
+            if (catUpper.includes('FINANCEIR') || subUpper.includes('FINANCEIR')) return true;
+            
+            // Remove explicitamente as categorias e subcategorias operacionais (locação, serviços, etc)
+            if (catUpper.includes('OPERACIONAL') || subUpper.includes('SERVIÇO') || subUpper.includes('LOCAÇÃO')) return false;
+            
+            // Permite outras receitas caso tenham criadas e não sejam operacionais
+            return true;
+        });
+    }, [accountPlan]);
 
     return (
         <div className="space-y-6">
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-6">
                 <h3 className="text-lg font-bold text-slate-800 flex items-center">
-                    <ArrowRightLeft className="mr-2 text-indigo-500" /> Transferências Bancárias
+                    <PiggyBank className="mr-2 text-indigo-500" /> Rendimentos e Juros de Aplicações
                 </h3>
 
                 <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto">
@@ -205,7 +215,7 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
                             <span>Extrato Bancário</span>
                         </button>
                         <button onClick={handleOpenAdd} className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 font-bold shadow-md transition-colors w-full sm:w-auto justify-center whitespace-nowrap">
-                            <Plus size={18} /> <span>Nova Transferência</span>
+                            <Plus size={18} /> <span>Novo Rendimento</span>
                         </button>
                     </div>
                 </div>
@@ -216,7 +226,7 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
                     <thead className="bg-slate-50 border-b">
                         <tr>
                             <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Data</th>
-                            <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Conta Origem (Débito)</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Conta Receita (Origem)</th>
                             <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Conta Destino (Crédito)</th>
                             <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Histórico</th>
                             <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Valor</th>
@@ -224,9 +234,9 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
                         </tr>
                     </thead>
                     <tbody className="divide-y">
-                        {filteredTransfers.length > 0 ? filteredTransfers.map(trans => {
-                            const sourceBank = bankAccounts.find(b => b.id === trans.sourceAccountId);
-                            const destBank = bankAccounts.find(b => b.id === trans.destinationAccountId);
+                        {filteredYields.length > 0 ? filteredYields.map(trans => {
+                            const sourcePlan = accountPlan.find(p => p.id === trans.accountPlanId);
+                            const destBank = bankAccounts.find(b => b.id === trans.bankAccountId);
 
                             return (
                                 <tr key={trans.id} className="hover:bg-slate-200/70 transition-colors cursor-pointer group">
@@ -235,8 +245,7 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
                                     </td>
                                     <td className="px-6 py-4 text-slate-700 font-semibold">
                                         <div className="flex items-center text-rose-600 text-xs">
-                                            <Building2 size={12} className="mr-1" />
-                                            {sourceBank?.bankName || 'Banco Excluído'}
+                                            {sourcePlan ? `${sourcePlan.category} / ${sourcePlan.description}` : 'Plano Não Encontrado'}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-slate-700 font-semibold">
@@ -260,7 +269,7 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
                                 </tr>
                             );
                         }) : (
-                            <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-400 italic font-medium">Nenhuma transferência bancária registrada.</td></tr>
+                            <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-400 italic font-medium">Nenhum rendimento registrado.</td></tr>
                         )}
                     </tbody>
                 </table>
@@ -269,8 +278,8 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
             {deleteConfirmId && (
                 <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border-t-4 border-rose-500">
-                        <h3 className="text-lg font-bold mb-2 flex items-center text-rose-600"><AlertTriangle className="mr-2" /> Excluir Transferência?</h3>
-                        <p className="text-sm text-slate-600 mb-6 font-medium">Tem certeza que deseja apagar este lançamento? Isso afetará o extrato dos bancos envolvidos.</p>
+                        <h3 className="text-lg font-bold mb-2 flex items-center text-rose-600"><AlertTriangle className="mr-2" /> Excluir Rendimento?</h3>
+                        <p className="text-sm text-slate-600 mb-6 font-medium">Tem certeza que deseja apagar este lançamento? Isso afetará o extrato do banco de destino.</p>
                         <div className="flex justify-end space-x-3">
                             <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 text-slate-500 font-bold">Cancelar</button>
                             <button onClick={() => handleDelete(deleteConfirmId)} className="px-6 py-2 bg-rose-500 text-white font-bold rounded-lg shadow-lg">Confirmar</button>
@@ -283,7 +292,7 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-in zoom-in duration-150">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-slate-800">{editingId ? 'Editar Transferência' : 'Nova Transferência bancária'}</h2>
+                            <h2 className="text-xl font-bold text-slate-800">{editingId ? 'Editar Rendimento' : 'Novo Rendimento de Aplicação'}</h2>
                             <button onClick={() => setIsModalOpen(false)}><X size={24} className="text-slate-400 hover:text-slate-600" /></button>
                         </div>
 
@@ -317,30 +326,30 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
 
                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-2 space-y-4">
                                 <div>
-                                    <label className="block text-xs font-bold mb-1 text-rose-600 uppercase">Conta Origem (Débito) *</label>
+                                    <label className="block text-xs font-bold mb-1 text-emerald-600 uppercase">Conta Destino (Crédito) *</label>
                                     <select
                                         required
-                                        className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-rose-400"
-                                        value={formData.sourceAccountId}
-                                        onChange={(e) => setFormData({ ...formData, sourceAccountId: e.target.value })}
+                                        className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-emerald-400"
+                                        value={formData.bankAccountId}
+                                        onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
                                     >
-                                        <option value="">Selecione o Banco onde vai Debitar...</option>
-                                        {bankAccounts.filter(b => !b.isBlocked || b.id === formData.sourceAccountId).map(b => (
+                                        <option value="">Selecione o Banco onde vai Creditar...</option>
+                                        {bankAccounts.filter(b => !b.isBlocked || b.id === formData.bankAccountId).map(b => (
                                             <option key={b.id} value={b.id}>{b.bankName} - {b.accountNumber} {b.isBlocked ? '(BLOQUEADO)' : ''}</option>
                                         ))}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold mb-1 text-emerald-600 uppercase">Conta Destino (Crédito) *</label>
+                                    <label className="block text-xs font-bold mb-1 text-rose-600 uppercase">Conta Receita (Plano de Contas) *</label>
                                     <select
                                         required
-                                        className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-emerald-400"
-                                        value={formData.destinationAccountId}
-                                        onChange={(e) => setFormData({ ...formData, destinationAccountId: e.target.value })}
+                                        className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-rose-400"
+                                        value={formData.accountPlanId}
+                                        onChange={(e) => setFormData({ ...formData, accountPlanId: e.target.value })}
                                     >
-                                        <option value="">Selecione o Banco onde vai Creditar...</option>
-                                        {bankAccounts.filter(b => !b.isBlocked || b.id === formData.destinationAccountId).map(b => (
-                                            <option key={b.id} value={b.id}>{b.bankName} - {b.accountNumber} {b.isBlocked ? '(BLOQUEADO)' : ''}</option>
+                                        <option value="">Selecione a Receita Financeira...</option>
+                                        {financialRevenueAccounts.map(p => (
+                                            <option key={p.id} value={p.id}>{p.category} - {p.subcategory} - {p.description}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -351,7 +360,7 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
                                 <textarea
                                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
                                     rows={2}
-                                    placeholder="Ex: Transferências de recursos para cobrir folha de pagamento..."
+                                    placeholder="Ex: Rendimentos Nubank, Aplicação CDB..."
                                     value={formData.description}
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                 />
@@ -360,7 +369,7 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
                             <div className="flex justify-end space-x-3 mt-6">
                                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-500 font-bold" disabled={isSubmitting}>Cancelar</button>
                                 <button type="submit" className={`px-6 py-2 text-white font-bold rounded-lg shadow-lg ${isSubmitting ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-500'}`} disabled={isSubmitting}>
-                                    {isSubmitting ? 'Salvando...' : 'Salvar Lançamento'}
+                                    {isSubmitting ? 'Salvando...' : 'Salvar Rendimento'}
                                 </button>
                             </div>
                         </form>
@@ -371,4 +380,4 @@ const TransferManager: React.FC<TransferManagerProps> = ({ bankAccounts, transfe
     );
 };
 
-export default TransferManager;
+export default YieldManager;

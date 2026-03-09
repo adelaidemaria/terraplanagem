@@ -5,6 +5,16 @@ export interface CustomerInteraction {
   text: string;
 }
 
+export interface FinancialYield {
+  id: string;
+  accountPlanId: string;
+  bankAccountId: string;
+  amount: number;
+  date: string;
+  description: string;
+  createdAt: number;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -196,7 +206,7 @@ export interface BankTransfer {
   createdAt: number;
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'reports' | 'fleet' | 'settings' | 'agenda';
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'settings' | 'agenda';
 
 export interface AdminUser {
   id: string;

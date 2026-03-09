@@ -16,7 +16,8 @@ import {
   User,
   CreditCard,
   ArrowRightLeft,
-  CalendarDays
+  CalendarDays,
+  PiggyBank
 } from 'lucide-react';
 import {
   Customer,
@@ -35,7 +36,8 @@ import {
   MaintenanceRecord,
   AdminUser,
   BankTransfer,
-  AgendaItem
+  AgendaItem,
+  FinancialYield
 } from './types';
 
 // Components
@@ -49,6 +51,7 @@ import ReceivablesManager from './components/ReceivablesManager';
 import AccountPlanManager from './components/AccountPlanManager';
 import BankAccountManager from './components/BankAccountManager';
 import TransferManager from './components/TransferManager';
+import YieldManager from './components/YieldManager';
 import ReportsManager from './components/ReportsManager';
 import FleetManager from './components/FleetManager';
 import SettingsManager from './components/SettingsManager';
@@ -136,13 +139,14 @@ const App: React.FC = () => {
   const [accountSubcategories, setAccountSubcategories, ascLoaded] = useSupabaseSync<AccountSubcategory>('account_subcategories');
   const [bankAccounts, setBankAccounts, baLoaded] = useSupabaseSync<BankAccount>('bank_accounts');
   const [bankTransfers, setBankTransfers, btLoaded] = useSupabaseSync<BankTransfer>('bank_transfers');
+  const [yields, setYields, yieldsLoaded] = useSupabaseSync<FinancialYield>('financial_yields');
   const [agendaItems, setAgendaItems, agendaLoaded] = useSupabaseSync<AgendaItem>('agenda_items');
 
   // Fleet State
   const [fleet, setFleet, fleetLoaded] = useSupabaseSync<Equipment>('equipment');
   const [maintenanceRecords, setMaintenanceRecords, mrLoaded] = useSupabaseSync<MaintenanceRecord>('maintenance_records');
 
-  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && fleetLoaded && mrLoaded && agendaLoaded;
+  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -345,6 +349,17 @@ const App: React.FC = () => {
             setCurrentView('reports');
           }}
         />;
+      case 'yields':
+        return <YieldManager
+          bankAccounts={bankAccounts}
+          yields={yields}
+          setYields={setYields}
+          accountPlan={accountPlan}
+          onGoToReports={(type) => {
+            if (type) setSelectedReportType(type);
+            setCurrentView('reports');
+          }}
+        />;
       case 'reports':
         return <ReportsManager
           customers={customers}
@@ -358,6 +373,7 @@ const App: React.FC = () => {
           accountPlan={accountPlan}
           bankAccounts={bankAccounts}
           bankTransfers={bankTransfers}
+          yields={yields}
           fleet={fleet}
           maintenanceRecords={maintenanceRecords}
           agendaItems={agendaItems}
@@ -441,6 +457,7 @@ const App: React.FC = () => {
           </div>
           <NavItem id="banks" label="Contas Bancárias" icon={Building2} />
           <NavItem id="transfers" label="Transferências" icon={ArrowRightLeft} />
+          <NavItem id="yields" label="Rend Aplic" icon={PiggyBank} />
 
           <div className="pt-6 pb-2 px-4 border-t border-slate-800 mt-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Relatórios</span>
@@ -488,6 +505,7 @@ const App: React.FC = () => {
             {currentView === 'accountPlan' && 'Plano de Contas'}
             {currentView === 'banks' && 'Contas Bancárias'}
             {currentView === 'transfers' && 'Transferências Bancárias'}
+            {currentView === 'yields' && 'Rendimentos Financeiros'}
             {currentView === 'reports' && 'Módulo de Relatórios Gerenciais'}
             {currentView === 'fleet' && 'Controle de Frota e Manutenção'}
             {currentView === 'settings' && 'Configurações do Sistema'}

@@ -35,7 +35,8 @@ import {
   MaintenanceRecord,
   MaintenanceIntervals,
   BankTransfer,
-  AgendaItem
+  AgendaItem,
+  FinancialYield
 } from '../types';
 import Logo from './Logo';
 
@@ -53,6 +54,7 @@ interface ReportsManagerProps {
   accountSubcategories: AccountSubcategory[];
   bankAccounts: BankAccount[];
   bankTransfers: BankTransfer[];
+  yields?: FinancialYield[];
   fleet: Equipment[];
   maintenanceRecords: MaintenanceRecord[];
   agendaItems?: AgendaItem[];
@@ -77,7 +79,7 @@ const formatDateDisplay = (dateStr: string | undefined) => {
 };
 
 const ReportsManager: React.FC<ReportsManagerProps> = ({
-  customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, accountCategories, accountSubcategories, bankAccounts, bankTransfers, fleet, maintenanceRecords, agendaItems = [], initialReport
+  customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, accountCategories, accountSubcategories, bankAccounts, bankTransfers, yields = [], fleet, maintenanceRecords, agendaItems = [], initialReport
 }) => {
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(initialReport || 'sales');
 
@@ -570,7 +572,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           .filter(t => t.sourceAccountId === selectedBankId && new Date(t.date).getTime() < startTimestamp)
           .reduce((acc, t) => acc + t.amount, 0);
 
-        const openingBalance = initialSystemBalance + prevCredits + prevTransferCredits - prevDebits - prevTransferDebits;
+        const prevYieldCredits = yields
+          .filter(y => y.bankAccountId === selectedBankId && new Date(y.date).getTime() < startTimestamp)
+          .reduce((acc, y) => acc + y.amount, 0);
+
+        const openingBalance = initialSystemBalance + prevCredits + prevTransferCredits + prevYieldCredits - prevDebits - prevTransferDebits;
 
         const periodCredits = payments
           .filter(p => p.bankAccountId === selectedBankId && new Date(p.date).getTime() >= startTimestamp && new Date(p.date).getTime() <= endTimestamp)
@@ -617,7 +623,19 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             };
           });
 
-        const sortedMovements = [...periodCredits, ...periodDebits, ...periodTransferCredits, ...periodTransferDebits].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const periodYieldCredits = yields
+          .filter(y => y.bankAccountId === selectedBankId && new Date(y.date).getTime() >= startTimestamp && new Date(y.date).getTime() <= endTimestamp)
+          .map(y => {
+            const ap = accountPlan.find(p => p.id === y.accountPlanId);
+            return {
+              date: y.date,
+              credit: y.amount,
+              debit: 0,
+              desc: `REND. FINANCEIRO: ${ap ? ap.description : 'S/N'} - ${y.description || ''}`
+            };
+          });
+
+        const sortedMovements = [...periodCredits, ...periodDebits, ...periodTransferCredits, ...periodTransferDebits, ...periodYieldCredits].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         let currentRunningBalance = openingBalance;
         const rowsWithBalance = sortedMovements.map(m => {
@@ -1067,6 +1085,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           return d >= startTimestamp && d <= endTimestamp;
         });
 
+        const dreYields = yields.filter(y => {
+          const d = new Date(y.date).getTime();
+          return d >= startTimestamp && d <= endTimestamp;
+        });
+
         const valueByAccountId = new Map<string, number>();
 
         dreSales.forEach(s => {
@@ -1075,6 +1098,10 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
         dreExpenses.forEach(e => {
           valueByAccountId.set(e.accountPlanId, (valueByAccountId.get(e.accountPlanId) || 0) + e.totalValue);
+        });
+
+        dreYields.forEach(y => {
+          valueByAccountId.set(y.accountPlanId, (valueByAccountId.get(y.accountPlanId) || 0) + y.amount);
         });
 
         let totalReceitas = 0;
