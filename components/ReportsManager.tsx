@@ -40,7 +40,7 @@ import {
 } from '../types';
 import Logo from './Logo';
 
-type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetOverdue' | 'fleetDue2' | 'fleetDue15' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda';
+type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetOverdue' | 'fleetDue2' | 'fleetDue15' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement';
 
 interface ReportsManagerProps {
   customers: Customer[];
@@ -396,6 +396,138 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           total: filtered.reduce((acc, curr) => acc + curr.totalValue, 0)
         };
       }
+      case 'customerStatement': {
+        const targetCustomers = selectedCustomerId === 'all' 
+          ? customers 
+          : customers.filter(c => c.id === selectedCustomerId);
+
+        const targetCustomerIds = new Set(targetCustomers.map(c => c.id));
+        const targetCustomerNames = new Set(targetCustomers.map(c => c.name));
+
+        const isTarget = (s: any) => targetCustomerIds.has(s.customerId) || targetCustomerNames.has(s.customerName);
+
+        const itemsByCustomer = new Map<string, {
+           name: string;
+           initialBalance: number;
+           items: any[];
+        }>();
+
+        // Inicializando o map para os clientes selecionados
+        targetCustomers.forEach(c => {
+           itemsByCustomer.set(c.name, {
+              name: c.name,
+              initialBalance: 0,
+              items: []
+           });
+        });
+
+        const getCustomerData = (name: string) => {
+           if (!itemsByCustomer.has(name)) {
+             itemsByCustomer.set(name, {
+               name: name,
+               initialBalance: 0,
+               items: []
+             });
+           }
+           return itemsByCustomer.get(name)!;
+        };
+
+        // 1. Faturamentos (Débitos na conta do cliente)
+        sales.filter(s => isTarget(s)).forEach(s => {
+          const cData = getCustomerData(s.customerName);
+          const d = new Date(s.date).getTime();
+          if (d < startTimestamp) {
+             cData.initialBalance += s.totalValue;
+          } else if (d >= startTimestamp && d <= endTimestamp) {
+             cData.items.push({
+               date: s.date,
+               history: `Faturamento NF: ${s.isNoNf ? 'S/NF' : (s.nfNumber || 'S/N')} (${s.paymentCondition})`,
+               billed: s.totalValue,
+               received: 0,
+               fee: 0
+             });
+          }
+        });
+
+        // 2. Recebimentos (Créditos na conta do cliente)
+        sales.filter(s => isTarget(s)).forEach(s => {
+          const cData = getCustomerData(s.customerName);
+          const salePayments = payments.filter(p => p.saleId === s.id);
+          salePayments.forEach(p => {
+            const d = new Date(p.date).getTime();
+            if (d < startTimestamp) {
+               cData.initialBalance -= (p.amount + (p.fee || 0));
+            } else if (d >= startTimestamp && d <= endTimestamp) {
+              let historyText = `Recebimento NF: ${s.isNoNf ? 'S/NF' : (s.nfNumber || 'S/N')}`;
+              if (p.installmentId && s.installmentsList) {
+                const inst = s.installmentsList.find(i => i.id === p.installmentId);
+                if (inst) historyText += ` - Parcela ${inst.number}`;
+              }
+              
+              cData.items.push({
+                date: p.date,
+                history: historyText,
+                billed: 0,
+                received: p.amount,
+                fee: p.fee || 0
+              });
+            }
+          });
+        });
+
+        const rows: any[] = [];
+        let grandTotal = 0;
+        let customerIndex = 0;
+
+        // Ordenar clientes alfabeticamente
+        const sortedCustomers = Array.from(itemsByCustomer.values()).sort((a,b) => a.name.localeCompare(b.name));
+
+        sortedCustomers.forEach(cData => {
+           // Skip se nao tem movimentacao e saldo inicial eh zero
+           if (cData.items.length === 0 && cData.initialBalance === 0 && selectedCustomerId === 'all') return;
+
+           let runningBalance = cData.initialBalance;
+
+           // Ordenar as movimentações cronologicamente
+           cData.items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+           if (customerIndex > 0) {
+             rows.push(['MONTH_SEPARATOR', '', '', '', '', '']); // 6 columns
+           }
+
+           rows.push(['CUSTOMER_STATEMENT_HEADER', cData.name, formatDateDisplay(startDate), runningBalance, '', '']);
+           rows.push(['COLUMN_HEADERS', '', '', '', '', '']);
+
+           cData.items.forEach(item => {
+             runningBalance += item.billed;
+             runningBalance -= item.received;
+             runningBalance -= item.fee;
+             item.balance = runningBalance;
+
+             rows.push([
+                formatDateDisplay(item.date),
+                item.history,
+                item.billed > 0 ? formatCurrency(item.billed) : '---',
+                item.received > 0 ? formatCurrency(item.received) : '---',
+                item.fee > 0 ? formatCurrency(item.fee) : '---',
+                formatCurrency(item.balance)
+             ]);
+           });
+
+           rows.push([`Saldo Final em ${formatDateDisplay(endDate)}`, 'IS_TOTAL_MONTH', '', '', '', formatCurrency(runningBalance)]);
+           
+           grandTotal += runningBalance;
+           customerIndex++;
+        });
+
+        return {
+          title: `Conta Corrente de Clientes - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headerInfo: selectedCustomerId === 'all' ? 'Movimentação Geral - Todos os Clientes' : `Extrato do Cliente: ${targetCustomers[0]?.name}`,
+          headers: ['Data', 'Histórico', 'Faturado', 'Recebido', 'Deduções', 'Saldo (R$)'],
+          rows: rows,
+          total: grandTotal
+        };
+      }
       case 'receivablesPending': {
         const pendingItems: any[] = [];
 
@@ -407,7 +539,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             sInstallments.forEach(inst => {
               if (inst.status !== 'Pago') {
                 const instPayments = payments.filter(p => p.saleId === s.id && p.installmentId === inst.id);
-                const paidOnInst = instPayments.reduce((sum, p) => sum + p.amount, 0);
+                const paidOnInst = instPayments.reduce((sum, p) => sum + p.amount + (p.fee || 0), 0);
                 const balance = inst.value - paidOnInst;
 
                 if (balance > 0.01) {
@@ -435,7 +567,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             });
           } else {
             // Sem parcelas (À Vista ou Legado)
-            const totalPaid = payments.filter(p => p.saleId === s.id).reduce((sum, p) => sum + p.amount, 0);
+            const totalPaid = payments.filter(p => p.saleId === s.id).reduce((sum, p) => sum + p.amount + (p.fee || 0), 0);
             const balance = s.totalValue - totalPaid;
 
             if (balance > 0.01) {
@@ -573,10 +705,22 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           .reduce((acc, t) => acc + t.amount, 0);
 
         const prevYieldCredits = yields
-          .filter(y => y.bankAccountId === selectedBankId && new Date(y.date).getTime() < startTimestamp)
+          .filter(y => {
+            if (y.bankAccountId !== selectedBankId || new Date(y.date).getTime() >= startTimestamp) return false;
+            const ap = accountPlan.find(p => p.id === y.accountPlanId);
+            return ap?.type !== 'Despesa';
+          })
           .reduce((acc, y) => acc + y.amount, 0);
 
-        const openingBalance = initialSystemBalance + prevCredits + prevTransferCredits + prevYieldCredits - prevDebits - prevTransferDebits;
+        const prevYieldDebits = yields
+          .filter(y => {
+            if (y.bankAccountId !== selectedBankId || new Date(y.date).getTime() >= startTimestamp) return false;
+            const ap = accountPlan.find(p => p.id === y.accountPlanId);
+            return ap?.type === 'Despesa';
+          })
+          .reduce((acc, y) => acc + y.amount, 0);
+
+        const openingBalance = initialSystemBalance + prevCredits + prevTransferCredits + prevYieldCredits - prevDebits - prevTransferDebits - prevYieldDebits;
 
         const periodCredits = payments
           .filter(p => p.bankAccountId === selectedBankId && new Date(p.date).getTime() >= startTimestamp && new Date(p.date).getTime() <= endTimestamp)
@@ -627,11 +771,12 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           .filter(y => y.bankAccountId === selectedBankId && new Date(y.date).getTime() >= startTimestamp && new Date(y.date).getTime() <= endTimestamp)
           .map(y => {
             const ap = accountPlan.find(p => p.id === y.accountPlanId);
+            const isExpense = ap?.type === 'Despesa';
             return {
               date: y.date,
-              credit: y.amount,
-              debit: 0,
-              desc: `REND. FINANCEIRO: ${ap ? ap.description : 'S/N'} - ${y.description || ''}`
+              credit: isExpense ? 0 : y.amount,
+              debit: isExpense ? y.amount : 0,
+              desc: `MOV. FINANCEIRA: ${ap ? ap.description : 'S/N'} - ${y.description || ''}`
             };
           });
 
@@ -1199,7 +1344,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               <div className="relative group">
                 <select
                   className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white focus:border-amber-200 transition-all appearance-none cursor-pointer"
-                  value={['bankStatement', 'corporateCard', 'sales', 'receivables', 'cardFees', 'receivablesPending', 'payments', 'expensesPending'].includes(selectedReport || '') ? selectedReport || '' : ''}
+                  value={['bankStatement', 'corporateCard', 'sales', 'receivables', 'cardFees', 'receivablesPending', 'customerStatement', 'payments', 'expensesPending'].includes(selectedReport || '') ? selectedReport || '' : ''}
                   onChange={(e) => setSelectedReport(e.target.value as ReportType)}
                 >
                   <option value="" disabled>Selecione um Relatório...</option>
@@ -1207,6 +1352,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   <option value="sales">📈 Faturamento por Período</option>
                   <option value="receivablesPending">⏳ Contas a Receber</option>
                   <option value="receivables">📥 Contas Recebidas</option>
+                  <option value="customerStatement">📘 Conta Corrente de Clientes</option>
                   <option value="expensesPending">⚠️ Contas a Pagar</option>
                   <option value="expensesByMonth">📊 Despesas por Conta</option>
                   <option value="expensesByMonthFlat">📊 Despesas por Mês</option>
@@ -1322,7 +1468,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   </div>
                 )}
 
-                {['dre', 'sales', 'receivables', 'receivablesPending', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory'].includes(selectedReport) && (
+                {['dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory'].includes(selectedReport) && (
                   <>
                     {['dre', 'sales', 'receivables', 'receivablesPending'].includes(selectedReport) && (
                       <div className="flex-1 space-y-2">
@@ -1341,7 +1487,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       </div>
                     )}
 
-                    {['sales', 'receivables', 'receivablesPending'].includes(selectedReport) && (
+                    {['sales', 'receivables', 'receivablesPending', 'customerStatement'].includes(selectedReport) && (
                       <div className="flex-1 space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
                           <Users size={14} className="mr-1" /> Clientes
@@ -1643,7 +1789,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                     </th>
                   </tr>
                 </thead>
-                {selectedReport !== 'sales' && selectedReport !== 'receivables' && selectedReport !== 'expensesByMonth' && selectedReport !== 'expensesByMonthFlat' && selectedReport !== 'customers' && selectedReport !== 'vendors' && (
+                {selectedReport !== 'sales' && selectedReport !== 'receivables' && selectedReport !== 'customerStatement' && selectedReport !== 'expensesByMonth' && selectedReport !== 'expensesByMonthFlat' && selectedReport !== 'customers' && selectedReport !== 'vendors' && (
                   <thead className="bg-slate-50 border-y border-slate-200">
                     <tr>
                       {reportContent.headers.map((h, k) => (
@@ -1654,6 +1800,14 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                         ${selectedReport === 'receivables' && k === 1 ? 'w-auto min-w-[200px]' : ''}
                         ${selectedReport === 'receivables' && k === 5 ? 'w-[200px] text-left' : ''}
                         ${selectedReport === 'receivables' && k === 6 ? 'w-[110px] text-left' : ''}
+                        ${selectedReport === 'customerStatement' ? (
+                               k === 0 ? 'w-[100px] text-left' :
+                                 k === 1 ? 'w-full min-w-[300px] text-left' :
+                                   k === 2 ? 'w-[140px] text-right' :
+                                     k === 3 ? 'w-[140px] text-right' :
+                                       k === 4 ? 'w-[140px] text-right' :
+                                         k === 5 ? 'w-[160px] text-right' : ''
+                            ) : ''}
                          ${selectedReport === 'expensesPending' ? (
                               k === 0 ? 'w-[150px]' :
                                 k === 1 ? 'w-full min-w-[180px]' :
@@ -1733,6 +1887,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                     const isSubtotalRow = rowString.includes('SUBTOTAL') || isTotalMonthRow;
                     const isSectionHeader = !isSubtotalRow && (
                       rowString.includes('MÊS:') ||
+                      rowString.includes('CLIENTE:') ||
                       rowString.includes('FATURAMENTO COM') ||
                       rowString.includes('FATURAMENTO SEM') ||
                       rowString.includes('RECEBIMENTOS COM') ||
@@ -1837,6 +1992,24 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       );
                     }
 
+                    if (row[0] === 'CUSTOMER_STATEMENT_HEADER') {
+                      return (
+                        <tr key={i} className="py-2 bg-transparent border-0">
+                          <td colSpan={reportContent.headers.length} className="px-4 py-6">
+                            <div className="flex flex-col border-b-2 border-slate-900 pb-2">
+                               <span className="text-lg font-black text-slate-800 uppercase tracking-wide">CLIENTE: {row[1]}</span>
+                               <span className="text-sm font-bold text-slate-500 uppercase mt-2">
+                                 Saldo inicial em <span className="text-slate-700">{row[2]}</span>: 
+                                 <span className={`font-black ml-2 ${row[3] >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
+                                   {formatCurrency(row[3])}
+                                 </span>
+                               </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+
                     if (row[0] === 'MONTH_SEPARATOR') {
                       return (
                         <tr key={i} className="bg-white border-0">
@@ -1854,7 +2027,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                             <th
                               key={k}
                               className={`px-4 py-3 font-black text-slate-600 uppercase text-[12px] tracking-wider whitespace-nowrap
-                                ${h.toLowerCase().includes('valor') || h.toLowerCase().includes('total') || h.toLowerCase().includes('saldo') || h.toLowerCase().includes('líquido') ? 'text-right' : 'text-left'}
+                                ${h.toLowerCase().includes('valor') || h.toLowerCase().includes('total') || h.toLowerCase().includes('saldo') || h.toLowerCase().includes('líquido') || h.toLowerCase().includes('faturado') || h.toLowerCase().includes('recebido') || h.toLowerCase().includes('deduç') ? 'text-right' : 'text-left'}
                                 ${k === 0 ? 'w-[90px]' : ''}
                       ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') ? (
                                   k === 1 ? 'w-[180px]' :
@@ -2021,7 +2194,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                 ${isBalance ? 'bg-slate-50/50 font-black text-slate-900 border-l border-slate-200' : ''}
                                  ${isTotalMonthRow ? 'bg-amber-500/10' : ''}
                                  ${isSubtotalRow && j === (isSectionHeader ? 0 : row.length - 1) ? 'text-right font-black border-l-2 border-slate-900' : ''}
-                                 ${(selectedReport === 'sales' && j === 6) || (selectedReport === 'receivables' && j === 7) || (selectedReport === 'expensesPending' && j === 5) || (selectedReport === 'payments' && j === 6) || (selectedReport === 'receivablesPending' && j === 5) || (selectedReport === 'corporateCard' && j === 4) || (selectedReport === 'cardFees' && [4, 5, 6].includes(j)) || (selectedReport === 'bankStatement' && [2, 3, 4].includes(j)) ? 'text-right' : 'text-left'}
+                                 ${(selectedReport === 'sales' && j === 6) || (selectedReport === 'customerStatement' && [2, 3, 4, 5].includes(j)) || (selectedReport === 'receivables' && j === 7) || (selectedReport === 'expensesPending' && j === 5) || (selectedReport === 'payments' && j === 6) || (selectedReport === 'receivablesPending' && j === 5) || (selectedReport === 'corporateCard' && j === 4) || (selectedReport === 'cardFees' && [4, 5, 6].includes(j)) || (selectedReport === 'bankStatement' && [2, 3, 4].includes(j)) ? 'text-right' : 'text-left'}
                                  ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 4 ? 'text-right' : ''}
                                  ${(selectedReport === 'accountCategoriesList' || selectedReport === 'dre') && j === 0 ? 'w-[120px] pl-8 font-mono text-slate-500 font-bold' : ''}
                                  ${selectedReport === 'payments' ? (
@@ -2032,7 +2205,14 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                           j === 4 ? 'w-[150px]' :
                                             j === 5 ? 'w-[120px]' :
                                               j === 6 ? 'w-[110px]' : ''
-                                ) : selectedReport === 'sales' ? (
+                                ) : selectedReport === 'customerStatement' ? (
+                                   j === 0 ? 'w-[100px]' :
+                                     j === 1 ? 'w-full min-w-[300px]' :
+                                       j === 2 ? 'w-[140px] text-right' :
+                                         j === 3 ? 'w-[140px] text-right' :
+                                           j === 4 ? 'w-[140px] text-right' :
+                                             j === 5 ? 'w-[160px] text-right font-black' : ''
+                                 ) : selectedReport === 'sales' ? (
                                   j === 0 ? 'w-[80px]' :
                                     j === 1 ? 'w-[60px]' :
                                       j === 2 ? 'w-full min-w-[150px]' :
@@ -2086,9 +2266,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                               ? 'TOTAL A RECEBER:'
                               : selectedReport === 'receivables'
                                 ? 'TOTAL RECEBIDO:'
-                                : selectedReport === 'sales'
-                                  ? 'TOTAL DO FATURAMENTO:'
-                                  : 'TOTAL DE DESPESAS:'}
+                                  : selectedReport === 'sales'
+                                    ? 'TOTAL DO FATURAMENTO:'
+                                    : selectedReport === 'customerStatement'
+                                      ? 'Total a Receber no Período:'
+                                      : 'TOTAL DE DESPESAS:'}
                       </td>
                       <td className={`px-4 py-5 text-xl whitespace-nowrap text-right ${reportContent.closingBalance !== undefined && reportContent.closingBalance < 0 ? 'text-rose-600' : 'text-slate-900 underline underline-offset-8 decoration-slate-300'}`}>
                         {formatCurrency(reportContent.closingBalance ?? reportContent.total ?? 0)}

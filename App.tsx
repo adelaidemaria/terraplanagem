@@ -317,6 +317,7 @@ const App: React.FC = () => {
           sales={sales} payments={payments}
           setPayments={setPayments} setSales={setSales}
           customers={customers} bankAccounts={bankAccounts}
+          yields={yields} setYields={setYields} accountPlan={accountPlan}
           onNavigateToReports={() => {
             setSelectedReportType('bankStatement');
             setCurrentView('reports');

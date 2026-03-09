@@ -29,6 +29,7 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
     const [startDate, setStartDate] = useState(new Date().toLocaleDateString('en-CA'));
     const [endDate, setEndDate] = useState(new Date().toLocaleDateString('en-CA'));
     const [filterLabel, setFilterLabel] = useState('Hoje');
+    const [statusFilter, setStatusFilter] = useState<'Todos' | 'Pendente' | 'Baixado'>('Pendente');
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
@@ -57,10 +58,14 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                 const docDate = e.dueDate || e.date;
                 const matchesSearch = e.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) || (e.docNumber && e.docNumber.includes(searchTerm));
                 const matchesDate = (!startDate || docDate >= startDate) && (!endDate || docDate <= endDate);
-                return e.status === 'Pendente' && matchesSearch && matchesDate;
+                
+                const isPending = e.status === 'Pendente';
+                const statusMatch = statusFilter === 'Todos' || (statusFilter === 'Pendente' && isPending) || (statusFilter === 'Baixado' && !isPending);
+
+                return statusMatch && matchesSearch && matchesDate;
             })
             .sort((a, b) => new Date(a.dueDate || a.date).getTime() - new Date(b.dueDate || b.date).getTime());
-    }, [expenses, searchTerm, startDate, endDate]);
+    }, [expenses, searchTerm, startDate, endDate, statusFilter]);
 
     const paidExpenses = useMemo(() => {
         return expenses
@@ -155,9 +160,24 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
-                <div className="relative w-full sm:w-80">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input type="text" placeholder="Pesquisar contas a pagar..." className="w-full pl-10 pr-4 py-2 border rounded-lg outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                    <div className="relative w-full sm:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input type="text" placeholder="Pesquisar contas a pagar..." className="pl-10 pr-4 py-2 border rounded-lg w-full outline-none focus:ring-2 focus:ring-emerald-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                    </div>
+                    
+                    <div className="flex items-center gap-2 w-full sm:w-auto ml-0 sm:ml-4">
+                        <span className="text-sm font-bold text-slate-500 whitespace-nowrap">Status:</span>
+                        <select
+                            className="px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm bg-white text-slate-600 focus:ring-2 focus:ring-emerald-500/20 font-bold"
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value as any)}
+                        >
+                            <option value="Todos">Todos</option>
+                            <option value="Pendente">Dar Baixa</option>
+                            <option value="Baixado">Baixados</option>
+                        </select>
+                    </div>
                 </div>
                 <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
                     <input
@@ -251,27 +271,69 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col">
                                                 <span className="font-bold text-slate-800">{expense.vendorName}</span>
-                                                <span className="text-[10px] text-slate-400 font-bold uppercase">Doc: {expense.docNumber || 'S/N'}</span>
+                                                <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                    <span className="text-[10px] text-slate-400 font-bold uppercase">Doc: {expense.docNumber || 'S/N'}</span>
+                                                    {expense.paymentMethod && (
+                                                      <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 truncate max-w-[120px]">
+                                                        {expense.paymentMethod}
+                                                      </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 font-black text-rose-600">{formatCurrency(expense.totalValue - (expense.amountPaid || 0))}</td>
                                         <td className="px-6 py-4 text-sm font-bold text-slate-600">{formatDateDisplay(expense.dueDate)}</td>
                                         <td className="px-6 py-4 text-right">
-                                            <button onClick={() => {
-                                                setSelectedExpenseId(expense.id);
-                                                setPayMethod(expense.paymentMethod || 'PIX');
-                                                setPayDate(new Date().toLocaleDateString('en-CA'));
-                                                setBankAccountId('');
-                                                const saldoAberto = expense.totalValue - (expense.amountPaid || 0);
-                                                setPayValue(saldoAberto > 0 ? saldoAberto : expense.totalValue);
-                                                setIsModalOpen(true);
-                                                setIsInterestFee(false);
-                                                setIsEditingRecent(false);
-                                                setCurrentReceiptUrl(expense.paymentReceiptUrl);
-                                                setUploadError(null);
-                                            }} className="bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center ml-auto transition-colors">
-                                                <ArrowUpCircle size={16} className="mr-1" /> PAGAR
-                                            </button>
+                                            {expense.status === 'Pendente' ? (
+                                                <button onClick={() => {
+                                                    setSelectedExpenseId(expense.id);
+                                                    setPayMethod(expense.paymentMethod || 'PIX');
+                                                    setPayDate(new Date().toLocaleDateString('en-CA'));
+                                                    setBankAccountId('');
+                                                    const saldoAberto = expense.totalValue - (expense.amountPaid || 0);
+                                                    setPayValue(saldoAberto > 0 ? saldoAberto : expense.totalValue);
+                                                    setIsModalOpen(true);
+                                                    setIsInterestFee(false);
+                                                    setIsEditingRecent(false);
+                                                    setCurrentReceiptUrl(expense.paymentReceiptUrl);
+                                                    setUploadError(null);
+                                                }} className="bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center ml-auto transition-colors">
+                                                    <ArrowUpCircle size={16} className="mr-1" /> PAGAR
+                                                </button>
+                                            ) : (
+                                                <div className="flex items-center justify-end space-x-2">
+                                                    <span className="px-3 py-1.5 rounded-lg text-sm font-bold text-slate-400 bg-slate-100 flex items-center h-8">BAIXADO</span>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setSelectedExpenseId(expense.id);
+                                                            setPayDate(expense.paymentDate || expense.date);
+                                                            setPayMethod(expense.paymentMethod || '');
+                                                            setBankAccountId(expense.bankAccountId || '');
+                                                            setPayValue(expense.amountPaid || expense.totalValue);
+                                                            setIsModalOpen(true);
+                                                            setIsInterestFee(!!expense.interestAmount && expense.interestAmount > 0);
+                                                            setIsEditingRecent(true);
+                                                            setCurrentReceiptUrl(expense.paymentReceiptUrl);
+                                                            setUploadError(null);
+                                                        }}
+                                                        className="p-1.5 h-8 flex items-center justify-center bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
+                                                        title="Editar Baixa"
+                                                    >
+                                                        <Edit size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setDeleteConfirmId(expense.id);
+                                                        }}
+                                                        className="p-1.5 h-8 flex items-center justify-center bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-colors cursor-pointer"
+                                                        title="Estornar Baixa"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

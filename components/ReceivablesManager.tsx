@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import {
   HandCoins, Search, Trash2, ArrowDownCircle, X, History, Building2, AlertTriangle, Edit, FileText
 } from 'lucide-react';
-import { Sale, Payment, Customer, BankAccount } from '../types';
+import { Sale, Payment, Customer, BankAccount, FinancialYield, AccountPlan } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface ReceivablesManagerProps {
@@ -13,6 +13,9 @@ interface ReceivablesManagerProps {
   setSales: React.Dispatch<React.SetStateAction<Sale[]>>;
   customers: Customer[];
   bankAccounts: BankAccount[];
+  yields?: FinancialYield[];
+  setYields?: React.Dispatch<React.SetStateAction<FinancialYield[]>>;
+  accountPlan?: AccountPlan[];
   onNavigateToReports?: () => void;
 }
 
@@ -23,7 +26,7 @@ const formatDateDisplay = (dateStr: string | undefined) => {
   return `${day}/${month}/${year}`;
 };
 
-const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments, setPayments, setSales, customers, bankAccounts, onNavigateToReports }) => {
+const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments, setPayments, setSales, customers, bankAccounts, yields, setYields, accountPlan, onNavigateToReports }) => {
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString('en-CA');
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toLocaleDateString('en-CA');
@@ -32,6 +35,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
   const [startDate, setStartDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [endDate, setEndDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [filterLabel, setFilterLabel] = useState('Hoje');
+  const [statusFilter, setStatusFilter] = useState<'Todos' | 'Pendente' | 'Baixado'>('Pendente');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [selectedInstallmentId, setSelectedInstallmentId] = useState<string | null>(null);
@@ -42,6 +46,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
   const [payDate, setPayDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [payMethod, setPayMethod] = useState('PIX');
   const [bankAccountId, setBankAccountId] = useState('');
+  const [feeAccountId, setFeeAccountId] = useState(''); // New state for Fee Account
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
 
   const [isUploading, setIsUploading] = useState(false);
@@ -87,7 +92,10 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
       if (s.installmentsList && s.installmentsList.length > 0) {
         s.installmentsList.forEach(inst => {
           const bal = getInstallmentBalance(s.id, inst.id, inst.value);
-          if (bal > 0.01) {
+          const isPending = bal > 0.01;
+          const statusMatch = statusFilter === 'Todos' || (statusFilter === 'Pendente' && isPending) || (statusFilter === 'Baixado' && !isPending);
+          
+          if (statusMatch) {
             items.push({
               id: inst.id,
               saleId: s.id,
@@ -103,7 +111,10 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
         });
       } else {
         const bal = getSaleBalance(s);
-        if (bal > 0.01) {
+        const isPending = bal > 0.01;
+        const statusMatch = statusFilter === 'Todos' || (statusFilter === 'Pendente' && isPending) || (statusFilter === 'Baixado' && !isPending);
+
+        if (statusMatch) {
           items.push({
             id: s.id,
             saleId: s.id,
@@ -125,7 +136,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
         return matchesSearch && matchesDate;
       })
       .sort((a, b) => new Date(a.refDate).getTime() - new Date(b.refDate).getTime());
-  }, [sales, payments, searchTerm, startDate, endDate]);
+  }, [sales, payments, searchTerm, startDate, endDate, statusFilter]);
 
   const recentPayments = useMemo(() => {
     return [...payments]
@@ -140,6 +151,13 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
     e.preventDefault();
     if (!selectedSaleId || payAmount <= 0) return;
     if (!bankAccountId) return alert('Selecione o banco de destino.');
+    
+    const isCard = (payMethod === 'Cartão' || payMethod === 'Cartão de Crédito' || payMethod === 'Cartão de Débito');
+    const actualFee = isCard ? Number(payFee) : 0;
+    
+    if (actualFee > 0 && !feeAccountId) {
+      return alert('Selecione uma Conta de Despesa para lançar a Taxa do Cartão.');
+    }
 
     const paymentData: Payment = {
       id: editingPaymentId || crypto.randomUUID(),
@@ -147,7 +165,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
       installmentId: selectedInstallmentId || undefined,
       bankAccountId,
       amount: Number(payAmount),
-      fee: (payMethod === 'Cartão' || payMethod === 'Cartão de Crédito' || payMethod === 'Cartão de Débito') ? Number(payFee) : 0,
+      fee: actualFee,
       date: payDate,
       method: payMethod,
       receiptUrl: currentReceiptUrl,
@@ -162,6 +180,30 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
     }
 
     setPayments(newPayments);
+
+    if (setYields) {
+      const yieldRefId = paymentData.id;
+      if (actualFee > 0) {
+        const yieldData: FinancialYield = {
+          id: crypto.randomUUID(), // Always generate a new ID to avoid conflicts, or we could update an existing one finding by description
+          accountPlanId: feeAccountId,
+          bankAccountId: bankAccountId,
+          description: `TAXA CARTÃO Ref:${yieldRefId}`,
+          amount: actualFee,
+          date: payDate,
+          createdAt: Date.now()
+        };
+        
+        // Remove old yield attached to this payment
+        setYields(prev => {
+          const filtered = prev.filter(y => !y.description.includes(`Ref:${yieldRefId}`));
+          return [...filtered, yieldData];
+        });
+      } else {
+        // If there was no fee but it was an edit, remove any existing yield
+        setYields(prev => prev.filter(y => !y.description.includes(`Ref:${yieldRefId}`)));
+      }
+    }
 
     // Update sale status (calc all payments for this sale)
     const sale = sales.find(s => s.id === selectedSaleId);
@@ -226,6 +268,10 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
     const sId = pToDelete.saleId;
     const updatedPayments = payments.filter(p => p.id !== pId);
     setPayments(updatedPayments);
+    
+    if (setYields) {
+      setYields(prev => prev.filter(y => !y.description.includes(`Ref:${pId}`)));
+    }
 
     const sale = sales.find(s => s.id === sId);
     if (sale) {
@@ -253,9 +299,26 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input type="text" placeholder="Pesquisar pendentes..." className="w-full pl-10 pr-4 py-2 border rounded-lg outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input type="text" placeholder="Pesquisar" className="pl-10 pr-4 py-2 border rounded-lg w-full sm:w-64 outline-none focus:ring-2 focus:ring-emerald-500"
+              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          
+          <div className="flex items-center gap-2 w-full sm:w-auto ml-0 sm:ml-4">
+            <span className="text-sm font-bold text-slate-500 whitespace-nowrap">Status:</span>
+            <select
+              className="px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm bg-white text-slate-600 focus:ring-2 focus:ring-emerald-500/20 font-bold"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+            >
+              <option value="Todos">Todos</option>
+              <option value="Pendente">Dar Baixa</option>
+              <option value="Baixado">Baixados</option>
+            </select>
+          </div>
         </div>
         <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
           <input
@@ -349,31 +412,118 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
                         <span className="font-bold text-slate-800">{item.customerName}</span>
-                        <div className="flex items-center space-x-2 mt-1">
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
                           <span className="text-[10px] text-slate-400 font-bold uppercase">NF: {item.nfNumber || 'S/N'}</span>
                           <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${item.installmentId ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
                             {item.title}
                           </span>
+                          {item.sale.paymentMethod && (
+                            <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 truncate max-w-[120px]">
+                              {item.sale.paymentMethod}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 font-black text-rose-600">{formatCurrency(item.balance)}</td>
                     <td className="px-6 py-4 font-bold text-slate-500">{formatDateDisplay(item.refDate)}</td>
                     <td className="px-6 py-4 text-right">
-                      <button onClick={() => {
-                        setSelectedSaleId(item.saleId);
-                        setSelectedInstallmentId(item.installmentId || null);
-                        setEditingPaymentId(null);
-                        setPayAmount(item.balance);
-                        setPayMethod(item.sale.paymentMethod || 'PIX');
-                        setPayFee(0);
-                        setCurrentReceiptUrl(undefined);
-                        setUploadError(null);
-                        setUploadError(null);
-                        setIsModalOpen(true);
-                      }} className="bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center ml-auto transition-colors">
-                        <ArrowDownCircle size={16} className="mr-1" /> DAR BAIXA
-                      </button>
+                      {item.balance > 0.01 ? (
+                        <button onClick={() => {
+                          setSelectedSaleId(item.saleId);
+                          setSelectedInstallmentId(item.installmentId || null);
+                          setEditingPaymentId(null);
+                          setPayAmount(item.balance);
+                          setPayMethod(item.sale.paymentMethod || 'PIX');
+                          setPayFee(0);
+                          
+                          // Try to auto-select card fee account
+                          if (accountPlan) {
+                             const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
+                             if (cardAccount) setFeeAccountId(cardAccount.id);
+                             else {
+                               const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
+                               if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
+                               else setFeeAccountId('');
+                             }
+                          } else {
+                             setFeeAccountId('');
+                          }
+                          
+                          setCurrentReceiptUrl(undefined);
+                          setUploadError(null);
+                          setIsModalOpen(true);
+                        }} className="bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center ml-auto transition-colors">
+                          <ArrowDownCircle size={16} className="mr-1" /> DAR BAIXA
+                        </button>
+                      ) : (
+                        <div className="flex items-center justify-end space-x-2">
+                          <span className="px-3 py-1.5 rounded-lg text-sm font-bold text-slate-400 bg-slate-100 flex items-center h-8">BAIXADO</span>
+                          {(() => {
+                            const p = payments.filter(pay => pay.saleId === item.saleId && (!item.installmentId || pay.installmentId === item.installmentId)).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                            if (!p) return null;
+                            return (
+                              <div className="flex items-center space-x-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const sale = sales.find(s => s.id === p.saleId);
+                                    if (!sale) return;
+                                    setEditingPaymentId(p.id);
+                                    setSelectedSaleId(p.saleId);
+                                    setSelectedInstallmentId(p.installmentId || null);
+                                    setPayAmount(p.amount);
+                                    setPayFee(p.fee || 0);
+                                    setPayDate(p.date);
+                                    setPayMethod(p.method);
+                                    setBankAccountId(p.bankAccountId);
+
+                                    if (setYields && yields && p.fee && p.fee > 0) {
+                                       const existingYield = yields.find(y => y.description.includes(`Ref:${p.id}`));
+                                       if (existingYield) setFeeAccountId(existingYield.accountPlanId);
+                                       else if (accountPlan) {
+                                         const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
+                                         if (cardAccount) setFeeAccountId(cardAccount.id);
+                                         else {
+                                           const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
+                                           if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
+                                           else setFeeAccountId('');
+                                         }
+                                       }
+                                    } else if (accountPlan) {
+                                       const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
+                                       if (cardAccount) setFeeAccountId(cardAccount.id);
+                                       else {
+                                         const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
+                                         if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
+                                         else setFeeAccountId('');
+                                       }
+                                    }
+
+                                    setCurrentReceiptUrl(p.receiptUrl);
+                                    setUploadError(null);
+                                    setIsModalOpen(true);
+                                  }}
+                                  className="p-1.5 h-8 flex items-center justify-center bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
+                                  title="Editar"
+                                >
+                                  <Edit size={14} />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteConfirmId(p.id);
+                                  }}
+                                  className="p-1.5 h-8 flex items-center justify-center bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-colors cursor-pointer"
+                                  title="Estornar"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -425,6 +575,30 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
                           setPayDate(p.date);
                           setPayMethod(p.method);
                           setBankAccountId(p.bankAccountId);
+                          
+                          // Restore fee account if possible
+                          if (setYields && yields && p.fee && p.fee > 0) {
+                             const existingYield = yields.find(y => y.description.includes(`Ref:${p.id}`));
+                             if (existingYield) setFeeAccountId(existingYield.accountPlanId);
+                             else if (accountPlan) {
+                               const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
+                               if (cardAccount) setFeeAccountId(cardAccount.id);
+                               else {
+                                 const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
+                                 if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
+                                 else setFeeAccountId('');
+                               }
+                             }
+                          } else if (accountPlan) {
+                             const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
+                             if (cardAccount) setFeeAccountId(cardAccount.id);
+                             else {
+                               const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
+                               if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
+                               else setFeeAccountId('');
+                             }
+                          }
+
                           setCurrentReceiptUrl(p.receiptUrl);
                           setUploadError(null);
                           setIsModalOpen(true);
@@ -567,17 +741,30 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
 
               {(payMethod === 'Cartão' || payMethod === 'Cartão de Crédito' || payMethod === 'Cartão de Débito') && (
                 <div className="animate-in fade-in zoom-in duration-200">
-                  <label className="block text-sm font-semibold mb-1 text-slate-700">Taxas do Cartão (R$)</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-rose-400">R$</span>
-                    <input
-                      required
-                      className="w-full pl-10 pr-4 py-2 border rounded-lg font-bold text-rose-500 focus:ring-2 focus:ring-rose-500 outline-none"
-                      value={formatInputCurrency(payFee)}
-                      onChange={(e) => setPayFee(parseCurrencyInput(e.target.value))}
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold mb-1 text-slate-700">Taxas do Cartão (R$)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-rose-400">R$</span>
+                        <input
+                          required
+                          className="w-full pl-10 pr-4 py-2 border rounded-lg font-bold text-rose-500 focus:ring-2 focus:ring-rose-500 outline-none"
+                          value={formatInputCurrency(payFee)}
+                          onChange={(e) => setPayFee(parseCurrencyInput(e.target.value))}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-1 text-slate-700">Conta Despesa (DRE) *</label>
+                      <select required className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-rose-500 text-sm font-bold text-rose-600" value={feeAccountId} onChange={(e) => setFeeAccountId(e.target.value)}>
+                        <option value="">Selecione a conta...</option>
+                        {accountPlan?.filter(ap => ap.type === 'Despesa' && ap.accountNumber === '2.03.03.02').map(ap => (
+                          <option key={ap.id} value={ap.id}>{ap.subcategory} / {ap.description}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-1 font-bold uppercase">Líquido a creditar: {formatCurrency(payAmount)} | Abatimento no saldo: {formatCurrency(payAmount + payFee)}</p>
+                  <p className="text-[10px] text-slate-400 mt-2 font-bold uppercase transition-all">Líquido a creditar: {formatCurrency(payAmount)} | Abatimento no saldo da Venda: {formatCurrency(payAmount + payFee)}</p>
                 </div>
               )}
 

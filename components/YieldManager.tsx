@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Plus, Trash2, Edit, AlertTriangle, ArrowRightLeft, X, Building2, Printer, PiggyBank } from 'lucide-react';
+import { Plus, Trash2, Edit, AlertTriangle, ArrowRightLeft, X, Building2, Printer, PiggyBank, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 import { BankAccount, FinancialYield, AccountPlan } from '../types';
 
 interface YieldManagerProps {
@@ -12,6 +12,7 @@ interface YieldManagerProps {
 
 const YieldManager: React.FC<YieldManagerProps> = ({ bankAccounts, yields, setYields, accountPlan, onGoToReports }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [yieldType, setYieldType] = useState<'Receita' | 'Despesa'>('Receita');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -52,6 +53,7 @@ const YieldManager: React.FC<YieldManagerProps> = ({ bankAccounts, yields, setYi
     const handleOpenAdd = () => {
         setEditingId(null);
         setIsSubmitting(false);
+        setYieldType('Receita');
         setFormData({
             accountPlanId: '',
             bankAccountId: '',
@@ -65,6 +67,8 @@ const YieldManager: React.FC<YieldManagerProps> = ({ bankAccounts, yields, setYi
     const handleOpenEdit = (financialYield: FinancialYield) => {
         setEditingId(financialYield.id);
         setIsSubmitting(false);
+        const ap = accountPlan.find(p => p.id === financialYield.accountPlanId);
+        setYieldType(ap?.type === 'Despesa' ? 'Despesa' : 'Receita');
         setFormData(financialYield);
         setIsModalOpen(true);
     };
@@ -135,22 +139,26 @@ const YieldManager: React.FC<YieldManagerProps> = ({ bankAccounts, yields, setYi
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [yields, startDate, endDate]);
 
-    const financialRevenueAccounts = useMemo(() => {
+    const financialAccounts = useMemo(() => {
         return accountPlan.filter(p => {
-            if (p.type !== 'Receita') return false;
+            if (p.type !== yieldType) return false;
             const catUpper = p.category.toUpperCase();
             const subUpper = p.subcategory.toUpperCase();
             
-            // Inclui explicitamente as financeiras
-            if (catUpper.includes('FINANCEIR') || subUpper.includes('FINANCEIR')) return true;
-            
-            // Remove explicitamente as categorias e subcategorias operacionais (locação, serviços, etc)
-            if (catUpper.includes('OPERACIONAL') || subUpper.includes('SERVIÇO') || subUpper.includes('LOCAÇÃO')) return false;
-            
-            // Permite outras receitas caso tenham criadas e não sejam operacionais
-            return true;
+            if (yieldType === 'Receita') {
+                if (catUpper.includes('FINANCEIR') || subUpper.includes('FINANCEIR')) return true;
+                if (catUpper.includes('OPERACIONAL') || subUpper.includes('SERVIÇO') || subUpper.includes('LOCAÇÃO')) return false;
+                return true;
+            } else {
+                // Return only financial expenses for Despesa
+                return catUpper.includes('FINANCEIR') || subUpper.includes('FINANCEIR') || 
+                       catUpper.includes('TAXA') || subUpper.includes('TAXA') || 
+                       catUpper.includes('JURO') || subUpper.includes('JURO') || 
+                       catUpper.includes('TARIFA') || subUpper.includes('TARIFA') ||
+                       catUpper.includes('IRRF') || subUpper.includes('IOF');
+            }
         });
-    }, [accountPlan]);
+    }, [accountPlan, yieldType]);
 
     return (
         <div className="space-y-6">
@@ -226,8 +234,8 @@ const YieldManager: React.FC<YieldManagerProps> = ({ bankAccounts, yields, setYi
                     <thead className="bg-slate-50 border-b">
                         <tr>
                             <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Data</th>
-                            <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Conta Receita (Origem)</th>
-                            <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Conta Destino (Crédito)</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Conta Receita/Despesa</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Banco Vinculado</th>
                             <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Histórico</th>
                             <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Valor</th>
                             <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600 text-right">Ações</th>
@@ -244,14 +252,14 @@ const YieldManager: React.FC<YieldManagerProps> = ({ bankAccounts, yields, setYi
                                         {trans.date.split('-').reverse().join('/')}
                                     </td>
                                     <td className="px-6 py-4 text-slate-700 font-semibold">
-                                        <div className="flex items-center text-rose-600 text-xs">
-                                            {sourcePlan ? `${sourcePlan.category} / ${sourcePlan.description}` : 'Plano Não Encontrado'}
+                                        <div className={`flex items-center text-xs ${sourcePlan?.type === 'Despesa' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                            {sourcePlan ? `${sourcePlan.type} / ${sourcePlan.description}` : 'Plano Não Encontrado'}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-slate-700 font-semibold">
-                                        <div className="flex items-center text-emerald-600 text-xs">
+                                        <div className={`flex items-center text-xs ${sourcePlan?.type === 'Despesa' ? 'text-rose-600' : 'text-emerald-600'}`}>
                                             <Building2 size={12} className="mr-1" />
-                                            {destBank?.bankName || 'Banco Excluído'}
+                                            {destBank?.bankName || 'Banco Excluído'} {sourcePlan?.type === 'Despesa' ? '(Débito)' : '(Crédito)'}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-slate-600 truncate max-w-[200px]">
@@ -292,11 +300,27 @@ const YieldManager: React.FC<YieldManagerProps> = ({ bankAccounts, yields, setYi
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-in zoom-in duration-150">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-slate-800">{editingId ? 'Editar Rendimento' : 'Novo Rendimento de Aplicação'}</h2>
+                            <h2 className="text-xl font-bold text-slate-800">{editingId ? 'Editar Operação Financeira' : 'Nova Operação Financeira'}</h2>
                             <button onClick={() => setIsModalOpen(false)}><X size={24} className="text-slate-400 hover:text-slate-600" /></button>
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            <div className="flex bg-slate-100 rounded-lg p-1 mb-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setYieldType('Receita')}
+                                    className={`flex-1 py-2 font-bold text-sm rounded-md transition-colors flex items-center justify-center gap-2 ${yieldType === 'Receita' ? 'bg-emerald-500 text-white shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    <ArrowUpCircle size={18} /> Receita (Rendimento)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setYieldType('Despesa')}
+                                    className={`flex-1 py-2 font-bold text-sm rounded-md transition-colors flex items-center justify-center gap-2 ${yieldType === 'Despesa' ? 'bg-rose-500 text-white shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    <ArrowDownCircle size={18} /> Despesa (Taxas/IR)
+                                </button>
+                            </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-semibold mb-1 text-slate-700">Data do Lançamento *</label>
@@ -326,29 +350,33 @@ const YieldManager: React.FC<YieldManagerProps> = ({ bankAccounts, yields, setYi
 
                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-2 space-y-4">
                                 <div>
-                                    <label className="block text-xs font-bold mb-1 text-emerald-600 uppercase">Conta Destino (Crédito) *</label>
+                                    <label className={`block text-xs font-bold mb-1 uppercase ${yieldType === 'Receita' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {yieldType === 'Receita' ? 'Conta Destino (Crédito) *' : 'Conta Origem (Débito) *'}
+                                    </label>
                                     <select
                                         required
-                                        className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-emerald-400"
+                                        className={`w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 ${yieldType === 'Receita' ? 'focus:ring-emerald-400' : 'focus:ring-rose-400'}`}
                                         value={formData.bankAccountId}
                                         onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
                                     >
-                                        <option value="">Selecione o Banco onde vai Creditar...</option>
+                                        <option value="">{yieldType === 'Receita' ? 'Selecione o Banco onde vai Creditar...' : 'Selecione o Banco onde debitou...'}</option>
                                         {bankAccounts.filter(b => !b.isBlocked || b.id === formData.bankAccountId).map(b => (
                                             <option key={b.id} value={b.id}>{b.bankName} - {b.accountNumber} {b.isBlocked ? '(BLOQUEADO)' : ''}</option>
                                         ))}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold mb-1 text-rose-600 uppercase">Conta Receita (Plano de Contas) *</label>
+                                    <label className={`block text-xs font-bold mb-1 uppercase ${yieldType === 'Receita' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                        {yieldType === 'Receita' ? 'Conta Receita (Plano de Contas) *' : 'Conta Despesa (Plano de Contas) *'}
+                                    </label>
                                     <select
                                         required
-                                        className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-rose-400"
+                                        className={`w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 ${yieldType === 'Receita' ? 'focus:ring-rose-400' : 'focus:ring-emerald-400'}`}
                                         value={formData.accountPlanId}
                                         onChange={(e) => setFormData({ ...formData, accountPlanId: e.target.value })}
                                     >
-                                        <option value="">Selecione a Receita Financeira...</option>
-                                        {financialRevenueAccounts.map(p => (
+                                        <option value="">{yieldType === 'Receita' ? 'Selecione a Receita Financeira...' : 'Selecione a Despesa Financeira...'}</option>
+                                        {financialAccounts.map(p => (
                                             <option key={p.id} value={p.id}>{p.category} - {p.subcategory} - {p.description}</option>
                                         ))}
                                     </select>
@@ -369,7 +397,7 @@ const YieldManager: React.FC<YieldManagerProps> = ({ bankAccounts, yields, setYi
                             <div className="flex justify-end space-x-3 mt-6">
                                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-500 font-bold" disabled={isSubmitting}>Cancelar</button>
                                 <button type="submit" className={`px-6 py-2 text-white font-bold rounded-lg shadow-lg ${isSubmitting ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-500'}`} disabled={isSubmitting}>
-                                    {isSubmitting ? 'Salvando...' : 'Salvar Rendimento'}
+                                    {isSubmitting ? 'Salvando...' : 'Salvar Operação'}
                                 </button>
                             </div>
                         </form>
