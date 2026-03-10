@@ -36,8 +36,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [nfFilter, setNfFilter] = useState<'all' | 'noNf' | 'withNf'>('all');
-  const [statusFilter, setStatusFilter] = useState<'Todos' | 'Pago' | 'Pendente'>('Todos');
+  const [nfFilter, setNfFilter] = useState<'all' | 'noNf' | 'withNf' | 'Pago' | 'Pendente'>('all');
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -131,14 +130,14 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
 
         const matchesNf = nfFilter === 'all' ||
           (nfFilter === 'noNf' && e.isNoDoc) ||
-          (nfFilter === 'withNf' && !e.isNoDoc);
+          (nfFilter === 'withNf' && !e.isNoDoc) ||
+          (nfFilter === 'Pago' && e.status === 'Pago') ||
+          (nfFilter === 'Pendente' && e.status === 'Pendente');
 
-        const matchesStatus = statusFilter === 'Todos' || e.status === statusFilter;
-
-        return matchesSearch && matchesDate && matchesNf && matchesStatus;
+        return matchesSearch && matchesDate && matchesNf;
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [expenses, searchTerm, startDate, endDate, nfFilter, statusFilter]);
+  }, [expenses, searchTerm, startDate, endDate, nfFilter]);
 
   const handleOpenAdd = () => {
     if (vendors.length === 0) return alert('Cadastre um fornecedor primeiro.');
@@ -292,18 +291,6 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
     <div className="space-y-6">
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <span className="text-sm font-bold text-slate-500 whitespace-nowrap">Situação Pgto:</span>
-            <select
-              className="px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm bg-white text-slate-600 focus:ring-2 focus:ring-rose-500/20 font-bold"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-            >
-              <option value="Todos">Todos</option>
-              <option value="Pago">Pago</option>
-              <option value="Pendente">Pendente</option>
-            </select>
-          </div>
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
@@ -317,13 +304,15 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <span className="text-sm font-bold text-slate-500 whitespace-nowrap">Filtro:</span>
             <select
-              className="px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm bg-white text-slate-600 focus:ring-2 focus:ring-rose-500/20"
+              className="px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm bg-white text-slate-600 focus:ring-2 focus:ring-rose-500/20 font-bold"
               value={nfFilter}
               onChange={(e) => setNfFilter(e.target.value as any)}
             >
               <option value="all">Todas Despesas</option>
               <option value="noNf">Despesas S/N</option>
               <option value="withNf">Despesas com NF</option>
+              <option value="Pago">Pago</option>
+              <option value="Pendente">Pendentes</option>
             </select>
           </div>
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">

@@ -738,6 +738,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         const prevYieldCredits = yields
           .filter(y => {
             if (y.bankAccountId !== selectedBankId || new Date(y.date).getTime() >= startTimestamp) return false;
+            if (y.description.startsWith('TAXA CARTÃO Ref:')) return false;
             const ap = accountPlan.find(p => p.id === y.accountPlanId);
             return ap?.type !== 'Despesa';
           })
@@ -746,6 +747,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         const prevYieldDebits = yields
           .filter(y => {
             if (y.bankAccountId !== selectedBankId || new Date(y.date).getTime() >= startTimestamp) return false;
+            if (y.description.startsWith('TAXA CARTÃO Ref:')) return false;
             const ap = accountPlan.find(p => p.id === y.accountPlanId);
             return ap?.type === 'Despesa';
           })
@@ -799,7 +801,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           });
 
         const periodYieldCredits = yields
-          .filter(y => y.bankAccountId === selectedBankId && new Date(y.date).getTime() >= startTimestamp && new Date(y.date).getTime() <= endTimestamp)
+          .filter(y => y.bankAccountId === selectedBankId && !y.description.startsWith('TAXA CARTÃO Ref:') && new Date(y.date).getTime() >= startTimestamp && new Date(y.date).getTime() <= endTimestamp)
           .map(y => {
             const ap = accountPlan.find(p => p.id === y.accountPlanId);
             const isExpense = ap?.type === 'Despesa';
@@ -1504,7 +1506,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   </div>
                 )}
 
-                {['dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory'].includes(selectedReport) && (
+                {['dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory', 'cardFees'].includes(selectedReport) && (
                   <>
                     {['dre', 'sales', 'receivables', 'receivablesPending'].includes(selectedReport) && (
                       <div className="flex-1 space-y-2">
