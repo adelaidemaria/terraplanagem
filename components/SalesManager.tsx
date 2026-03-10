@@ -37,7 +37,7 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view' | 'print'>('add');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [nfFilter, setNfFilter] = useState<'all' | 'noNf' | 'withNf'>('all');
+  const [nfFilter, setNfFilter] = useState<'all' | 'noNf' | 'withNf' | 'Locação' | 'Serviço'>('all');
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -143,7 +143,9 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
 
         const matchesNf = nfFilter === 'all' ||
           (nfFilter === 'noNf' && s.isNoNf) ||
-          (nfFilter === 'withNf' && !s.isNoNf);
+          (nfFilter === 'withNf' && !s.isNoNf) ||
+          (nfFilter === 'Locação' && s.saleType === 'Locação') ||
+          (nfFilter === 'Serviço' && s.saleType === 'Serviço');
 
         return matchesSearch && matchesDate && matchesNf;
       })
@@ -377,6 +379,8 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
               <option value="all">Todos Serviços</option>
               <option value="noNf">Serviços S/N</option>
               <option value="withNf">Serviços com NF</option>
+              <option value="Locação">Locação</option>
+              <option value="Serviço">Serviços</option>
             </select>
           </div>
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">

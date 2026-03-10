@@ -17,7 +17,8 @@ import {
   CreditCard,
   ArrowRightLeft,
   CalendarDays,
-  PiggyBank
+  PiggyBank,
+  FileUp
 } from 'lucide-react';
 import {
   Customer,
@@ -58,6 +59,7 @@ import SettingsManager from './components/SettingsManager';
 import AgendaManager from './components/AgendaManager';
 import Login from './components/Login';
 import Logo from './components/Logo';
+import NfImportManager from './components/NfImportManager';
 import { useSupabaseSync } from './lib/useSupabaseSync';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
@@ -293,6 +295,21 @@ const App: React.FC = () => {
             setCurrentView('reports');
           }}
         />;
+      case 'nf-import':
+        return <NfImportManager
+          customers={customers}
+          accountPlan={accountPlan}
+          onImportSale={(salePayload) => {
+            const newSale = {
+              ...salePayload,
+              id: crypto.randomUUID(),
+              status: 'Pendente' as const,
+              createdAt: Date.now(),
+            };
+            setSales(prev => [newSale, ...prev]);
+          }}
+          onNavigateToSales={() => setCurrentView('sales')}
+        />;
       case 'expenses':
         return <ExpenseManager
           expenses={expenses} setExpenses={setExpenses}
@@ -444,6 +461,7 @@ const App: React.FC = () => {
           </div>
           <NavItem id="customers" label="Clientes" icon={Users} />
           <NavItem id="sales" label="Faturamento" icon={Receipt} />
+          <NavItem id="nf-import" label="Importação NF" icon={FileUp} />
           <NavItem id="receivables" label="Contas a Receber" icon={HandCoins} />
 
           <div className="pt-4 pb-1 px-4">
@@ -510,6 +528,7 @@ const App: React.FC = () => {
             {currentView === 'reports' && 'Módulo de Relatórios Gerenciais'}
             {currentView === 'fleet' && 'Controle de Frota e Manutenção'}
             {currentView === 'settings' && 'Configurações do Sistema'}
+            {currentView === 'nf-import' && 'Importação de Notas Fiscais'}
           </h1>
           <button
             onClick={async () => {
