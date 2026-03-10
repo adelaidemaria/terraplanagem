@@ -233,8 +233,12 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
     }));
   };
 
-  const calculateTotal = () => {
+  const calculateGrossTotal = () => {
     return (formData.items || []).reduce((acc, item) => acc + item.value, 0);
+  };
+
+  const calculateTotal = () => {
+    return Math.max(0, calculateGrossTotal() - (formData.deductions || 0));
   };
 
   const generateInstallments = () => {
@@ -336,23 +340,23 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
     setEditingId(null);
     setModalMode('add');
     setFormData({
-      customerId: '', 
+      customerId: '',
       customerName: '',
-      accountPlanId: '', 
+      accountPlanId: '',
       items: [{ id: crypto.randomUUID(), description: '', value: 0 }],
-      nfNumber: '', 
-      isNoNf: false, 
-      saleType: 'Serviço', 
-      paymentMethod: 'PIX', 
+      nfNumber: '',
+      isNoNf: false,
+      saleType: 'Serviço',
+      paymentMethod: 'PIX',
       paymentCondition: 'A Vista',
-      installments: 1, 
+      installments: 1,
       date: new Date().toLocaleDateString('en-CA'),
-      dueDate: new Date().toLocaleDateString('en-CA'), 
-      observations: '', 
+      dueDate: new Date().toLocaleDateString('en-CA'),
+      observations: '',
       deductions: 0
     });
     setIsNoNf(false);
-    
+
     setTimeout(() => dateInputRef.current?.focus(), 100);
   };
 
@@ -442,7 +446,7 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Cliente</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Condições PG</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Vencimento</th>
-              <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600 text-right">Valor Total</th>
+              <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600 text-right">Valor Líquido</th>
               <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600 text-right">Ações</th>
             </tr>
           </thead>
@@ -708,53 +712,74 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                     )}
                   </div>
 
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <div className="flex justify-between items-center mb-4">
-                    <h4 className="font-bold text-slate-800 text-sm flex items-center">
-                      <FileText size={16} className="mr-2 text-amber-500" /> Descritivo dos Serviços de Locação
-                    </h4>
-                    {modalMode !== 'view' && (
-                      <button type="button" onClick={handleAddItem} className="bg-amber-50 text-amber-600 hover:bg-amber-100 px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-colors flex items-center border border-amber-200 shadow-sm">
-                        <Plus size={12} className="mr-1" /> Adicionar Novo Item
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-3">
-                    {(formData.items || []).map((item, index) => (
-                      <div key={item.id} className="flex gap-3 bg-white p-3 rounded-lg shadow-sm border">
-                        <div className="flex-1">
-                          <input
-                            readOnly={modalMode === 'view'}
-                            required placeholder="Ex: Diária de Maquina Bobcat, Caminhão Basculante..."
-                            className="w-full text-sm font-medium border-b border-transparent focus:border-amber-500 outline-none"
-                            value={item.description}
-                            onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                          />
-                        </div>
-                        <div className="w-32">
-                          <div className="relative">
-                            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">R$</span>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="font-bold text-slate-800 text-sm flex items-center">
+                        <FileText size={16} className="mr-2 text-amber-500" /> DESCRIÇÃO DOS SERVIÇOS
+                      </h4>
+                      {modalMode !== 'view' && (
+                        <button type="button" onClick={handleAddItem} className="bg-amber-50 text-amber-600 hover:bg-amber-100 px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-colors flex items-center border border-amber-200 shadow-sm">
+                          <Plus size={12} className="mr-1" /> Adicionar Novo Item
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      {(formData.items || []).map((item, index) => (
+                        <div key={item.id} className="flex gap-3 bg-white p-3 rounded-lg shadow-sm border">
+                          <div className="flex-1">
                             <input
                               readOnly={modalMode === 'view'}
-                              required className="w-full text-right text-sm font-black border-b border-transparent focus:border-amber-500 outline-none pl-6"
-                              value={formatInputCurrency(item.value)}
-                              onChange={(e) => updateItem(item.id, 'value', parseCurrencyInput(e.target.value))}
+                              required placeholder="Ex: Diária de Maquina Bobcat, Caminhão Basculante..."
+                              className="w-full text-sm font-medium border-b border-transparent focus:border-amber-500 outline-none"
+                              value={item.description}
+                              onChange={(e) => updateItem(item.id, 'description', e.target.value)}
                             />
                           </div>
+                          <div className="w-32">
+                            <div className="relative">
+                              <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">R$</span>
+                              <input
+                                readOnly={modalMode === 'view'}
+                                required className="w-full text-right text-sm font-black border-b border-transparent focus:border-amber-500 outline-none pl-6"
+                                value={formatInputCurrency(item.value)}
+                                onChange={(e) => updateItem(item.id, 'value', parseCurrencyInput(e.target.value))}
+                              />
+                            </div>
+                          </div>
+                          {modalMode !== 'view' && (formData.items?.length || 0) > 1 && (
+                            <button type="button" onClick={() => handleRemoveItem(item.id)} className="text-slate-300 hover:text-rose-500"><X size={16} /></button>
+                          )}
                         </div>
-                        {modalMode !== 'view' && (formData.items?.length || 0) > 1 && (
-                          <button type="button" onClick={() => handleRemoveItem(item.id)} className="text-slate-300 hover:text-rose-500"><X size={16} /></button>
-                        )}
+                      ))}
+                    </div>
+                    <div className="mt-4 pt-4 border-t px-2 space-y-3">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="font-bold text-slate-500 uppercase">Valor Bruto</span>
+                        <span className="font-bold text-slate-700">{formatCurrency(calculateGrossTotal())}</span>
                       </div>
-                    ))}
-                  </div>
-                  <div className="mt-4 pt-4 border-t flex justify-between items-center px-2">
-                    <span className="font-bold text-slate-500 uppercase text-xs">Valor Bruto</span>
-                    <span className="font-black text-2xl text-slate-900">{formatCurrency(calculateTotal())}</span>
-                  </div>
-                </div>
 
-                {/* Linha 4: Condição, Forma e Vencimento */}
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="font-bold text-rose-500 uppercase text-xs">Deduções / Impostos</span>
+                        <div className="w-32 relative">
+                          <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] text-rose-400 font-bold">R$</span>
+                          <input
+                            readOnly={modalMode === 'view'}
+                            className="w-full text-right font-bold text-rose-600 border-b border-transparent focus:border-rose-500 outline-none pl-6 pr-1 py-1 bg-transparent placeholder-rose-300"
+                            placeholder="0,00"
+                            value={formatInputCurrency(formData.deductions || 0)}
+                            onChange={(e) => setFormData({ ...formData, deductions: parseCurrencyInput(e.target.value) })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                        <span className="font-black text-slate-700 uppercase">Valor Líquido</span>
+                        <span className="font-black text-2xl text-slate-900">{formatCurrency(calculateTotal())}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Linha 4: Condição, Forma e Vencimento */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-bold text-slate-700 mb-1">Condições PG</label>
@@ -874,41 +899,41 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                   )}
                 </div>
 
-                {/* Descritivo dos Serviços de Locação foi movido para cima */}
+                {/* DESCRIÇÃO DOS SERVIÇOS foi movido para cima */}
 
-                  {/* Anexo da Nota Fiscal (Aparece apenas se NÃO for S/NF) */}
-                  {!isNoNf && (
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mt-4 mb-4">
-                      <label className="block text-sm font-bold text-slate-700 mb-1 flex items-center justify-between">
-                        <span className="flex items-center text-sm font-bold text-slate-700"><FileText size={14} className="mr-1" /> Anexo (Nota Fiscal / Fatura)</span>
-                        {isUploading && <span className="text-[10px] text-amber-500 font-bold animate-pulse">Enviando...</span>}
-                      </label>
-                      <div className="flex items-center gap-3 w-full">
-                        {formData.receiptUrl ? (
-                          <div className="flex items-center justify-between w-full bg-white px-4 py-2 rounded-lg border border-slate-200">
-                            <a href={formData.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm font-bold flex items-center truncate max-w-[300px]" title="Ver Anexo">
-                              <FileText size={16} className="mr-1 flex-shrink-0" /> {formData.receiptUrl.split('/').pop()?.substring(0, 20)}... Anexado
-                            </a>
-                            {modalMode !== 'view' && (
-                              <button type="button" onClick={() => setFormData({ ...formData, receiptUrl: undefined })} className="text-rose-500 hover:text-rose-700 p-1.5 rounded-full hover:bg-rose-50 transition-colors" title="Remover Documento">
-                                <X size={16} />
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex-1 w-full bg-white px-3 py-2 rounded-lg border border-slate-200">
-                            <input
-                              type="file"
-                              disabled={modalMode === 'view' || isUploading}
-                              onChange={handleFileUpload}
-                              className="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] file:font-bold file:uppercase file:tracking-wider file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 disabled:opacity-50 outline-none cursor-pointer"
-                            />
-                          </div>
-                        )}
-                      </div>
-                      {uploadError && <p className="text-[10px] text-rose-500 mt-1 font-bold">{uploadError}</p>}
+                {/* Anexo da Nota Fiscal (Aparece apenas se NÃO for S/NF) */}
+                {!isNoNf && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mt-4 mb-4">
+                    <label className="block text-sm font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span className="flex items-center text-sm font-bold text-slate-700"><FileText size={14} className="mr-1" /> Anexo (Nota Fiscal / Fatura)</span>
+                      {isUploading && <span className="text-[10px] text-amber-500 font-bold animate-pulse">Enviando...</span>}
+                    </label>
+                    <div className="flex items-center gap-3 w-full">
+                      {formData.receiptUrl ? (
+                        <div className="flex items-center justify-between w-full bg-white px-4 py-2 rounded-lg border border-slate-200">
+                          <a href={formData.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm font-bold flex items-center truncate max-w-[300px]" title="Ver Anexo">
+                            <FileText size={16} className="mr-1 flex-shrink-0" /> {formData.receiptUrl.split('/').pop()?.substring(0, 20)}... Anexado
+                          </a>
+                          {modalMode !== 'view' && (
+                            <button type="button" onClick={() => setFormData({ ...formData, receiptUrl: undefined })} className="text-rose-500 hover:text-rose-700 p-1.5 rounded-full hover:bg-rose-50 transition-colors" title="Remover Documento">
+                              <X size={16} />
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex-1 w-full bg-white px-3 py-2 rounded-lg border border-slate-200">
+                          <input
+                            type="file"
+                            disabled={modalMode === 'view' || isUploading}
+                            onChange={handleFileUpload}
+                            className="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] file:font-bold file:uppercase file:tracking-wider file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 disabled:opacity-50 outline-none cursor-pointer"
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
+                    {uploadError && <p className="text-[10px] text-rose-500 mt-1 font-bold">{uploadError}</p>}
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">Observações Técnicas / Faturamento (Saem na Fatura de Locação)</label>

@@ -58,7 +58,7 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                 const docDate = e.dueDate || e.date;
                 const matchesSearch = e.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) || (e.docNumber && e.docNumber.includes(searchTerm));
                 const matchesDate = (!startDate || docDate >= startDate) && (!endDate || docDate <= endDate);
-                
+
                 const isPending = e.status === 'Pendente';
                 const statusMatch = statusFilter === 'Todos' || (statusFilter === 'Pendente' && isPending) || (statusFilter === 'Baixado' && !isPending);
 
@@ -165,7 +165,7 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input type="text" placeholder="Pesquisar contas a pagar..." className="pl-10 pr-4 py-2 border rounded-lg w-full outline-none focus:ring-2 focus:ring-emerald-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                     </div>
-                    
+
                     <div className="flex items-center gap-2 w-full sm:w-auto ml-0 sm:ml-4">
                         <span className="text-sm font-bold text-slate-500 whitespace-nowrap">Status:</span>
                         <select
@@ -274,9 +274,9 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                                                 <div className="flex flex-wrap items-center gap-2 mt-1">
                                                     <span className="text-[10px] text-slate-400 font-bold uppercase">Doc: {expense.docNumber || 'S/N'}</span>
                                                     {expense.paymentMethod && (
-                                                      <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 truncate max-w-[120px]">
-                                                        {expense.paymentMethod}
-                                                      </span>
+                                                        <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 truncate max-w-[120px]">
+                                                            {expense.paymentMethod}
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>

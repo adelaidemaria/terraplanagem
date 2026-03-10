@@ -94,7 +94,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
           const bal = getInstallmentBalance(s.id, inst.id, inst.value);
           const isPending = bal > 0.01;
           const statusMatch = statusFilter === 'Todos' || (statusFilter === 'Pendente' && isPending) || (statusFilter === 'Baixado' && !isPending);
-          
+
           if (statusMatch) {
             items.push({
               id: inst.id,
@@ -140,8 +140,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
 
   const recentPayments = useMemo(() => {
     return [...payments]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 10);
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [payments]);
 
   const selectedSale = sales.find(s => s.id === selectedSaleId);
@@ -151,10 +150,10 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
     e.preventDefault();
     if (!selectedSaleId || payAmount <= 0) return;
     if (!bankAccountId) return alert('Selecione o banco de destino.');
-    
+
     const isCard = (payMethod === 'Cartão' || payMethod === 'Cartão de Crédito' || payMethod === 'Cartão de Débito');
     const actualFee = isCard ? Number(payFee) : 0;
-    
+
     if (actualFee > 0 && !feeAccountId) {
       return alert('Selecione uma Conta de Despesa para lançar a Taxa do Cartão.');
     }
@@ -193,7 +192,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
           date: payDate,
           createdAt: Date.now()
         };
-        
+
         // Remove old yield attached to this payment
         setYields(prev => {
           const filtered = prev.filter(y => !y.description.includes(`Ref:${yieldRefId}`));
@@ -268,7 +267,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
     const sId = pToDelete.saleId;
     const updatedPayments = payments.filter(p => p.id !== pId);
     setPayments(updatedPayments);
-    
+
     if (setYields) {
       setYields(prev => prev.filter(y => !y.description.includes(`Ref:${pId}`)));
     }
@@ -306,7 +305,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
               value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          
+
           <div className="flex items-center gap-2 w-full sm:w-auto ml-0 sm:ml-4">
             <span className="text-sm font-bold text-slate-500 whitespace-nowrap">Status:</span>
             <select
@@ -436,20 +435,20 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
                           setPayAmount(item.balance);
                           setPayMethod(item.sale.paymentMethod || 'PIX');
                           setPayFee(0);
-                          
+
                           // Try to auto-select card fee account
                           if (accountPlan) {
-                             const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
-                             if (cardAccount) setFeeAccountId(cardAccount.id);
-                             else {
-                               const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
-                               if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
-                               else setFeeAccountId('');
-                             }
+                            const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
+                            if (cardAccount) setFeeAccountId(cardAccount.id);
+                            else {
+                              const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
+                              if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
+                              else setFeeAccountId('');
+                            }
                           } else {
-                             setFeeAccountId('');
+                            setFeeAccountId('');
                           }
-                          
+
                           setCurrentReceiptUrl(undefined);
                           setUploadError(null);
                           setIsModalOpen(true);
@@ -460,7 +459,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
                         <div className="flex items-center justify-end space-x-2">
                           <span className="px-3 py-1.5 rounded-lg text-sm font-bold text-slate-400 bg-slate-100 flex items-center h-8">BAIXADO</span>
                           {(() => {
-                            const p = payments.filter(pay => pay.saleId === item.saleId && (!item.installmentId || pay.installmentId === item.installmentId)).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                            const p = payments.filter(pay => pay.saleId === item.saleId && (!item.installmentId || pay.installmentId === item.installmentId)).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
                             if (!p) return null;
                             return (
                               <div className="flex items-center space-x-1">
@@ -479,25 +478,25 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
                                     setBankAccountId(p.bankAccountId);
 
                                     if (setYields && yields && p.fee && p.fee > 0) {
-                                       const existingYield = yields.find(y => y.description.includes(`Ref:${p.id}`));
-                                       if (existingYield) setFeeAccountId(existingYield.accountPlanId);
-                                       else if (accountPlan) {
-                                         const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
-                                         if (cardAccount) setFeeAccountId(cardAccount.id);
-                                         else {
-                                           const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
-                                           if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
-                                           else setFeeAccountId('');
-                                         }
-                                       }
+                                      const existingYield = yields.find(y => y.description.includes(`Ref:${p.id}`));
+                                      if (existingYield) setFeeAccountId(existingYield.accountPlanId);
+                                      else if (accountPlan) {
+                                        const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
+                                        if (cardAccount) setFeeAccountId(cardAccount.id);
+                                        else {
+                                          const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
+                                          if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
+                                          else setFeeAccountId('');
+                                        }
+                                      }
                                     } else if (accountPlan) {
-                                       const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
-                                       if (cardAccount) setFeeAccountId(cardAccount.id);
-                                       else {
-                                         const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
-                                         if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
-                                         else setFeeAccountId('');
-                                       }
+                                      const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
+                                      if (cardAccount) setFeeAccountId(cardAccount.id);
+                                      else {
+                                        const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
+                                        if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
+                                        else setFeeAccountId('');
+                                      }
                                     }
 
                                     setCurrentReceiptUrl(p.receiptUrl);
@@ -534,7 +533,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
 
         <div className="space-y-4">
           <h3 className="text-lg font-bold text-slate-800 flex items-center"><History size={20} className="mr-2 text-blue-500" /> Recebimentos Recentes</h3>
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 h-[500px] overflow-y-auto space-y-3">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 overflow-y-auto space-y-3">
             {recentPayments.map(p => {
               const sale = sales.find(s => s.id === p.saleId);
               const bank = bankAccounts.find(b => b.id === p.bankAccountId);
@@ -575,28 +574,28 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
                           setPayDate(p.date);
                           setPayMethod(p.method);
                           setBankAccountId(p.bankAccountId);
-                          
+
                           // Restore fee account if possible
                           if (setYields && yields && p.fee && p.fee > 0) {
-                             const existingYield = yields.find(y => y.description.includes(`Ref:${p.id}`));
-                             if (existingYield) setFeeAccountId(existingYield.accountPlanId);
-                             else if (accountPlan) {
-                               const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
-                               if (cardAccount) setFeeAccountId(cardAccount.id);
-                               else {
-                                 const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
-                                 if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
-                                 else setFeeAccountId('');
-                               }
-                             }
+                            const existingYield = yields.find(y => y.description.includes(`Ref:${p.id}`));
+                            if (existingYield) setFeeAccountId(existingYield.accountPlanId);
+                            else if (accountPlan) {
+                              const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
+                              if (cardAccount) setFeeAccountId(cardAccount.id);
+                              else {
+                                const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
+                                if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
+                                else setFeeAccountId('');
+                              }
+                            }
                           } else if (accountPlan) {
-                             const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
-                             if (cardAccount) setFeeAccountId(cardAccount.id);
-                             else {
-                               const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
-                               if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
-                               else setFeeAccountId('');
-                             }
+                            const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
+                            if (cardAccount) setFeeAccountId(cardAccount.id);
+                            else {
+                              const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
+                              if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
+                              else setFeeAccountId('');
+                            }
                           }
 
                           setCurrentReceiptUrl(p.receiptUrl);

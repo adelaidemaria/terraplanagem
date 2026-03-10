@@ -125,6 +125,8 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
     return expenses
       .filter(e => {
         const docDate = e.date;
+        const matchesSearch = e.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (e.docNumber && e.docNumber.includes(searchTerm));
         const matchesDate = (!startDate || docDate >= startDate) && (!endDate || docDate <= endDate);
 
         const matchesNf = nfFilter === 'all' ||
@@ -133,10 +135,10 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
 
         const matchesStatus = statusFilter === 'Todos' || e.status === statusFilter;
 
-        return matchesDate && matchesNf && matchesStatus;
+        return matchesSearch && matchesDate && matchesNf && matchesStatus;
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [expenses, startDate, endDate, nfFilter, statusFilter]);
+  }, [expenses, searchTerm, startDate, endDate, nfFilter, statusFilter]);
 
   const handleOpenAdd = () => {
     if (vendors.length === 0) return alert('Cadastre um fornecedor primeiro.');
@@ -301,6 +303,16 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
               <option value="Pago">Pago</option>
               <option value="Pendente">Pendente</option>
             </select>
+          </div>
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input
+              type="text"
+              placeholder="Pesquisar fornecedor ou documento..."
+              className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg w-full outline-none focus:ring-2 focus:ring-rose-500/20 text-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <span className="text-sm font-bold text-slate-500 whitespace-nowrap">Filtro:</span>
