@@ -60,6 +60,7 @@ import AgendaManager from './components/AgendaManager';
 import Login from './components/Login';
 import Logo from './components/Logo';
 import NfImportManager from './components/NfImportManager';
+import BankStatementManager from './components/BankStatementManager';
 import { useSupabaseSync } from './lib/useSupabaseSync';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
@@ -310,6 +311,26 @@ const App: React.FC = () => {
           }}
           onNavigateToSales={() => setCurrentView('sales')}
         />;
+      case 'bank-statements':
+        return <BankStatementManager
+          bankAccounts={bankAccounts}
+          accountPlan={accountPlan}
+          expenses={expenses}
+          payments={payments}
+          customers={customers}
+          vendors={vendors}
+          onImportExits={(newExpenses) => setExpenses(prev => [...newExpenses, ...prev])}
+          onImportEntries={(newSales, newPayments) => {
+            setSales(prev => [...newSales, ...prev]);
+            setTimeout(() => {
+              setPayments(prev => [...newPayments, ...prev]);
+            }, 2500);
+          }}
+          onNavigateToReports={() => {
+            setSelectedReportType('bankStatement');
+            setCurrentView('reports');
+          }}
+        />;
       case 'expenses':
         return <ExpenseManager
           expenses={expenses} setExpenses={setExpenses}
@@ -474,6 +495,7 @@ const App: React.FC = () => {
           <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Tesouraria</span>
           </div>
+          <NavItem id="bank-statements" label="Importar Extrato" icon={FileUp} />
           <NavItem id="banks" label="Contas Bancárias" icon={Building2} />
           <NavItem id="transfers" label="Transferências" icon={ArrowRightLeft} />
           <NavItem id="yields" label="Rend Aplic" icon={PiggyBank} />
@@ -529,6 +551,7 @@ const App: React.FC = () => {
             {currentView === 'fleet' && 'Controle de Frota e Manutenção'}
             {currentView === 'settings' && 'Configurações do Sistema'}
             {currentView === 'nf-import' && 'Importação de Notas Fiscais'}
+            {currentView === 'bank-statements' && 'Importação de Extrato Bancário'}
           </h1>
           <button
             onClick={async () => {

@@ -179,6 +179,7 @@ export interface Expense {
   interestAmount?: number;
   receiptUrl?: string;
   paymentReceiptUrl?: string;
+  bankTransId?: string;
   createdAt: number;
 }
 
@@ -192,6 +193,7 @@ export interface Payment {
   date: string;
   method: string;
   receiptUrl?: string; // Comprovante de Recebimento
+  bankTransId?: string;
   createdAt: number;
 }
 
@@ -206,7 +208,20 @@ export interface BankTransfer {
   createdAt: number;
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'settings' | 'agenda' | 'nf-import';
+export interface BankStatementItem {
+  id: string; // Internal temporary ID
+  date: string;
+  type: 'Entrada' | 'Saída';
+  description: string;
+  value: number;
+  originalId?: string; // FITID from OFX or Identificador from CSV
+  accountPlanId?: string; // Selected by user during validation
+  contactId?: string; // Selected by user during validation (Vendor/Customer)
+  isDuplicate?: boolean; // True if originalId already exists in DB
+  isValidated?: boolean; // User confirmed for import
+}
+
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements';
 
 export interface AdminUser {
   id: string;

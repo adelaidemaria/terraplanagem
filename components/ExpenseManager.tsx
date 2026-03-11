@@ -36,7 +36,11 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [nfFilter, setNfFilter] = useState<'all' | 'noNf' | 'withNf' | 'Pago' | 'Pendente'>('all');
+  const [nfFilter, setNfFilter] = useState<'all' | 'noNf' | 'withNf' | 'Pago' | 'Pendente' | 'Importado'>('all');
+
+  const isExpenseImported = (expense: Expense) => {
+    return expense.items?.some(i => i.description.includes('[IMPORTADO]')) || expense.bankTransId != null;
+  };
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -132,7 +136,8 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
           (nfFilter === 'noNf' && e.isNoDoc) ||
           (nfFilter === 'withNf' && !e.isNoDoc) ||
           (nfFilter === 'Pago' && e.status === 'Pago') ||
-          (nfFilter === 'Pendente' && e.status === 'Pendente');
+          (nfFilter === 'Pendente' && e.status === 'Pendente') ||
+          (nfFilter === 'Importado' && isExpenseImported(e));
 
         return matchesSearch && matchesDate && matchesNf;
       })
@@ -313,6 +318,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
               <option value="withNf">Despesas com NF</option>
               <option value="Pago">Pago</option>
               <option value="Pendente">Pendentes</option>
+              <option value="Importado">Importados</option>
             </select>
           </div>
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
@@ -384,6 +390,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Data Vencto</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase text-right">Valor Total</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Situação Pgto</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Importado</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase text-right">Ações</th>
             </tr>
           </thead>
@@ -416,6 +423,13 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                     }`}>
                     {expense.status}
                   </span>
+                </td>
+                <td className="px-6 py-4">
+                  {isExpenseImported(expense) ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-blue-100 text-blue-700">Sim</span>
+                  ) : (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-slate-100 text-slate-600">Não</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end space-x-1">
