@@ -1262,7 +1262,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         const rows: any[] = [];
         
         // 1. Saldos de Bancos
-        rows.push(['CASH_FLOW_SECTION', 'SALDOS DE BANCOS ATUAL (Soma de todos os movimentos até hoje)']);
+        rows.push(['CASH_FLOW_SECTION', 'SALDOS DE BANCOS: (Saldos na data de hoje)']);
         rows.push(['COLUMN_HEADERS_CASHFLOW', 'Banco / Instituição', 'Agência', 'Conta Corrente', 'Saldo Atual', '']);
         
         let totalBancos = 0;
@@ -1315,7 +1315,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         rows.push(['', '', '', '', '', '']);
 
         // 2. Contas a Receber (grouped by customer)
-        rows.push(['CASH_FLOW_SECTION', 'SALDOS DE CLIENTES A RECEBER (No período selecionado)']);
+        rows.push(['CASH_FLOW_SECTION', 'CLIENTES A RECEBER (Saldo no período selecionado)']);
         rows.push(['COLUMN_HEADERS_CASHFLOW', 'Cliente', 'Documentos (NFs)', 'Vencimentos', 'Saldo a Receber', '']);
         
         const receivablesByCustomer = new Map<string, { total: number; nfs: Set<string>; dueDates: Set<string> }>();
@@ -1370,7 +1370,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         rows.push(['', '', '', '', '', '']);
 
         // 3. Contas a Pagar (grouped by vendor)
-        rows.push(['CASH_FLOW_SECTION', 'SALDOS DE DESPESAS/CONTAS A PAGAR (No período selecionado)']);
+        rows.push(['CASH_FLOW_SECTION', 'DESPESAS/CONTAS A PAGAR (Saldo no período selecionado)']);
         rows.push(['COLUMN_HEADERS_CASHFLOW', 'Fornecedor', 'Documentos', 'Vencimentos', 'Saldo a Pagar', '']);
 
         const payablesByVendor = new Map<string, { total: number; docs: Set<string>; dueDates: Set<string> }>();
@@ -1408,7 +1408,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         rows.push(['', '', '', '', '', '']);
 
         // 4. Cartão Corporativo a Pagar
-        rows.push(['CASH_FLOW_SECTION', 'SALDO DE CARTÃO CORPORATIVO A PAGAR (No período selecionado)']);
+        rows.push(['CASH_FLOW_SECTION', 'CARTÃO CORPORATIVO A PAGAR (Saldo no período selecionado)']);
         if (totalCartao > 0) {
           rows.push(['CASH_FLOW_ITEM', 'Faturas/Despesas no Cartão Corporativo', '', '', formatCurrency(totalCartao), '']);
           rows.push(['CASH_FLOW_SUBTOTAL', 'Total no Cartão:', '', '', formatCurrency(totalCartao), '']);
