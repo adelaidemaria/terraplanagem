@@ -15,6 +15,23 @@ export interface FinancialYield {
   createdAt: number;
 }
 
+export interface CorporateCard {
+  id: string;
+  name: string;
+  dueDay: number;
+  createdAt: number;
+}
+
+export interface CorporateCardPayment {
+  id: string;
+  cardId: string;
+  date: string;
+  amount: number;
+  bankAccountId: string;
+  description?: string;
+  createdAt: number;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -180,6 +197,7 @@ export interface Expense {
   receiptUrl?: string;
   paymentReceiptUrl?: string;
   bankTransId?: string;
+  cardId?: string;
   createdAt: number;
 }
 
@@ -221,7 +239,7 @@ export interface BankStatementItem {
   isValidated?: boolean; // User confirmed for import
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements';
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards';
 
 export interface AdminUser {
   id: string;

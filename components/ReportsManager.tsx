@@ -36,7 +36,9 @@ import {
   MaintenanceIntervals,
   BankTransfer,
   AgendaItem,
-  FinancialYield
+  FinancialYield,
+  CorporateCard,
+  CorporateCardPayment
 } from '../types';
 import Logo from './Logo';
 
@@ -58,7 +60,9 @@ interface ReportsManagerProps {
   fleet: Equipment[];
   maintenanceRecords: MaintenanceRecord[];
   agendaItems?: AgendaItem[];
-  initialReport?: ReportType | null;
+  corporateCards?: CorporateCard[];
+  corporateCardPayments?: CorporateCardPayment[];
+  initialReport?: ReportType;
 }
 
 const itemLabels: Record<keyof MaintenanceIntervals, string> = {
@@ -79,7 +83,13 @@ const formatDateDisplay = (dateStr: string | undefined) => {
 };
 
 const ReportsManager: React.FC<ReportsManagerProps> = ({
-  customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, accountCategories, accountSubcategories, bankAccounts, bankTransfers, yields = [], fleet, maintenanceRecords, agendaItems = [], initialReport
+  customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, accountCategories, accountSubcategories, bankAccounts, bankTransfers,  yields = [],
+  fleet,
+  maintenanceRecords,
+  agendaItems = [],
+  corporateCards = [],
+  corporateCardPayments = [],
+  initialReport
 }) => {
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(initialReport || 'sales');
 
@@ -107,6 +117,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
     return new Date(d.getFullYear(), d.getMonth() + 1, 0).toLocaleDateString('en-CA');
   });
   const [receivablesFilter, setReceivablesFilter] = useState<'all' | 'withNf' | 'withoutNf'>('all');
+  const [selectedCardId, setSelectedCardId] = useState<string>('all');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'Todos' | 'Ativos' | 'Inativos'>('Ativos');
@@ -753,7 +764,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           })
           .reduce((acc, y) => acc + y.amount, 0);
 
-        const openingBalance = initialSystemBalance + prevCredits + prevTransferCredits + prevYieldCredits - prevDebits - prevTransferDebits - prevYieldDebits;
+        const prevCardPayments = (corporateCardPayments || [])
+          .filter(p => p.bankAccountId === selectedBankId && new Date(p.date).getTime() < startTimestamp)
+          .reduce((acc, p) => acc + p.amount, 0);
+
+        const openingBalance = initialSystemBalance + prevCredits + prevTransferCredits + prevYieldCredits - prevDebits - prevTransferDebits - prevYieldDebits - prevCardPayments;
 
         const periodCredits = payments
           .filter(p => p.bankAccountId === selectedBankId && new Date(p.date).getTime() >= startTimestamp && new Date(p.date).getTime() <= endTimestamp)
@@ -800,7 +815,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             };
           });
 
-        const periodYieldCredits = yields
+        const periodYieldCredits = (yields || [])
           .filter(y => y.bankAccountId === selectedBankId && !y.description.startsWith('TAXA CARTÃO Ref:') && new Date(y.date).getTime() >= startTimestamp && new Date(y.date).getTime() <= endTimestamp)
           .map(y => {
             const ap = accountPlan.find(p => p.id === y.accountPlanId);
@@ -813,7 +828,19 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             };
           });
 
-        const sortedMovements = [...periodCredits, ...periodDebits, ...periodTransferCredits, ...periodTransferDebits, ...periodYieldCredits].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const periodCardPaymentsDetailed = (corporateCardPayments || [])
+          .filter(p => p.bankAccountId === selectedBankId && new Date(p.date).getTime() >= startTimestamp && new Date(p.date).getTime() <= endTimestamp)
+          .map(p => {
+            const card = corporateCards.find(c => c.id === p.cardId);
+            return {
+              date: p.date,
+              credit: 0,
+              debit: p.amount,
+              desc: `PGTO FATURA CARTÃO: ${card?.name || '---'} / ${p.description || ''}`
+            };
+          });
+
+        const sortedMovements = [...periodCredits, ...periodDebits, ...periodTransferCredits, ...periodTransferDebits, ...periodYieldCredits, ...periodCardPaymentsDetailed].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         let currentRunningBalance = openingBalance;
         const rowsWithBalance = sortedMovements.map(m => {
@@ -838,24 +865,83 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       }
 
       case 'corporateCard': {
-        const cardExpenses = expenses
-          .filter(e => {
-            const matchesCategory = selectedCategoryId === 'all' || e.accountPlanId === selectedCategoryId;
-            return matchesCategory && e.paymentMethod === 'Cartão Corporativo' && new Date(e.date).getTime() >= startTimestamp && new Date(e.date).getTime() <= endTimestamp;
-          })
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const rows: any[] = [];
+        
+        // Filter cards
+        const targetCards = selectedCardId === 'all' ? corporateCards : corporateCards.filter(c => c.id === selectedCardId);
+        
+        targetCards.forEach(card => {
+          const cardExps = expenses.filter(e => 
+            e.paymentMethod === 'Cartão Corporativo' && 
+            e.cardId === card.id && 
+            new Date(e.date).getTime() >= startTimestamp && 
+            new Date(e.date).getTime() <= endTimestamp
+          );
+          
+          const cardPagts = (corporateCardPayments || []).filter(p => 
+            p.cardId === card.id && 
+            new Date(p.date).getTime() >= startTimestamp && 
+            new Date(p.date).getTime() <= endTimestamp
+          );
+
+          const cardPrevExps = expenses.filter(e => 
+            e.paymentMethod === 'Cartão Corporativo' && 
+            e.cardId === card.id && 
+            new Date(e.date).getTime() < startTimestamp
+          ).reduce((acc, e) => acc + e.totalValue, 0);
+
+          const cardPrevPagts = (corporateCardPayments || []).filter(p => 
+            p.cardId === card.id && 
+            new Date(p.date).getTime() < startTimestamp
+          ).reduce((acc, p) => acc + p.amount, 0);
+
+          const openingBalance = cardPrevExps - cardPrevPagts;
+          const totalCompras = cardExps.reduce((acc, e) => acc + e.totalValue, 0);
+          const totalPagos = cardPagts.reduce((acc, p) => acc + p.amount, 0);
+          const finalBalance = openingBalance + totalCompras - totalPagos;
+
+          rows.push(['CARD_RESUMO_HEADER', card.name]);
+          rows.push(['COLUMN_HEADERS_CARD', 'Descrição do Lançamento', 'Data', 'Compras (+)', 'Pagamentos (-)', 'Saldo']);
+          
+          rows.push(['CARD_ITEM', 'SALDO ANTERIOR (ACUMULADO)', '', formatCurrency(openingBalance), '', formatCurrency(openingBalance)]);
+          
+          const movements: any[] = [
+            ...cardExps.map(e => ({
+              date: e.date,
+              desc: `${e.vendorName} / ${e.items.map(i => i.description).join(', ')}`,
+              compra: e.totalValue,
+              pagto: 0
+            })),
+            ...cardPagts.map(p => {
+              const bank = bankAccounts.find(b => b.id === p.bankAccountId);
+              return {
+                date: p.date,
+                desc: `PAGAMENTO FATURA - Saída: ${bank?.bankName || '---'}`,
+                compra: 0,
+                pagto: p.amount
+              };
+            })
+          ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+          let running = openingBalance;
+          movements.forEach(m => {
+            running += m.compra - m.pagto;
+            rows.push(['CARD_ITEM', m.desc, formatDateDisplay(m.date), m.compra > 0 ? formatCurrency(m.compra) : '---', m.pagto > 0 ? formatCurrency(m.pagto) : '---', formatCurrency(running)]);
+          });
+
+          rows.push(['CARD_FOOTER', 'TOTALIZADOR DO PERÍODO', '', formatCurrency(totalCompras), formatCurrency(totalPagos), formatCurrency(finalBalance)]);
+          rows.push(['', '', '', '', '', '']);
+        });
+
+        if (targetCards.length === 0) {
+          rows.push(['CARD_ITEM', 'Nenhum cartão cadastrado ou selecionado.', '', '', '', '']);
+        }
 
         return {
-          title: `Relatório de Cartão Corporativo - Período: ${new Date(startDate).toLocaleDateString()} a ${new Date(endDate).toLocaleDateString()}`,
-          headers: ['Data Compra', 'Vencimento', 'Fornecedor', 'Descrição', 'Valor'],
-          rows: cardExpenses.map(e => [
-            formatDateDisplay(e.date),
-            e.dueDate ? formatDateDisplay(e.dueDate) : '---',
-            e.vendorName,
-            e.items.map(i => i.description).join(', '),
-            formatCurrency(e.amountPaid || e.totalValue)
-          ]),
-          total: cardExpenses.reduce((acc, e) => acc + (e.amountPaid || e.totalValue), 0)
+          title: `Relatório de Cartão Corporativo - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headerInfo: selectedCardId === 'all' ? 'Resumo Geral de Todos os Cartões' : `Extrato Detalhado do Cartão: ${targetCards[0]?.name}`,
+          headers: ['', '', '', '', '', ''],
+          rows: rows
         };
       }
 
@@ -1305,7 +1391,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             })
             .reduce((acc, y) => acc + y.amount, 0);
 
-          const currentRunningBalance = initialSystemBalance + allCredits + allTransferCredits + allYieldCredits - allDebits - allTransferDebits - allYieldDebits;
+          const allCardPayments = (corporateCardPayments || [])
+            .filter(p => p.bankAccountId === bank.id && new Date(p.date).getTime() <= now)
+            .reduce((acc, p) => acc + p.amount, 0);
+
+          const currentRunningBalance = initialSystemBalance + allCredits + allTransferCredits + allYieldCredits - allDebits - allTransferDebits - allYieldDebits - allCardPayments;
 
           totalBancos += currentRunningBalance;
           
@@ -1409,11 +1499,42 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
         // 4. Cartão Corporativo a Pagar
         rows.push(['CASH_FLOW_SECTION', 'CARTÃO CORPORATIVO A PAGAR (Saldo no período selecionado)']);
-        if (totalCartao > 0) {
-          rows.push(['CASH_FLOW_ITEM', 'Faturas/Despesas no Cartão Corporativo', '', '', formatCurrency(totalCartao), '']);
-          rows.push(['CASH_FLOW_SUBTOTAL', 'Total no Cartão:', '', '', formatCurrency(totalCartao), '']);
+        let totalDosCartoes = 0;
+        
+        if (corporateCards && corporateCards.length > 0) {
+          corporateCards.forEach(card => {
+            const compras = expenses.filter(e => {
+              if (e.cardId !== card.id) return false;
+              const refDate = e.dueDate ? new Date(e.dueDate) : new Date(e.date);
+              const d = refDate.getTime();
+              return d >= startTimestamp && d <= endTimestamp;
+            }).reduce((acc, e) => acc + e.totalValue, 0);
+
+            const pagts = (corporateCardPayments || []).filter(p => {
+              if (p.cardId !== card.id) return false;
+              const dp = new Date(p.date).getTime();
+              return dp >= startTimestamp && dp <= endTimestamp;
+            }).reduce((acc, p) => acc + p.amount, 0);
+            
+            const saldo = compras - pagts;
+            if (saldo > 0.01) {
+              totalDosCartoes += saldo;
+              rows.push(['CASH_FLOW_ITEM', `Fatura - ${card.name}`, '', '', formatCurrency(saldo), '']);
+            }
+          });
+
+          if (totalDosCartoes > 0) {
+            rows.push(['CASH_FLOW_SUBTOTAL', 'Total em Cartões:', '', '', formatCurrency(totalDosCartoes), '']);
+          } else {
+            rows.push(['CASH_FLOW_ITEM', 'Nenhuma despesa de Cartão Corporativo pendente.', '', '', '', '']);
+          }
         } else {
-          rows.push(['CASH_FLOW_ITEM', 'Nenhuma despesa de Cartão Corporativo pendente.', '', '', '', '']);
+          if (totalCartao > 0) {
+            rows.push(['CASH_FLOW_ITEM', 'Faturas/Despesas no Cartão Corporativo', '', '', formatCurrency(totalCartao), '']);
+            rows.push(['CASH_FLOW_SUBTOTAL', 'Total no Cartão:', '', '', formatCurrency(totalCartao), '']);
+          } else {
+            rows.push(['CASH_FLOW_ITEM', 'Nenhuma despesa de Cartão Corporativo pendente.', '', '', '', '']);
+          }
         }
         rows.push(['', '', '', '', '', '']);
 
@@ -1566,7 +1687,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       default:
         return null;
     }
-  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, statusFilter, agendaStatus, agendaCategory]);
+  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, selectedCardId, statusFilter, agendaStatus, agendaCategory, corporateCards, corporateCardPayments]);
 
   return (
     <div className="space-y-8">
@@ -1743,7 +1864,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                         </select>
                       </div>
                     )}
-                    {['expensesPending', 'expensesByMonth', 'expensesByMonthFlat', 'payments', 'corporateCard'].includes(selectedReport) && (
+                    {['expensesPending', 'expensesByMonth', 'expensesByMonthFlat', 'payments'].includes(selectedReport) && (
                       <div className="flex-1 space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
                           <BookOpen size={14} className="mr-1" /> Conta
@@ -1755,8 +1876,23 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                         >
                           <option value="all">TODAS AS CONTAS</option>
                           {sortedExpenseAccounts.map(p => (
-                            <option key={p.id} value={p.id}>{p.description}</option>
+                            <option key={p.id} value={p.id}>{p.subcategory} / {p.description}</option>
                           ))}
+                        </select>
+                      </div>
+                    )}
+                    {selectedReport === 'corporateCard' && (
+                      <div className="flex-1 space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                          <CreditCard size={14} className="mr-1" /> Selecionar Cartão
+                        </label>
+                        <select
+                          className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+                          value={selectedCardId}
+                          onChange={(e) => setSelectedCardId(e.target.value)}
+                        >
+                          <option value="all">TODOS OS CARTÕES</option>
+                          {corporateCards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                       </div>
                     )}
@@ -2517,6 +2653,58 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                             <td colSpan={reportContent.headers.length - 4} className="bg-white"></td>
                           </tr>
                         </React.Fragment>
+                      );
+                    }
+
+                    if (row[0] === 'CARD_RESUMO_HEADER') {
+                      return (
+                        <tr key={i} className="bg-slate-900 border-0">
+                          <td colSpan={reportContent.headers.length} className="px-4 py-4 font-black text-amber-500 uppercase tracking-widest text-lg text-left rounded-t-xl">
+                            CARTÃO: {row[1]}
+                          </td>
+                        </tr>
+                      );
+                    }
+                    if (row[0] === 'COLUMN_HEADERS_CARD') {
+                      return (
+                        <tr key={i} className="bg-slate-100 border-y border-slate-200">
+                          <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-left">{row[1]}</th>
+                          <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-left w-[110px] whitespace-nowrap">{row[2]}</th>
+                          <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-right w-[130px] whitespace-nowrap">{row[3]}</th>
+                          <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-right w-[130px] whitespace-nowrap">{row[4]}</th>
+                          <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-right w-[130px] whitespace-nowrap">{row[5]}</th>
+                          <th colSpan={reportContent.headers.length - 5} className="px-4 py-2"></th>
+                        </tr>
+                      );
+                    }
+                    if (row[0] === 'CARD_ITEM') {
+                      const desc = row[1] || '';
+                      const isSpecial = desc.includes('SALDO ANTERIOR') || desc.includes('PAGAMENTO FATURA');
+                      const isMinus = typeof row[5] === 'string' && row[5].startsWith('-');
+                      
+                      const weightClass = isSpecial ? 'font-black' : 'font-normal';
+                      
+                      return (
+                        <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                          <td className={`px-4 py-3 text-sm text-slate-700 ${weightClass}`}>{row[1]}</td>
+                          <td className="px-4 py-3 text-sm text-slate-600">{row[2]}</td>
+                          <td className={`px-4 py-3 text-sm text-emerald-600 text-right ${weightClass}`}>{row[3]}</td>
+                          <td className={`px-4 py-3 text-sm text-rose-600 text-right ${weightClass}`}>{row[4]}</td>
+                          <td className={`px-4 py-3 text-sm text-right ${weightClass} ${isMinus ? 'text-rose-600' : 'text-slate-800'}`}>{row[5]}</td>
+                          <td colSpan={reportContent.headers.length - 5} className="px-4 py-3"></td>
+                        </tr>
+                      );
+                    }
+                    if (row[0] === 'CARD_FOOTER') {
+                      const isMinus = typeof row[5] === 'string' && row[5].startsWith('-');
+                      return (
+                        <tr key={i} className="bg-slate-50 border-y-2 border-slate-300">
+                          <td colSpan={2} className="px-4 py-3 text-sm font-black text-slate-500 text-right uppercase tracking-wider">{row[1]}</td>
+                          <td className="px-4 py-3 text-sm font-black text-emerald-600 text-right">{row[3]}</td>
+                          <td className="px-4 py-3 text-sm font-black text-rose-600 text-right">{row[4]}</td>
+                          <td className={`px-4 py-3 text-base font-black text-right border-l border-slate-200 ${isMinus ? 'text-rose-600' : 'text-slate-900'}`}>{row[5]}</td>
+                          <td colSpan={reportContent.headers.length - 5} className="px-4 py-3"></td>
+                        </tr>
                       );
                     }
 

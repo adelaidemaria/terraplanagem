@@ -38,7 +38,9 @@ import {
   AdminUser,
   BankTransfer,
   AgendaItem,
-  FinancialYield
+  FinancialYield,
+  CorporateCard,
+  CorporateCardPayment
 } from './types';
 
 // Components
@@ -61,6 +63,7 @@ import Login from './components/Login';
 import Logo from './components/Logo';
 import NfImportManager from './components/NfImportManager';
 import BankStatementManager from './components/BankStatementManager';
+import CorporateCardManager from './components/CorporateCardManager';
 import { useSupabaseSync } from './lib/useSupabaseSync';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
@@ -149,7 +152,10 @@ const App: React.FC = () => {
   const [fleet, setFleet, fleetLoaded] = useSupabaseSync<Equipment>('equipment');
   const [maintenanceRecords, setMaintenanceRecords, mrLoaded] = useSupabaseSync<MaintenanceRecord>('maintenance_records');
 
-  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded;
+  const [corporateCards, setCorporateCards, ccLoaded] = useSupabaseSync<CorporateCard>('corporate_cards');
+  const [corporateCardPayments, setCorporateCardPayments, ccpLoaded] = useSupabaseSync<CorporateCardPayment>('corporate_card_payments');
+
+  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -350,6 +356,13 @@ const App: React.FC = () => {
             setCurrentView('reports');
           }}
         />;
+      case 'corporate-cards':
+        return <CorporateCardManager
+          corporateCards={corporateCards} setCorporateCards={setCorporateCards}
+          corporateCardPayments={corporateCardPayments} setCorporateCardPayments={setCorporateCardPayments}
+          expenses={expenses} setExpenses={setExpenses}
+          vendors={vendors} accountPlan={accountPlan} bankAccounts={bankAccounts}
+        />;
       case 'receivables':
         return <ReceivablesManager
           sales={sales} payments={payments}
@@ -416,6 +429,8 @@ const App: React.FC = () => {
           fleet={fleet}
           maintenanceRecords={maintenanceRecords}
           agendaItems={agendaItems}
+          corporateCards={corporateCards}
+          corporateCardPayments={corporateCardPayments}
           initialReport={selectedReportType as any}
         />;
       case 'fleet':
@@ -491,6 +506,7 @@ const App: React.FC = () => {
           <NavItem id="vendors" label="Fornecedores" icon={Truck} />
           <NavItem id="expenses" label="Lançar Despesas" icon={Wallet} />
           <NavItem id="payables" label="Contas a Pagar" icon={CreditCard} />
+          <NavItem id="corporate-cards" label="Cartão Corporativo" icon={CreditCard} />
 
           <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Tesouraria</span>
@@ -541,6 +557,7 @@ const App: React.FC = () => {
             {currentView === 'vendors' && 'Cadastro de Fornecedores'}
             {currentView === 'sales' && 'Faturamento'}
             {currentView === 'expenses' && 'Lançamentos de Despesas'}
+            {currentView === 'corporate-cards' && 'Gestão de Cartões Corporativos'}
             {currentView === 'payables' && 'Contas a Pagar'}
             {currentView === 'receivables' && 'Contas a Receber'}
             {currentView === 'accountPlan' && 'Plano de Contas'}
