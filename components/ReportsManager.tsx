@@ -40,7 +40,7 @@ import {
 } from '../types';
 import Logo from './Logo';
 
-type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetOverdue' | 'fleetDue2' | 'fleetDue15' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement';
+type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetOverdue' | 'fleetDue2' | 'fleetDue15' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement' | 'cashFlow';
 
 interface ReportsManagerProps {
   customers: Customer[];
@@ -1258,6 +1258,206 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           headers: ['Instituição', 'Agência', 'Conta Corrente'],
           rows: bankAccounts.map(b => [`${b.bankName}${b.isBlocked ? ' (BLOQUEADO)' : ''}`, b.agency, b.accountNumber])
         };
+      case 'cashFlow': {
+        const rows: any[] = [];
+        
+        // 1. Saldos de Bancos
+        rows.push(['CASH_FLOW_SECTION', 'SALDOS DE BANCOS ATUAL (Soma de todos os movimentos até hoje)']);
+        rows.push(['COLUMN_HEADERS_CASHFLOW', 'Banco / Instituição', 'Agência', 'Conta Corrente', 'Saldo Atual', '']);
+        
+        let totalBancos = 0;
+        const now = new Date().getTime() + (24 * 60 * 60 * 1000) - 1; // End of today
+
+        bankAccounts.forEach(bank => {
+          const initialSystemBalance = bank.initialBalance || 0;
+
+          const allCredits = payments
+            .filter(p => p.bankAccountId === bank.id && new Date(p.date).getTime() <= now)
+            .reduce((acc, p) => acc + p.amount, 0);
+
+          const allDebits = expenses
+            .filter(e => e.bankAccountId === bank.id && (e.status === 'Pago' || (e.amountPaid && e.amountPaid > 0)) && e.paymentDate && new Date(e.paymentDate).getTime() <= now)
+            .reduce((acc, e) => acc + (e.amountPaid || 0), 0);
+
+          const allTransferCredits = bankTransfers
+            .filter(t => t.destinationAccountId === bank.id && new Date(t.date).getTime() <= now)
+            .reduce((acc, t) => acc + t.amount, 0);
+
+          const allTransferDebits = bankTransfers
+            .filter(t => t.sourceAccountId === bank.id && new Date(t.date).getTime() <= now)
+            .reduce((acc, t) => acc + t.amount, 0);
+
+          const allYieldCredits = yields
+            .filter(y => {
+              if (y.bankAccountId !== bank.id || new Date(y.date).getTime() > now) return false;
+              if (y.description.startsWith('TAXA CARTÃO Ref:')) return false;
+              const ap = accountPlan.find(p => p.id === y.accountPlanId);
+              return ap?.type !== 'Despesa';
+            })
+            .reduce((acc, y) => acc + y.amount, 0);
+
+          const allYieldDebits = yields
+            .filter(y => {
+              if (y.bankAccountId !== bank.id || new Date(y.date).getTime() > now) return false;
+              if (y.description.startsWith('TAXA CARTÃO Ref:')) return false;
+              const ap = accountPlan.find(p => p.id === y.accountPlanId);
+              return ap?.type === 'Despesa';
+            })
+            .reduce((acc, y) => acc + y.amount, 0);
+
+          const currentRunningBalance = initialSystemBalance + allCredits + allTransferCredits + allYieldCredits - allDebits - allTransferDebits - allYieldDebits;
+
+          totalBancos += currentRunningBalance;
+          
+          rows.push(['CASH_FLOW_ITEM', `${bank.bankName}${bank.isBlocked ? ' (BLOQUEADO)' : ''}`, bank.agency, bank.accountNumber, formatCurrency(currentRunningBalance), '']);
+        });
+        rows.push(['CASH_FLOW_SUBTOTAL', 'Total em Bancos:', '', '', formatCurrency(totalBancos), '']);
+        rows.push(['', '', '', '', '', '']);
+
+        // 2. Contas a Receber (grouped by customer)
+        rows.push(['CASH_FLOW_SECTION', 'SALDOS DE CLIENTES A RECEBER (No período selecionado)']);
+        rows.push(['COLUMN_HEADERS_CASHFLOW', 'Cliente', 'Documentos (NFs)', 'Vencimentos', 'Saldo a Receber', '']);
+        
+        const receivablesByCustomer = new Map<string, { total: number; nfs: Set<string>; dueDates: Set<string> }>();
+        
+        sales.forEach(s => {
+          const sInstallments = s.installmentsList || [];
+          if (sInstallments.length > 0) {
+            sInstallments.forEach(inst => {
+              if (inst.status !== 'Pago') {
+                const instPayments = payments.filter(p => p.saleId === s.id && p.installmentId === inst.id);
+                const paidOnInst = instPayments.reduce((sum, p) => sum + p.amount + (p.fee || 0), 0);
+                const balance = inst.value - paidOnInst;
+                if (balance > 0.01) {
+                  const d = new Date(inst.dueDate).getTime();
+                  if (d >= startTimestamp && d <= endTimestamp) {
+                    if (!receivablesByCustomer.has(s.customerName)) receivablesByCustomer.set(s.customerName, { total: 0, nfs: new Set(), dueDates: new Set() });
+                    const cData = receivablesByCustomer.get(s.customerName)!;
+                    cData.total += balance;
+                    cData.nfs.add(s.isNoNf ? 'S/NF' : (s.nfNumber || 'S/N'));
+                    cData.dueDates.add(formatDateDisplay(inst.dueDate));
+                  }
+                }
+              }
+            });
+          } else {
+            const totalPaid = payments.filter(p => p.saleId === s.id).reduce((sum, p) => sum + p.amount + (p.fee || 0), 0);
+            const balance = s.totalValue - totalPaid;
+            if (balance > 0.01) {
+              const refDate = s.dueDate ? new Date(s.dueDate) : (s.paymentCondition === 'A Vista' ? new Date(s.date) : new Date(s.date));
+              const d = refDate.getTime();
+              if (d >= startTimestamp && d <= endTimestamp) {
+                if (!receivablesByCustomer.has(s.customerName)) receivablesByCustomer.set(s.customerName, { total: 0, nfs: new Set(), dueDates: new Set() });
+                const cData = receivablesByCustomer.get(s.customerName)!;
+                cData.total += balance;
+                cData.nfs.add(s.isNoNf ? 'S/NF' : (s.nfNumber || 'S/N'));
+                cData.dueDates.add(formatDateDisplay(s.dueDate || s.date));
+              }
+            }
+          }
+        });
+
+        let totalReceber = 0;
+        Array.from(receivablesByCustomer.entries()).sort((a,b) => a[0].localeCompare(b[0])).forEach(([customer, data]) => {
+          totalReceber += data.total;
+          rows.push(['CASH_FLOW_ITEM', customer, Array.from(data.nfs).join(', '), Array.from(data.dueDates).join(', '), formatCurrency(data.total), '']);
+        });
+        if (receivablesByCustomer.size === 0) {
+          rows.push(['CASH_FLOW_ITEM', 'Nenhum valor a receber no período selecionado.', '', '', '', '']);
+        } else {
+          rows.push(['CASH_FLOW_SUBTOTAL', 'Total a Receber:', '', '', formatCurrency(totalReceber), '']);
+        }
+        rows.push(['', '', '', '', '', '']);
+
+        // 3. Contas a Pagar (grouped by vendor)
+        rows.push(['CASH_FLOW_SECTION', 'SALDOS DE DESPESAS/CONTAS A PAGAR (No período selecionado)']);
+        rows.push(['COLUMN_HEADERS_CASHFLOW', 'Fornecedor', 'Documentos', 'Vencimentos', 'Saldo a Pagar', '']);
+
+        const payablesByVendor = new Map<string, { total: number; docs: Set<string>; dueDates: Set<string> }>();
+        let totalCartao = 0;
+
+        expenses.forEach(e => {
+          const balance = e.totalValue - (e.amountPaid || 0);
+          if (balance > 0.01) {
+            const refDate = e.dueDate ? new Date(e.dueDate) : new Date(e.date);
+            const d = refDate.getTime();
+            if (d >= startTimestamp && d <= endTimestamp) {
+              if (e.paymentMethod === 'Cartão Corporativo') {
+                totalCartao += balance;
+              } else {
+                if (!payablesByVendor.has(e.vendorName)) payablesByVendor.set(e.vendorName, { total: 0, docs: new Set(), dueDates: new Set() });
+                const vData = payablesByVendor.get(e.vendorName)!;
+                vData.total += balance;
+                vData.docs.add(e.docNumber || 'S/N');
+                vData.dueDates.add(formatDateDisplay(e.dueDate || e.date));
+              }
+            }
+          }
+        });
+
+        let totalPagar = 0;
+        Array.from(payablesByVendor.entries()).sort((a,b) => a[0].localeCompare(b[0])).forEach(([vendor, data]) => {
+          totalPagar += data.total;
+          rows.push(['CASH_FLOW_ITEM', vendor, Array.from(data.docs).join(', '), Array.from(data.dueDates).join(', '), formatCurrency(data.total), '']);
+        });
+        if (payablesByVendor.size === 0) {
+          rows.push(['CASH_FLOW_ITEM', 'Nenhum valor a pagar a fornecedores (cartão não incluso).', '', '', '', '']);
+        } else {
+          rows.push(['CASH_FLOW_SUBTOTAL', 'Total a Pagar (Fornecedores):', '', '', formatCurrency(totalPagar), '']);
+        }
+        rows.push(['', '', '', '', '', '']);
+
+        // 4. Cartão Corporativo a Pagar
+        rows.push(['CASH_FLOW_SECTION', 'SALDO DE CARTÃO CORPORATIVO A PAGAR (No período selecionado)']);
+        if (totalCartao > 0) {
+          rows.push(['CASH_FLOW_ITEM', 'Faturas/Despesas no Cartão Corporativo', '', '', formatCurrency(totalCartao), '']);
+          rows.push(['CASH_FLOW_SUBTOTAL', 'Total no Cartão:', '', '', formatCurrency(totalCartao), '']);
+        } else {
+          rows.push(['CASH_FLOW_ITEM', 'Nenhuma despesa de Cartão Corporativo pendente.', '', '', '', '']);
+        }
+        rows.push(['', '', '', '', '', '']);
+
+        // 5. Totalizador Bruto Periodo (Faturado / Despesas / Lucro)
+        const totalFaturadoPeriodo = sales.filter(s => {
+          const d = new Date(s.date).getTime();
+          if (d < startTimestamp || d > endTimestamp) return false;
+          if (!matchesClient(s)) return false;
+          if (receivablesFilter === 'withNf') return !s.isNoNf;
+          if (receivablesFilter === 'withoutNf') return !!s.isNoNf;
+          return true;
+        }).reduce((acc, s) => acc + s.totalValue, 0) + 
+        (yields || []).filter(y => {
+          const d = new Date(y.date).getTime();
+          if (d < startTimestamp || d > endTimestamp) return false;
+          const ap = accountPlan.find(p => p.id === y.accountPlanId);
+          return ap?.type === 'Receita';
+        }).reduce((acc, y) => acc + y.amount, 0);
+
+        const totalDespesasPeriodo = expenses.filter(e => {
+          const d = new Date(e.date).getTime();
+          if (d < startTimestamp || d > endTimestamp) return false;
+          if (selectedCategoryId !== 'all' && e.accountPlanId !== selectedCategoryId) return false;
+          return true;
+        }).reduce((acc, e) => acc + e.totalValue, 0) + 
+        (yields || []).filter(y => {
+          const d = new Date(y.date).getTime();
+          if (d < startTimestamp || d > endTimestamp) return false;
+          const ap = accountPlan.find(p => p.id === y.accountPlanId);
+          return ap?.type === 'Despesa';
+        }).reduce((acc, y) => acc + y.amount, 0);
+
+        const lucroPeriodo = Math.round((totalFaturadoPeriodo - totalDespesasPeriodo) * 100) / 100;
+
+        // row[0] = tag, row[1] = title, row[2] = bancos, row[3] = receber, row[4] = pagar, row[5] = saldoFluxo, row[6] = faturado, row[7] = despesas, row[8] = lucro
+        rows.push(['CASH_FLOW_RESUMO', 'RESUMO DO FLUXO DE CAIXA', totalBancos, totalReceber, totalPagar + totalCartao, totalBancos + totalReceber - (totalPagar + totalCartao), totalFaturadoPeriodo, totalDespesasPeriodo, lucroPeriodo]);
+
+        return {
+          title: `Relatório de Fluxo de Caixa - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headerInfo: 'Visão consolidada de caixa: Bancos, Recebíveis, Pagáveis e Resultado Gerencial.',
+          headers: ['', '', '', '', '', ''],
+          rows: rows
+        };
+      }
       case 'dre': {
         const dreSales = sales.filter(s => {
           const d = new Date(s.date).getTime();
@@ -1382,10 +1582,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               <div className="relative group">
                 <select
                   className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white focus:border-amber-200 transition-all appearance-none cursor-pointer"
-                  value={['bankStatement', 'corporateCard', 'sales', 'receivables', 'cardFees', 'receivablesPending', 'customerStatement', 'payments', 'expensesPending'].includes(selectedReport || '') ? selectedReport || '' : ''}
+                  value={['cashFlow', 'bankStatement', 'corporateCard', 'sales', 'receivables', 'cardFees', 'receivablesPending', 'customerStatement', 'payments', 'expensesPending'].includes(selectedReport || '') ? selectedReport || '' : ''}
                   onChange={(e) => setSelectedReport(e.target.value as ReportType)}
                 >
                   <option value="" disabled>Selecione um Relatório...</option>
+                  <option value="cashFlow">🌊 Fluxo de Caixa</option>
                   <option value="bankStatement">💰 Extrato Bancário</option>
                   <option value="sales">📈 Faturamento por Período</option>
                   <option value="receivablesPending">⏳ Contas a Receber</option>
@@ -1506,7 +1707,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   </div>
                 )}
 
-                {['dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory', 'cardFees'].includes(selectedReport) && (
+                {['cashFlow', 'dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory', 'cardFees'].includes(selectedReport) && (
                   <>
                     {['dre', 'sales', 'receivables', 'receivablesPending'].includes(selectedReport) && (
                       <div className="flex-1 space-y-2">
@@ -2217,6 +2418,105 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                             {row[2]}
                           </td>
                         </tr>
+                      );
+                    }
+
+                    if (row[0] === 'CASH_FLOW_SECTION') {
+                      return (
+                        <tr key={i} className="bg-slate-50 border-y border-slate-200 border-t-4 border-t-amber-500 mt-8">
+                          <td colSpan={reportContent.headers.length} className="px-4 py-4 font-black text-slate-800 uppercase tracking-widest text-sm text-left">
+                            {row[1]}
+                          </td>
+                        </tr>
+                      );
+                    }
+                    if (row[0] === 'COLUMN_HEADERS_CASHFLOW') {
+                      return (
+                        <tr key={i} className="bg-slate-100/50 border-b border-slate-200">
+                          <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-left max-w-[250px]">{row[1]}</th>
+                          <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-left">{row[2]}</th>
+                          <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-left w-[200px]">{row[3]}</th>
+                          <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-right w-[150px]">{row[4]}</th>
+                          <th colSpan={reportContent.headers.length - 4} className="px-4 py-2"></th>
+                        </tr>
+                      );
+                    }
+                    if (row[0] === 'CASH_FLOW_ITEM') {
+                      return (
+                        <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3 text-sm text-slate-700 font-bold whitespace-nowrap overflow-hidden text-ellipsis max-w-[250px]">{row[1]}</td>
+                          <td className="px-4 py-3 text-sm text-slate-600 truncate max-w-[250px]">{row[2]}</td>
+                          <td className="px-4 py-3 text-xs text-slate-600 truncate max-w-[200px]">{row[3]}</td>
+                          <td className="px-4 py-3 text-sm font-black text-slate-800 text-right">{row[4]}</td>
+                          <td colSpan={reportContent.headers.length - 4} className="px-4 py-3"></td>
+                        </tr>
+                      );
+                    }
+                    if (row[0] === 'CASH_FLOW_SUBTOTAL') {
+                      return (
+                        <tr key={i} className="bg-white border-b border-slate-300">
+                          <td colSpan={3} className="px-4 py-3 text-sm font-black text-slate-500 text-right uppercase tracking-wider">{row[1]}</td>
+                          <td className="px-4 py-3 text-base font-black text-slate-900 border-l border-slate-200 text-right">{row[4]}</td>
+                          <td colSpan={reportContent.headers.length - 4} className="px-4 py-3"></td>
+                        </tr>
+                      );
+                    }
+                    if (row[0] === 'CASH_FLOW_RESUMO') {
+                      return (
+                        <React.Fragment key={i}>
+                          <tr className="bg-white border-0">
+                            <td colSpan={reportContent.headers.length} className="py-6 border-b-2 border-slate-200"></td>
+                          </tr>
+                          <tr className="bg-slate-900 border-0">
+                            <td colSpan={reportContent.headers.length} className="px-4 py-6 font-black text-amber-500 uppercase tracking-widest text-lg text-center rounded-t-xl">
+                              {row[1]}
+                            </td>
+                          </tr>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <td colSpan={3} className="px-6 py-4 font-bold text-slate-700 uppercase text-sm">Disponibilidades (Bancos)</td>
+                            <td className="px-6 py-4 text-base font-black text-blue-600 text-right border-l border-slate-200 bg-white">{formatCurrency(row[2])}</td>
+                            <td colSpan={reportContent.headers.length - 4} className="bg-white"></td>
+                          </tr>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <td colSpan={3} className="px-6 py-4 font-bold text-slate-700 uppercase text-sm flex items-center gap-2"><div className="w-2 h-2 bg-emerald-500 rounded-full"></div> Contas a Receber</td>
+                            <td className="px-6 py-4 text-base font-black text-emerald-600 text-right border-l border-slate-200 bg-white">+ {formatCurrency(row[3])}</td>
+                            <td colSpan={reportContent.headers.length - 4} className="bg-white"></td>
+                          </tr>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <td colSpan={3} className="px-6 py-4 font-bold text-slate-700 uppercase text-sm flex items-center gap-2"><div className="w-2 h-2 bg-rose-500 rounded-full"></div> Contas a Pagar (Incluindo Cartão)</td>
+                            <td className="px-6 py-4 text-base font-black text-rose-600 text-right border-l border-slate-200 bg-white">- {formatCurrency(row[4])}</td>
+                            <td colSpan={reportContent.headers.length - 4} className="bg-white"></td>
+                          </tr>
+                          <tr className="bg-slate-100 border-b-4 border-slate-900">
+                            <td colSpan={3} className="px-6 py-5 font-black text-slate-900 uppercase text-sm text-right tracking-widest">Saldo do Fluxo de Caixa:</td>
+                            <td className={`px-6 py-5 text-2xl font-black text-right border-l border-slate-300 bg-white shadow-inner ${row[5] >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>{formatCurrency(row[5])}</td>
+                            <td colSpan={reportContent.headers.length - 4} className="bg-white"></td>
+                          </tr>
+                          
+                          <tr className="bg-white border-0">
+                            <td colSpan={reportContent.headers.length} className="py-6 border-b-2 border-slate-200"></td>
+                          </tr>
+                          <tr className="bg-slate-900 border-0">
+                            <td colSpan={reportContent.headers.length} className="px-4 py-6 font-black text-amber-500 uppercase tracking-widest text-lg text-center rounded-t-xl">
+                              RESULTADO DO PERÍODO
+                            </td>
+                          </tr>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <td colSpan={3} className="px-6 py-4 font-bold text-slate-700 uppercase text-sm flex items-center gap-2"><div className="w-2 h-2 bg-emerald-500 rounded-full"></div> Faturado Bruto</td>
+                            <td className="px-6 py-4 text-base font-black text-emerald-600 text-right border-l border-slate-200 bg-white">{formatCurrency(row[6])}</td>
+                            <td colSpan={reportContent.headers.length - 4} className="bg-white"></td>
+                          </tr>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <td colSpan={3} className="px-6 py-4 font-bold text-slate-700 uppercase text-sm flex items-center gap-2"><div className="w-2 h-2 bg-rose-500 rounded-full"></div> Total Despesas</td>
+                            <td className="px-6 py-4 text-base font-black text-rose-600 text-right border-l border-slate-200 bg-white">{formatCurrency(row[7])}</td>
+                            <td colSpan={reportContent.headers.length - 4} className="bg-white"></td>
+                          </tr>
+                          <tr className="bg-slate-100 border-b-4 border-slate-900">
+                            <td colSpan={3} className="px-6 py-5 font-black text-slate-900 uppercase text-sm text-right tracking-widest">LUCRO / PREJUÍZO (REGIME DE COMPETÊNCIA):</td>
+                            <td className={`px-6 py-5 text-2xl font-black text-right border-l border-slate-300 bg-white shadow-inner ${row[8] >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatCurrency(row[8])}</td>
+                            <td colSpan={reportContent.headers.length - 4} className="bg-white"></td>
+                          </tr>
+                        </React.Fragment>
                       );
                     }
 
