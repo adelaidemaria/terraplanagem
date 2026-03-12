@@ -250,6 +250,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       case 'expensesPending': {
         const pending = expenses
           .filter(e => {
+            // Exclui despesas de cartão corporativo (são consideradas pagas ao fornecedor via cartão)
+            if (e.paymentMethod === 'Cartão Corporativo') return false;
+
             const balance = e.totalValue - (e.amountPaid || 0);
             if (balance <= 0.01) return false;
 
@@ -1227,35 +1230,53 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       }
       case 'payments':
         const filteredExpenses = expenses.filter(e => {
-          if (!e.paymentDate) return false;
+          const isCard = e.paymentMethod === 'Cartão Corporativo';
           const matchesCategory = selectedCategoryId === 'all' || e.accountPlanId === selectedCategoryId;
+          
+          if (isCard) {
+            const d = new Date(e.date).getTime();
+            return matchesCategory && d >= startTimestamp && d <= endTimestamp;
+          }
+
+          if (!e.paymentDate) return false;
           const d = new Date(e.paymentDate).getTime();
           return matchesCategory && d >= startTimestamp && d <= endTimestamp && (e.status === 'Pago' || (e.amountPaid && e.amountPaid > 0));
-        }).sort((a, b) => new Date(a.paymentDate!).getTime() - new Date(b.paymentDate!).getTime());
+        }).sort((a, b) => {
+          const dateA = a.paymentMethod === 'Cartão Corporativo' ? a.date : (a.paymentDate || a.date);
+          const dateB = b.paymentMethod === 'Cartão Corporativo' ? b.date : (b.paymentDate || b.date);
+          return new Date(dateA).getTime() - new Date(dateB).getTime();
+        });
+
         return {
           title: `Pagamentos Realizados - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
           headers: ['Data Pagto', 'Data Vencto', 'Doc', 'Fornecedor', 'Despesa', 'Banco Saída', 'Valor'],
           rows: filteredExpenses.map(e => {
-            const bank = bankAccounts.find(b => b.id === e.bankAccountId);
-            const bankLabel = bank?.bankName
-              ? bank.bankName
-                .replace(/ C\/C| CC| C\.C\.| Conta Corrente/ig, '')
-                .replace(/Banco do Brasil/ig, 'BB')
-                .replace(/ITAU/ig, 'ITAÚ')
-                .trim()
-              : '---';
+            const isCard = e.paymentMethod === 'Cartão Corporativo';
+            const card = isCard ? corporateCards.find(c => c.id === e.cardId) : null;
+            
+            const bank = !isCard ? bankAccounts.find(b => b.id === e.bankAccountId) : null;
+            const bankLabel = isCard 
+              ? (card ? `CARTÃO: ${card.name.replace(/NUBANK/ig, 'NU')}` : 'CARTÃO CORP.')
+              : bank?.bankName
+                ? bank.bankName
+                  .replace(/ C\/C| CC| C\.C\.| Conta Corrente/ig, '')
+                  .replace(/Banco do Brasil/ig, 'BB')
+                  .replace(/ITAU/ig, 'ITAÚ')
+                  .trim()
+                : '---';
             const plan = accountPlan.find(p => p.id === e.accountPlanId);
+            
             return [
-              formatDateDisplay(e.paymentDate),
-              e.dueDate ? formatDateDisplay(e.dueDate) : '---',
+              formatDateDisplay(isCard ? e.date : e.paymentDate),
+              formatDateDisplay(isCard ? e.date : e.dueDate),
               e.docNumber || 'S/N',
               e.vendorName,
               plan?.description || '---',
               bankLabel,
-              formatCurrency(e.amountPaid || e.totalValue)
+              formatCurrency(isCard ? e.totalValue : (e.amountPaid || e.totalValue))
             ];
           }),
-          total: filteredExpenses.reduce((acc, curr) => acc + (curr.amountPaid || curr.totalValue), 0)
+          total: filteredExpenses.reduce((acc, curr) => acc + (curr.paymentMethod === 'Cartão Corporativo' ? curr.totalValue : (curr.amountPaid || curr.totalValue)), 0)
         };
       case 'accountPlan': {
         const rows: any[] = [];
@@ -1469,18 +1490,17 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         expenses.forEach(e => {
           const balance = e.totalValue - (e.amountPaid || 0);
           if (balance > 0.01) {
+            // Despesas de Cartão Corporativo não entram aqui, são tratadas em sua própria seção
+            if (e.paymentMethod === 'Cartão Corporativo') return;
+
             const refDate = e.dueDate ? new Date(e.dueDate) : new Date(e.date);
             const d = refDate.getTime();
             if (d >= startTimestamp && d <= endTimestamp) {
-              if (e.paymentMethod === 'Cartão Corporativo') {
-                totalCartao += balance;
-              } else {
-                if (!payablesByVendor.has(e.vendorName)) payablesByVendor.set(e.vendorName, { total: 0, docs: new Set(), dueDates: new Set() });
-                const vData = payablesByVendor.get(e.vendorName)!;
-                vData.total += balance;
-                vData.docs.add(e.docNumber || 'S/N');
-                vData.dueDates.add(formatDateDisplay(e.dueDate || e.date));
-              }
+              if (!payablesByVendor.has(e.vendorName)) payablesByVendor.set(e.vendorName, { total: 0, docs: new Set(), dueDates: new Set() });
+              const vData = payablesByVendor.get(e.vendorName)!;
+              vData.total += balance;
+              vData.docs.add(e.docNumber || 'S/N');
+              vData.dueDates.add(formatDateDisplay(e.dueDate || e.date));
             }
           }
         });
@@ -1497,44 +1517,35 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         }
         rows.push(['', '', '', '', '', '']);
 
-        // 4. Cartão Corporativo a Pagar
-        rows.push(['CASH_FLOW_SECTION', 'CARTÃO CORPORATIVO A PAGAR (Saldo no período selecionado)']);
+        // 4. Cartão Corporativo a Pagar (Saldo Acumulado - Dívida Atual)
+        rows.push(['CASH_FLOW_SECTION', 'CARTÃO CORPORATIVO A PAGAR (Saldo em Aberto Atual)']);
         let totalDosCartoes = 0;
+        const todayEnd = new Date().getTime() + (24 * 60 * 60 * 1000) - 1;
         
         if (corporateCards && corporateCards.length > 0) {
           corporateCards.forEach(card => {
-            const compras = expenses.filter(e => {
-              if (e.cardId !== card.id) return false;
-              const refDate = e.dueDate ? new Date(e.dueDate) : new Date(e.date);
-              const d = refDate.getTime();
-              return d >= startTimestamp && d <= endTimestamp;
-            }).reduce((acc, e) => acc + e.totalValue, 0);
+            const totalComprasCard = expenses
+              .filter(e => e.paymentMethod === 'Cartão Corporativo' && e.cardId === card.id && new Date(e.date).getTime() <= todayEnd)
+              .reduce((acc, e) => acc + e.totalValue, 0);
 
-            const pagts = (corporateCardPayments || []).filter(p => {
-              if (p.cardId !== card.id) return false;
-              const dp = new Date(p.date).getTime();
-              return dp >= startTimestamp && dp <= endTimestamp;
-            }).reduce((acc, p) => acc + p.amount, 0);
+            const totalPagosCard = (corporateCardPayments || [])
+              .filter(p => p.cardId === card.id && new Date(p.date).getTime() <= todayEnd)
+              .reduce((acc, p) => acc + p.amount, 0);
             
-            const saldo = compras - pagts;
-            if (saldo > 0.01) {
-              totalDosCartoes += saldo;
-              rows.push(['CASH_FLOW_ITEM', `Fatura - ${card.name}`, '', '', formatCurrency(saldo), '']);
+            const saldoAberto = totalComprasCard - totalPagosCard;
+            if (saldoAberto > 0.01) {
+              totalDosCartoes += saldoAberto;
+              rows.push(['CASH_FLOW_ITEM', `Cartão: ${card.name}`, '', '', formatCurrency(saldoAberto), '']);
             }
           });
 
           if (totalDosCartoes > 0) {
-            rows.push(['CASH_FLOW_SUBTOTAL', 'Total em Cartões:', '', '', formatCurrency(totalDosCartoes), '']);
+            rows.push(['CASH_FLOW_SUBTOTAL', 'Total em Cartões (A pagar):', '', '', formatCurrency(totalDosCartoes), '']);
           } else {
-            rows.push(['CASH_FLOW_ITEM', 'Nenhuma despesa de Cartão Corporativo pendente.', '', '', '', '']);
+            rows.push(['CASH_FLOW_ITEM', 'Nenhuma fatura de Cartão Corporativo em aberto.', '', '', '', '']);
           }
         } else {
-          if (totalCartao > 0) {
-            rows.push(['CASH_FLOW_ITEM', 'Faturas/Despesas no Cartão Corporativo', '', '', formatCurrency(totalCartao), '']);
-            rows.push(['CASH_FLOW_SUBTOTAL', 'Total no Cartão:', '', '', formatCurrency(totalCartao), '']);
-          } else {
-            rows.push(['CASH_FLOW_ITEM', 'Nenhuma despesa de Cartão Corporativo pendente.', '', '', '', '']);
-          }
+          rows.push(['CASH_FLOW_ITEM', 'Nenhum cartão corporativo cadastrado.', '', '', '', '']);
         }
         rows.push(['', '', '', '', '', '']);
 
@@ -1570,7 +1581,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         const lucroPeriodo = Math.round((totalFaturadoPeriodo - totalDespesasPeriodo) * 100) / 100;
 
         // row[0] = tag, row[1] = title, row[2] = bancos, row[3] = receber, row[4] = pagar, row[5] = saldoFluxo, row[6] = faturado, row[7] = despesas, row[8] = lucro
-        rows.push(['CASH_FLOW_RESUMO', 'RESUMO DO FLUXO DE CAIXA', totalBancos, totalReceber, totalPagar + totalCartao, totalBancos + totalReceber - (totalPagar + totalCartao), totalFaturadoPeriodo, totalDespesasPeriodo, lucroPeriodo]);
+        rows.push(['CASH_FLOW_RESUMO', 'RESUMO DO FLUXO DE CAIXA', totalBancos, totalReceber, totalPagar + totalDosCartoes, totalBancos + totalReceber - (totalPagar + totalDosCartoes), totalFaturadoPeriodo, totalDespesasPeriodo, lucroPeriodo]);
 
         return {
           title: `Relatório de Fluxo de Caixa - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
