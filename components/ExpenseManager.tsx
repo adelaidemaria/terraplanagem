@@ -36,7 +36,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [nfFilter, setNfFilter] = useState<'all' | 'noNf' | 'withNf' | 'Pago' | 'Pendente' | 'Importado'>('all');
+  const [nfFilter, setNfFilter] = useState<'all' | 'noNf' | 'withNf' | 'Pago' | 'Pendente' | 'Importado' | 'Card'>('all');
 
   const isExpenseImported = (expense: Expense) => {
     return expense.items?.some(i => i.description.includes('[IMPORTADO]')) || expense.bankTransId != null;
@@ -135,9 +135,10 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
         const matchesNf = nfFilter === 'all' ||
           (nfFilter === 'noNf' && e.isNoDoc) ||
           (nfFilter === 'withNf' && !e.isNoDoc) ||
-          (nfFilter === 'Pago' && e.status === 'Pago') ||
+          (nfFilter === 'Pago' && e.status === 'Pago' && e.paymentMethod !== 'Cartão Corporativo') ||
           (nfFilter === 'Pendente' && e.status === 'Pendente') ||
-          (nfFilter === 'Importado' && isExpenseImported(e));
+          (nfFilter === 'Importado' && isExpenseImported(e)) ||
+          (nfFilter === 'Card' && e.paymentMethod === 'Cartão Corporativo');
 
         return matchesSearch && matchesDate && matchesNf;
       })
@@ -319,6 +320,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
               <option value="Pago">Pago</option>
               <option value="Pendente">Pendentes</option>
               <option value="Importado">Importados</option>
+              <option value="Card">PG CARTÃO</option>
             </select>
           </div>
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
@@ -419,10 +421,16 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                 </td>
                 <td className="px-6 py-4 font-black text-rose-600 text-right">{formatCurrency(expense.totalValue)}</td>
                 <td className="px-6 py-4">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${expense.status === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                    }`}>
-                    {expense.status}
-                  </span>
+                  {expense.status === 'Pago' && expense.paymentMethod === 'Cartão Corporativo' ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-blue-100 text-blue-700">
+                      PG CARTÃO
+                    </span>
+                  ) : (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${expense.status === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                      }`}>
+                      {expense.status}
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   {isExpenseImported(expense) ? (

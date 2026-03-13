@@ -904,9 +904,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           const finalBalance = openingBalance + totalCompras - totalPagos;
 
           rows.push(['CARD_RESUMO_HEADER', card.name]);
-          rows.push(['COLUMN_HEADERS_CARD', 'Descrição do Lançamento', 'Data', 'Compras (+)', 'Pagamentos (-)', 'Saldo']);
+          rows.push(['COLUMN_HEADERS_CARD', 'Data', 'Descrição do Lançamento', 'Compras (+)', 'Pagamentos (-)', 'Saldo']);
           
-          rows.push(['CARD_ITEM', 'SALDO ANTERIOR (ACUMULADO)', '', formatCurrency(openingBalance), '', formatCurrency(openingBalance)]);
+          rows.push(['CARD_ITEM', '', 'SALDO ANTERIOR (ACUMULADO)', formatCurrency(openingBalance), '', formatCurrency(openingBalance)]);
           
           const movements: any[] = [
             ...cardExps.map(e => ({
@@ -929,7 +929,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           let running = openingBalance;
           movements.forEach(m => {
             running += m.compra - m.pagto;
-            rows.push(['CARD_ITEM', m.desc, formatDateDisplay(m.date), m.compra > 0 ? formatCurrency(m.compra) : '---', m.pagto > 0 ? formatCurrency(m.pagto) : '---', formatCurrency(running)]);
+            rows.push(['CARD_ITEM', formatDateDisplay(m.date), m.desc, m.compra > 0 ? formatCurrency(m.compra) : '---', m.pagto > 0 ? formatCurrency(m.pagto) : '---', formatCurrency(running)]);
           });
 
           rows.push(['CARD_FOOTER', 'TOTALIZADOR DO PERÍODO', '', formatCurrency(totalCompras), formatCurrency(totalPagos), formatCurrency(finalBalance)]);
@@ -2679,8 +2679,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                     if (row[0] === 'COLUMN_HEADERS_CARD') {
                       return (
                         <tr key={i} className="bg-slate-100 border-y border-slate-200">
-                          <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-left">{row[1]}</th>
-                          <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-left w-[110px] whitespace-nowrap">{row[2]}</th>
+                          <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-left w-[110px] whitespace-nowrap">{row[1]}</th>
+                          <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-left">{row[2]}</th>
                           <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-right w-[130px] whitespace-nowrap">{row[3]}</th>
                           <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-right w-[130px] whitespace-nowrap">{row[4]}</th>
                           <th className="px-4 py-2 font-black text-slate-500 uppercase text-[10px] tracking-wider text-right w-[130px] whitespace-nowrap">{row[5]}</th>
@@ -2689,7 +2689,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       );
                     }
                     if (row[0] === 'CARD_ITEM') {
-                      const desc = row[1] || '';
+                      const date = row[1] || '';
+                      const desc = row[2] || '';
                       const isSpecial = desc.includes('SALDO ANTERIOR') || desc.includes('PAGAMENTO FATURA');
                       const isMinus = typeof row[5] === 'string' && row[5].startsWith('-');
                       
@@ -2697,8 +2698,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       
                       return (
                         <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                          <td className={`px-4 py-3 text-sm text-slate-700 ${weightClass}`}>{row[1]}</td>
-                          <td className="px-4 py-3 text-sm text-slate-600">{row[2]}</td>
+                          <td className="px-4 py-3 text-sm text-slate-600">{row[1]}</td>
+                          <td className={`px-4 py-3 text-sm text-slate-700 ${weightClass}`}>{row[2]}</td>
                           <td className={`px-4 py-3 text-sm text-emerald-600 text-right ${weightClass}`}>{row[3]}</td>
                           <td className={`px-4 py-3 text-sm text-rose-600 text-right ${weightClass}`}>{row[4]}</td>
                           <td className={`px-4 py-3 text-sm text-right ${weightClass} ${isMinus ? 'text-rose-600' : 'text-slate-800'}`}>{row[5]}</td>

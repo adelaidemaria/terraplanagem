@@ -284,7 +284,10 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
         isNoDoc: expenseFormData.isNoDoc || false,
         paymentMethod: 'Cartão Corporativo',
         paymentCondition: 'A Vista', // default
-        status: 'Pendente',
+        status: 'Pago',
+        dueDate: expenseFormData.date!,
+        paymentDate: expenseFormData.date!,
+        amountPaid: total,
         cardId: expenseFormData.cardId,
         createdAt: editingTxId ? (expenses.find(e => e.id === editingTxId)?.createdAt || Date.now()) : Date.now()
       };
