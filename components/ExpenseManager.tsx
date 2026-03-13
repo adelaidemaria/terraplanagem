@@ -397,8 +397,14 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filteredExpenses.map((expense) => (
-              <tr key={expense.id} className="hover:bg-slate-200/70 transition-colors cursor-pointer">
+            {filteredExpenses.map((expense) => {
+              const isCardExpense = expense.paymentMethod === 'Cartão Corporativo';
+              return (
+                <tr 
+                  key={expense.id} 
+                  className="hover:bg-slate-200/70 transition-colors cursor-pointer"
+                  onClick={() => handleOpenEdit(expense, isCardExpense ? 'view' : 'edit')}
+                >
                 <td className="px-6 py-4">
                   <div className="flex flex-col">
                     <span className={`font-bold ${expense.isNoDoc ? 'text-rose-600' : 'text-slate-800'}`}>
@@ -440,14 +446,31 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                   )}
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <div className="flex justify-end space-x-1">
-                    <button onClick={() => handleOpenEdit(expense, 'view')} className="p-2 text-slate-400 hover:text-blue-500 rounded-lg" title="Ver"><Eye size={18} /></button>
-                    <button onClick={() => handleOpenEdit(expense, 'edit')} className="p-2 text-slate-400 hover:text-amber-500 rounded-lg" title="Editar"><Edit size={18} /></button>
-                    <button onClick={() => setDeleteConfirmId(expense.id)} className="p-2 text-slate-400 hover:text-rose-500 rounded-lg" title="Excluir"><Trash2 size={18} /></button>
+                  <div className="flex justify-end space-x-1" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => handleOpenEdit(expense, 'view')} className="p-2 text-slate-400 hover:text-blue-500 rounded-lg" title="Ver Detalhes"><Eye size={18} /></button>
+                    {!isCardExpense && (
+                      <>
+                        <button onClick={() => handleOpenEdit(expense, 'edit')} className="p-2 text-slate-400 hover:text-amber-500 rounded-lg" title="Editar"><Edit size={18} /></button>
+                        <button onClick={() => setDeleteConfirmId(expense.id)} className="p-2 text-slate-400 hover:text-rose-500 rounded-lg" title="Excluir"><Trash2 size={18} /></button>
+                      </>
+                    )}
+                    {isCardExpense && (
+                      <div className="group relative flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-2 text-blue-400/60 hover:text-blue-500 transition-colors cursor-help">
+                          <CreditCard size={18} />
+                        </div>
+                        <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 w-48 p-3 bg-slate-900 text-white text-[10px] rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 pointer-events-none shadow-2xl z-50 text-center font-bold leading-tight border border-slate-700">
+                          <div className="text-blue-400 mb-1 uppercase tracking-widest">Atenção</div>
+                          Este lançamento é gerenciado exclusivamente pela tela de Cartão Corporativo.
+                          <div className="absolute left-full top-1/2 -translate-y-1/2 border-8 border-transparent border-l-slate-900"></div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </td>
               </tr>
-            ))}
+            );
+          })}
           </tbody>
         </table>
       </div>
@@ -474,6 +497,20 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
               </h2>
               <button onClick={() => setIsModalOpen(false)}><X size={24} className="text-slate-400" /></button>
             </div>
+
+            {modalMode === 'view' && formData.paymentMethod === 'Cartão Corporativo' && (
+              <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-r-xl flex items-center gap-4 shadow-sm">
+                <div className="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-200">
+                  <CreditCard size={24} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-blue-900 uppercase tracking-wide">Registro de Cartão Corporativo</h4>
+                  <p className="text-xs text-blue-700 mt-0.5">
+                    Para garantir a segurança dos dados, este lançamento só pode ser alterado ou excluído através do menu <span className="font-bold underline">Cartão Corporativo</span>.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-4">

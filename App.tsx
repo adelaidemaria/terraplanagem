@@ -511,10 +511,10 @@ const App: React.FC = () => {
           <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Tesouraria</span>
           </div>
+          <NavItem id="transfers" label="Transferências" icon={ArrowRightLeft} />
+          <NavItem id="yields" label="Rend Aplicação" icon={PiggyBank} />
           <NavItem id="bank-statements" label="Importar Extrato" icon={FileUp} />
           <NavItem id="banks" label="Contas Bancárias" icon={Building2} />
-          <NavItem id="transfers" label="Transferências" icon={ArrowRightLeft} />
-          <NavItem id="yields" label="Rend Aplic" icon={PiggyBank} />
 
           <div className="pt-6 pb-2 px-4 border-t border-slate-800 mt-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Relatórios</span>
