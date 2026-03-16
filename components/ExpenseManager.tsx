@@ -389,9 +389,9 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Documento / Data</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Fornecedor</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Tipo de Despesa</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Data Vencto</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Vencimento</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase text-right">Valor Total</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Situação Pgto</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Status PG</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Importado</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase text-right">Ações</th>
             </tr>
@@ -623,10 +623,10 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                   )}
                 </div>
 
-                {/* Row 3: Situação Pgto, Forma Pagto, Vencimento */}
+                {/* Row 3: Status PG, Forma Pagto, VENCIMENTO */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Situação Pgto</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Status PG</label>
                     <select
                       disabled={modalMode === 'view'}
                       className="w-full px-4 py-2 border rounded-lg bg-white border-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
@@ -660,7 +660,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Vencimento</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">VENCIMENTO</label>
                     <input
                       readOnly={modalMode === 'view'}
                       type="date" className="w-full px-4 py-2 border rounded-lg bg-white border-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
