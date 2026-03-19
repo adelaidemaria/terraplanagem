@@ -251,7 +251,43 @@ export interface BankStatementItem {
   isValidated?: boolean; // User confirmed for import
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards';
+export interface CTR {
+  id: string;
+  ctrNumber: string;
+  emittedAt: string;
+  clientId: string;
+  clientName: string;
+  attachmentUrl?: string;
+  observations?: string;
+  createdAt: number;
+}
+
+export interface OrcamentoItem {
+  id: string;
+  description: string;
+  value: number;
+}
+
+export interface Orcamento {
+  id: string;
+  numero: number;
+  nome: string;
+  cpfCnpj?: string;
+  endereco?: string;
+  dadosComplementares?: string;
+  items: OrcamentoItem[];
+  formaPagamento: string;
+  condicaoPagamento: string;
+  inicioServicos: string;
+  informacoesComplementares?: string;
+  dataEmissao: string;
+  status: 'Aguardando Cliente' | 'Efetivado' | 'Não concluído';
+  efetivadoInfo?: string;
+  ocultarTotal?: boolean;
+  createdAt: number;
+}
+
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos';
 
 export interface AdminUser {
   id: string;

@@ -39,11 +39,13 @@ import {
   FinancialYield,
   CorporateCard,
   CorporateCardPayment,
-  CompanyVehicle
+  CompanyVehicle,
+  CTR,
+  Orcamento
 } from '../types';
 import Logo from './Logo';
 
-type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetAlerts' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement' | 'cashFlow';
+type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetAlerts' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement' | 'cashFlow' | 'ctr' | 'orcamentos';
 
 interface ReportsManagerProps {
   customers: Customer[];
@@ -65,6 +67,8 @@ interface ReportsManagerProps {
   corporateCardPayments?: CorporateCardPayment[];
   initialReport?: ReportType;
   companyVehicles: CompanyVehicle[];
+  ctrs: CTR[];
+  orcamentos?: Orcamento[];
 }
 
 const itemLabels: Record<keyof MaintenanceIntervals, string> = {
@@ -92,6 +96,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
   agendaItems = [],
   corporateCards = [],
   corporateCardPayments = [],
+  ctrs = [],
+  orcamentos = [],
   initialReport
 }) => {
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(initialReport || 'sales');
@@ -1718,10 +1724,63 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           rows: rows
         };
       }
+      case 'ctr': {
+        const filtered = ctrs
+          .filter(c => {
+            const d = new Date(c.emittedAt).getTime();
+            return d >= startTimestamp && d <= endTimestamp;
+          })
+          .sort((a, b) => new Date(a.emittedAt).getTime() - new Date(b.emittedAt).getTime());
+
+        return {
+          title: `Relatório de CTR Emitidos - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headerInfo: 'Listagem dos Controles de Transporte de Resíduos registrados no sistema.',
+          headers: ['Data Emissão', 'CTR Nº', 'Cliente', 'Observações'],
+          rows: filtered.map(c => [
+            formatDateDisplay(c.emittedAt),
+            c.ctrNumber,
+            c.clientName,
+            c.observations || '---'
+          ])
+        };
+      }
+      case 'orcamentos': {
+        const filtered = orcamentos
+          .filter(o => {
+            const d = new Date(o.dataEmissao).getTime();
+            return d >= startTimestamp && d <= endTimestamp;
+          })
+          .sort((a, b) => a.numero - b.numero);
+
+        const totalGeral = filtered.reduce((acc, o) => {
+          return acc + (o.items || []).reduce((s, i) => s + i.value, 0);
+        }, 0);
+
+        const rows = filtered.map(o => {
+          const tot = (o.items || []).reduce((s, i) => s + i.value, 0);
+          return [
+            formatDateDisplay(o.dataEmissao),
+            `Nº ${String(o.numero).padStart(3, '0')}`,
+            o.nome,
+            `${o.formaPagamento} / ${o.condicaoPagamento}`,
+            formatCurrency(tot),
+            o.status
+          ];
+        });
+
+        rows.push(['', '', '', 'TOTAL GERAL', formatCurrency(totalGeral), '']);
+
+        return {
+          title: `Relatório de Orçamentos - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
+          headerInfo: `${filtered.length} orçamento(s) encontrado(s). Total: ${formatCurrency(totalGeral)}`,
+          headers: ['Data Emissão', 'Nº Orçamento', 'Cliente', 'Pagamento', 'Total', 'Status'],
+          rows
+        };
+      }
       default:
         return null;
     }
-  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, selectedCardId, statusFilter, agendaStatus, agendaCategory, corporateCards, corporateCardPayments]);
+  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, selectedCardId, statusFilter, agendaStatus, agendaCategory, corporateCards, corporateCardPayments, ctrs, orcamentos]);
 
   return (
     <div className="space-y-8">
@@ -1767,7 +1826,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               <div className="relative group">
                 <select
                   className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-blue-200 transition-all appearance-none cursor-pointer"
-                  value={['customers', 'vendors', 'customersSummary', 'vendorsSummary', 'banks', 'accountCategoriesList', 'agenda'].includes(selectedReport || '') ? selectedReport || '' : ''}
+                  value={['customers', 'vendors', 'customersSummary', 'vendorsSummary', 'banks', 'accountCategoriesList', 'agenda', 'ctr', 'orcamentos'].includes(selectedReport || '') ? selectedReport || '' : ''}
                   onChange={(e) => {
                     setSelectedReport(e.target.value as ReportType);
                     setSelectedEquipmentId('all');
@@ -1782,6 +1841,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   <option value="accountCategoriesList">📖 PLANO DE CONTAS</option>
                   <option value="banks">🏛️ Contas Bancárias</option>
                   <option value="agenda">📅 Agenda de Tarefas</option>
+                  <option value="ctr">📄 Relatório CTR</option>
+                  <option value="orcamentos">📋 Relatório Orçamentos</option>
                 </select>
                 <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-blue-500 transition-transform rotate-90" size={18} />
               </div>
@@ -1891,7 +1952,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   </div>
                 )}
 
-                {['cashFlow', 'dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory', 'cardFees', 'fleetAlerts'].includes(selectedReport) && (
+                {['cashFlow', 'dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory', 'cardFees', 'fleetAlerts', 'ctr', 'orcamentos'].includes(selectedReport) && (
                   <>
                     {['dre', 'sales', 'receivables', 'receivablesPending'].includes(selectedReport) && (
                       <div className="flex-1 space-y-2">

@@ -19,7 +19,8 @@ import {
   CalendarDays,
   PiggyBank,
   FileUp,
-  Car
+  Car,
+  ClipboardList
 } from 'lucide-react';
 import {
   Customer,
@@ -42,7 +43,9 @@ import {
   FinancialYield,
   CorporateCard,
   CorporateCardPayment,
-  CompanyVehicle
+  CompanyVehicle,
+  CTR,
+  Orcamento
 } from './types';
 
 // Components
@@ -67,6 +70,8 @@ import NfImportManager from './components/NfImportManager';
 import BankStatementManager from './components/BankStatementManager';
 import CorporateCardManager from './components/CorporateCardManager';
 import CompanyVehiclesManager from './components/CompanyVehiclesManager';
+import CTRManager from './components/CTRManager';
+import OrcamentoManager from './components/OrcamentoManager';
 import { useSupabaseSync } from './lib/useSupabaseSync';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
@@ -158,8 +163,10 @@ const App: React.FC = () => {
   const [corporateCards, setCorporateCards, ccLoaded] = useSupabaseSync<CorporateCard>('corporate_cards');
   const [corporateCardPayments, setCorporateCardPayments, ccpLoaded] = useSupabaseSync<CorporateCardPayment>('corporate_card_payments');
   const [companyVehicles, setCompanyVehicles, cvLoaded] = useSupabaseSync<CompanyVehicle>('company_vehicles');
+  const [ctrs, setCtrs, ctrsLoaded] = useSupabaseSync<CTR>('ctr');
+  const [orcamentos, setOrcamentos, orcamentosLoaded] = useSupabaseSync<Orcamento>('orcamentos');
 
-  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded && cvLoaded;
+  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded && cvLoaded && ctrsLoaded && orcamentosLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -438,7 +445,28 @@ const App: React.FC = () => {
           corporateCards={corporateCards}
           corporateCardPayments={corporateCardPayments}
           companyVehicles={companyVehicles}
+          ctrs={ctrs}
+          orcamentos={orcamentos}
           initialReport={selectedReportType as any}
+        />;
+      case 'ctr':
+        return <CTRManager
+          customers={customers}
+          ctrs={ctrs}
+          setCtrs={setCtrs}
+          onNavigateToReports={() => {
+            setSelectedReportType('ctr');
+            setCurrentView('reports');
+          }}
+        />;
+      case 'orcamentos':
+        return <OrcamentoManager
+          orcamentos={orcamentos}
+          setOrcamentos={setOrcamentos}
+          onNavigateToReports={() => {
+            setSelectedReportType('orcamentos' as any);
+            setCurrentView('reports');
+          }}
         />;
       case 'fleet':
         return <FleetManager
@@ -508,6 +536,7 @@ const App: React.FC = () => {
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Entradas</span>
           </div>
           <NavItem id="customers" label="Clientes" icon={Users} />
+          <NavItem id="orcamentos" label="Orçamentos" icon={ClipboardList} />
           <NavItem id="sales" label="Faturamento" icon={Receipt} />
           <NavItem id="nf-import" label="Importação NF" icon={FileUp} />
           <NavItem id="receivables" label="Contas a Receber" icon={HandCoins} />
@@ -532,6 +561,7 @@ const App: React.FC = () => {
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Relatórios</span>
           </div>
           <NavItem id="reports" label="Relatórios" icon={Printer} />
+          <NavItem id="ctr" label="CTR" icon={FileUp} />
 
           <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Tarefas</span>
@@ -583,6 +613,8 @@ const App: React.FC = () => {
             {currentView === 'settings' && 'Configurações do Sistema'}
             {currentView === 'nf-import' && 'Importação de Notas Fiscais'}
             {currentView === 'bank-statements' && 'Importação de Extrato Bancário'}
+            {currentView === 'ctr' && 'Controle de CTR (Transporte de Resíduos)'}
+            {currentView === 'orcamentos' && 'Orçamentos'}
           </h1>
           <button
             onClick={async () => {
