@@ -140,7 +140,7 @@ const OrcamentoPrintView: React.FC<{ orcamento: Orcamento }> = ({ orcamento }) =
           <thead>
             <tr className="bg-slate-800 text-white">
               <th className="px-4 py-2.5 text-left font-bold">Descrição</th>
-              <th className="px-4 py-2.5 text-right font-bold w-40">Valor</th>
+              <th className="px-4 py-2.5 text-right font-bold w-40">Valor Unitário</th>
             </tr>
           </thead>
           <tbody>
