@@ -18,7 +18,8 @@ import {
   ArrowRightLeft,
   CalendarDays,
   PiggyBank,
-  FileUp
+  FileUp,
+  Car
 } from 'lucide-react';
 import {
   Customer,
@@ -40,7 +41,8 @@ import {
   AgendaItem,
   FinancialYield,
   CorporateCard,
-  CorporateCardPayment
+  CorporateCardPayment,
+  CompanyVehicle
 } from './types';
 
 // Components
@@ -64,6 +66,7 @@ import Logo from './components/Logo';
 import NfImportManager from './components/NfImportManager';
 import BankStatementManager from './components/BankStatementManager';
 import CorporateCardManager from './components/CorporateCardManager';
+import CompanyVehiclesManager from './components/CompanyVehiclesManager';
 import { useSupabaseSync } from './lib/useSupabaseSync';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
@@ -154,8 +157,9 @@ const App: React.FC = () => {
 
   const [corporateCards, setCorporateCards, ccLoaded] = useSupabaseSync<CorporateCard>('corporate_cards');
   const [corporateCardPayments, setCorporateCardPayments, ccpLoaded] = useSupabaseSync<CorporateCardPayment>('corporate_card_payments');
+  const [companyVehicles, setCompanyVehicles, cvLoaded] = useSupabaseSync<CompanyVehicle>('company_vehicles');
 
-  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded;
+  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded && cvLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -296,6 +300,8 @@ const App: React.FC = () => {
         return <SalesManager
           sales={sales} setSales={setSales}
           customers={customers} payments={payments}
+          setPayments={setPayments}
+          bankAccounts={bankAccounts}
           accountPlan={accountPlan}
           onNavigateToReports={() => {
             setSelectedReportType('sales');
@@ -431,12 +437,18 @@ const App: React.FC = () => {
           agendaItems={agendaItems}
           corporateCards={corporateCards}
           corporateCardPayments={corporateCardPayments}
+          companyVehicles={companyVehicles}
           initialReport={selectedReportType as any}
         />;
       case 'fleet':
         return <FleetManager
           fleet={fleet} setFleet={setFleet}
           maintenanceRecords={maintenanceRecords} setMaintenanceRecords={setMaintenanceRecords}
+          companyVehicles={companyVehicles}
+        />;
+      case 'company-vehicles':
+        return <CompanyVehiclesManager
+          vehicles={companyVehicles} setVehicles={setCompanyVehicles}
         />;
       case 'settings':
         return <SettingsManager
@@ -527,9 +539,10 @@ const App: React.FC = () => {
           <NavItem id="agenda" label="Agenda de Tarefas" icon={CalendarDays} />
 
           <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
-            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Equipamentos</span>
+            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Veículos da Empresa</span>
           </div>
-          <NavItem id="fleet" label="Gestão de Frota" icon={Wrench} />
+          <NavItem id="company-vehicles" label="Cadastro" icon={Car} />
+          <NavItem id="fleet" label="Manutenções" icon={Wrench} />
 
           <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Configurações</span>
@@ -565,7 +578,8 @@ const App: React.FC = () => {
             {currentView === 'transfers' && 'Transferências Bancárias'}
             {currentView === 'yields' && 'Rendimentos Financeiros'}
             {currentView === 'reports' && 'Módulo de Relatórios Gerenciais'}
-            {currentView === 'fleet' && 'Controle de Frota e Manutenção'}
+            {currentView === 'fleet' && 'Controle de Máquinas / Linha Amarela'}
+            {currentView === 'company-vehicles' && 'Controle de Veículos da Empresa'}
             {currentView === 'settings' && 'Configurações do Sistema'}
             {currentView === 'nf-import' && 'Importação de Notas Fiscais'}
             {currentView === 'bank-statements' && 'Importação de Extrato Bancário'}

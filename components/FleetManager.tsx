@@ -4,13 +4,14 @@ import {
   Plus, Search, Edit, Trash2, Wrench, X, History,
   AlertTriangle, CheckCircle2, Calendar, LayoutGrid, Info, Eye, FileText
 } from 'lucide-react';
-import { Equipment, MaintenanceRecord, MaintenanceIntervals } from '../types';
+import { Equipment, MaintenanceRecord, MaintenanceIntervals, CompanyVehicle } from '../types';
 
 interface FleetManagerProps {
   fleet: Equipment[];
   setFleet: React.Dispatch<React.SetStateAction<Equipment[]>>;
   maintenanceRecords: MaintenanceRecord[];
   setMaintenanceRecords: React.Dispatch<React.SetStateAction<MaintenanceRecord[]>>;
+  companyVehicles: CompanyVehicle[];
 }
 
 const itemLabels: Record<keyof MaintenanceIntervals, string> = {
@@ -31,7 +32,7 @@ const formatDateDisplay = (dateStr: string | undefined) => {
 };
 
 const FleetManager: React.FC<FleetManagerProps> = ({
-  fleet, setFleet, maintenanceRecords, setMaintenanceRecords
+  fleet, setFleet, maintenanceRecords, setMaintenanceRecords, companyVehicles
 }) => {
   const [activeTab, setActiveTab] = useState<'alerts' | 'inventory' | 'history'>('alerts');
   const [isEquipModalOpen, setIsEquipModalOpen] = useState(false);
@@ -45,10 +46,10 @@ const FleetManager: React.FC<FleetManagerProps> = ({
 
   // Form States
   const [equipForm, setEquipForm] = useState<Partial<Equipment>>({
-    type: '', model: '', observations: '',
+    vehicleId: '', observations: '',
     intervals: {
-      oilChange: 6, dieselFilter: 6, oilFilter: 6,
-      internalAirFilter: 12, externalAirFilter: 12,
+      oilChange: 3, dieselFilter: 3, oilFilter: 3,
+      internalAirFilter: 6, externalAirFilter: 6,
       bleedDieselFilter: 1, others: 12
     }
   });
@@ -86,7 +87,10 @@ const FleetManager: React.FC<FleetManagerProps> = ({
           if (status !== 'ok') {
             alerts.push({
               equipId: equip.id,
-              equipName: `${equip.type} - ${equip.model}`,
+              equipName: (() => {
+                const v = companyVehicles.find(v => v.id === equip.vehicleId);
+                return v ? `${v.type} - ${v.model}` : 'Veículo não encontrado';
+              })(),
               item: itemLabels[itemKey],
               dueDate: nextDate.toLocaleDateString(),
               daysLeft: diffDays,
@@ -108,8 +112,8 @@ const FleetManager: React.FC<FleetManagerProps> = ({
     } else {
       setEditingId(null);
       setEquipForm({
-        type: '', model: '', observations: '',
-        intervals: { oilChange: 6, dieselFilter: 6, oilFilter: 6, internalAirFilter: 12, externalAirFilter: 12, bleedDieselFilter: 1, others: 12 }
+        vehicleId: '', observations: '',
+        intervals: { oilChange: 3, dieselFilter: 3, oilFilter: 3, internalAirFilter: 6, externalAirFilter: 6, bleedDieselFilter: 1, others: 12 }
       });
     }
     setIsEquipModalOpen(true);
@@ -136,10 +140,17 @@ const FleetManager: React.FC<FleetManagerProps> = ({
 
   const handleSaveEquip = (e: React.FormEvent) => {
     e.preventDefault();
+    const equipmentData = { ...equipForm };
+    
     if (editingId) {
-      setFleet(prev => prev.map(eq => eq.id === editingId ? { ...eq, ...equipForm } as Equipment : eq));
+      setFleet(prev => prev.map(eq => eq.id === editingId ? { ...eq, ...equipmentData } as Equipment : eq));
     } else {
-      setFleet(prev => [...prev, { ...equipForm, id: crypto.randomUUID(), createdAt: Date.now() } as Equipment]);
+      const newEquip = { 
+        ...equipmentData, 
+        id: crypto.randomUUID(), 
+        createdAt: Date.now() 
+      } as Equipment;
+      setFleet(prev => [...prev, newEquip]);
     }
     setIsEquipModalOpen(false);
   };
@@ -148,13 +159,17 @@ const FleetManager: React.FC<FleetManagerProps> = ({
     e.preventDefault();
     if (!maintForm.equipmentId || maintForm.performedItems?.length === 0) return alert('Selecione o equipamento e ao menos um item.');
 
+    const maintenanceData = { ...maintForm };
+
     if (editingMaintId) {
-      setMaintenanceRecords(prev => prev.map(rec => rec.id === editingMaintId ? { ...rec, ...maintForm } as MaintenanceRecord : rec));
+      setMaintenanceRecords(prev => prev.map(rec => rec.id === editingMaintId ? { ...rec, ...maintenanceData } as MaintenanceRecord : rec));
     } else {
-      setMaintenanceRecords(prev => [
-        { ...maintForm, id: crypto.randomUUID(), createdAt: Date.now() } as MaintenanceRecord,
-        ...prev
-      ]);
+      const newMaint = { 
+        ...maintenanceData, 
+        id: crypto.randomUUID(), 
+        createdAt: Date.now() 
+      } as MaintenanceRecord;
+      setMaintenanceRecords(prev => [newMaint, ...prev]);
     }
     setIsMaintModalOpen(false);
   };
@@ -217,8 +232,15 @@ const FleetManager: React.FC<FleetManagerProps> = ({
                 <tr key={equip.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
-                      <span className="font-bold text-slate-800 text-lg">{equip.model}</span>
-                      <span className="text-xs font-black text-slate-400 uppercase">{equip.type}</span>
+                      {(() => {
+                        const v = companyVehicles.find(v => v.id === equip.vehicleId);
+                        return (
+                          <>
+                            <span className="font-bold text-slate-800 text-lg">{v?.model || '---'}</span>
+                            <span className="text-xs font-black text-slate-400 uppercase">{v?.type || 'Não Identificado'} - {v?.licensePlate || ''}</span>
+                          </>
+                        );
+                      })()}
                     </div>
                   </td>
                   <td className="px-6 py-4 font-bold text-slate-600">A cada {equip.intervals.oilChange} meses</td>
@@ -252,7 +274,7 @@ const FleetManager: React.FC<FleetManagerProps> = ({
                 <th className="px-6 py-4 text-xs font-black uppercase text-slate-400">Data</th>
                 <th className="px-6 py-4 text-xs font-black uppercase text-slate-400">Equipamento</th>
                 <th className="px-6 py-4 text-xs font-black uppercase text-slate-400">Nota Fiscal</th>
-                <th className="px-6 py-4 text-xs font-black uppercase text-slate-400">Itens Trocados</th>
+                <th className="px-6 py-4 text-xs font-black uppercase text-slate-400">Documento / NF</th>
                 <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 text-right">Ações</th>
               </tr>
             </thead>
@@ -263,19 +285,22 @@ const FleetManager: React.FC<FleetManagerProps> = ({
                   <tr key={rec.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 font-bold text-slate-800">{formatDateDisplay(rec.date)}</td>
                     <td className="px-6 py-4 text-slate-600 font-medium">
-                      {equip ? `${equip.type} - ${equip.model}` : 'Desconhecido'}
+                      {(() => {
+                        const v = companyVehicles.find(v => v.id === equip?.vehicleId);
+                        return v ? `${v.type} - ${v.model}` : 'Veículo não encontrado';
+                      })()}
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-xs font-black text-slate-500 uppercase">{rec.nfNumber || '---'}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {rec.performedItems.map(item => (
-                          <span key={item} className="bg-slate-100 text-[9px] font-black px-2 py-0.5 rounded text-slate-600 uppercase border border-slate-200">
-                            {itemLabels[item]}
-                          </span>
-                        ))}
-                      </div>
+                      {rec.receiptUrl ? (
+                        <a href={rec.receiptUrl} target="_blank" rel="noopener noreferrer" className="bg-amber-50 text-amber-600 px-3 py-1.5 rounded-lg border border-amber-200 text-[10px] font-black uppercase flex items-center w-fit hover:bg-amber-100 transition-all">
+                          <FileText size={12} className="mr-1.5" /> Abrir Documento
+                        </a>
+                      ) : (
+                        <span className="text-[10px] font-bold text-slate-300 uppercase">Sem Anexo</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end space-x-1">
@@ -300,10 +325,15 @@ const FleetManager: React.FC<FleetManagerProps> = ({
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-lg p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
             <div className="flex justify-between items-start mb-6">
-              <div>
-                <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">{selectedEquip.type}</span>
-                <h2 className="text-2xl font-black text-slate-800 uppercase leading-none mt-1">{selectedEquip.model}</h2>
-              </div>
+              {(() => {
+                const v = companyVehicles.find(v => v.id === selectedEquip.vehicleId);
+                return (
+                  <div>
+                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">{v?.type || '---'}</span>
+                    <h2 className="text-2xl font-black text-slate-800 uppercase leading-none mt-1">{v?.model || '---'}</h2>
+                  </div>
+                );
+              })()}
               <button onClick={() => setIsViewModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={24} className="text-slate-400" /></button>
             </div>
 
@@ -346,10 +376,13 @@ const FleetManager: React.FC<FleetManagerProps> = ({
             <form onSubmit={handleSaveMaint} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-black text-slate-500 uppercase mb-1">Equipamento *</label>
+                  <label className="block text-xs font-black text-slate-500 uppercase mb-1">Equipamento / Veículo *</label>
                   <select required className="w-full px-4 py-3 border rounded-xl bg-white font-bold outline-none focus:ring-2 focus:ring-emerald-500/20" value={maintForm.equipmentId} onChange={e => setMaintForm({ ...maintForm, equipmentId: e.target.value })}>
-                    <option value="">Escolha...</option>
-                    {fleet.map(e => <option key={e.id} value={e.id}>{e.type} - {e.model}</option>)}
+                    <option value="">Escolha o Equipamento...</option>
+                    {fleet.map(e => {
+                      const v = companyVehicles.find(v => v.id === e.vehicleId);
+                      return <option key={e.id} value={e.id}>{v?.type} - {v?.model}</option>;
+                    })}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -392,6 +425,32 @@ const FleetManager: React.FC<FleetManagerProps> = ({
                 <textarea rows={3} placeholder="Descreva detalhes da manutenção, marca das peças ou observações para o próximo período..." className="w-full px-4 py-3 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/20" value={maintForm.observations} onChange={e => setMaintForm({ ...maintForm, observations: e.target.value })} />
               </div>
 
+              <div>
+                <label className="block text-xs font-black text-slate-500 uppercase mb-1">Anexar Nota Fiscal / Documento da Troca</label>
+                <div className="mt-1 flex items-center space-x-4">
+                  <input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setMaintForm({ ...maintForm, receiptUrl: reader.result as string });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                  {maintForm.receiptUrl && (
+                    <span className="text-emerald-600 font-bold text-[10px] uppercase flex items-center">
+                      <CheckCircle2 size={14} className="mr-1" /> Arquivo Carregado
+                    </span>
+                  )}
+                </div>
+              </div>
+
               <div className="flex justify-end space-x-3 pt-6 border-t">
                 <button type="button" onClick={() => setIsMaintModalOpen(false)} className="px-6 py-2 text-slate-500 font-bold">Cancelar</button>
                 <button type="submit" className="px-10 py-3 bg-emerald-500 text-white font-black uppercase text-xs tracking-widest rounded-xl shadow-xl shadow-emerald-100 hover:scale-[1.02] active:scale-95 transition-all">
@@ -412,14 +471,20 @@ const FleetManager: React.FC<FleetManagerProps> = ({
               <button onClick={() => setIsEquipModalOpen(false)}><X size={24} className="text-slate-400" /></button>
             </div>
             <form onSubmit={handleSaveEquip} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div>
-                  <label className="block text-xs font-black text-slate-500 uppercase mb-1">Tipo de Equipamento</label>
-                  <input required placeholder="Ex: Escavadeira, Caminhão..." className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500/20 outline-none" value={equipForm.type} onChange={e => setEquipForm({ ...equipForm, type: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-slate-500 uppercase mb-1">Modelo / Identificação</label>
-                  <input required placeholder="Ex: Volvo EC210B" className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500/20 outline-none font-bold" value={equipForm.model} onChange={e => setEquipForm({ ...equipForm, model: e.target.value })} />
+                  <label className="block text-xs font-black text-slate-500 uppercase mb-1">Tipo Veículo/Modelo</label>
+                  <select 
+                    required 
+                    className="w-full px-4 py-3 border rounded-xl bg-white font-bold outline-none focus:ring-2 focus:ring-amber-500/20" 
+                    value={equipForm.vehicleId} 
+                    onChange={e => setEquipForm({ ...equipForm, vehicleId: e.target.value })}
+                  >
+                    <option value="">Selecione o Veículo Cadastrado...</option>
+                    {companyVehicles.map(v => (
+                      <option key={v.id} value={v.id}>{v.type} - {v.model} ({v.licensePlate})</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

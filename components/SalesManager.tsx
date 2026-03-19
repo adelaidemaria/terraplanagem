@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Plus, Search, Edit, Trash2, X, FileText, Eye, AlertTriangle, Printer, ScrollText, FileX
 } from 'lucide-react';
-import { Sale, Customer, Payment, AccountPlan, SaleItem, SaleInstallment } from '../types';
+import { Sale, Payment, Customer, BankAccount, FinancialYield, AccountPlan, SaleItem, SaleInstallment } from '../types';
 import RentalInvoice from './RentalInvoice';
 import { supabase } from '../lib/supabase';
 
@@ -12,6 +12,8 @@ interface SalesManagerProps {
   setSales: React.Dispatch<React.SetStateAction<Sale[]>>;
   customers: Customer[];
   payments: Payment[];
+  setPayments: React.Dispatch<React.SetStateAction<Payment[]>>;
+  bankAccounts: BankAccount[];
   accountPlan: AccountPlan[];
   onNavigateToReports: () => void;
 }
@@ -23,7 +25,7 @@ const formatDateDisplay = (dateStr: string | undefined) => {
   return `${day}/${month}/${year}`;
 };
 
-const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers, payments, accountPlan, onNavigateToReports }) => {
+const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers, payments, setPayments, bankAccounts, accountPlan, onNavigateToReports }) => {
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString('en-CA');
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toLocaleDateString('en-CA');
@@ -306,6 +308,7 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
     }
 
     const customer = customers.find(c => c.id === formData.customerId);
+    const isDinheiroAVista = formData.paymentCondition === 'A Vista' && formData.paymentMethod === 'Dinheiro';
 
     const saleData: Sale = {
       id: editingId || crypto.randomUUID(),
@@ -324,7 +327,7 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
       installments: formData.installments || 1,
       installmentsList: formData.paymentCondition === 'A Prazo' ? formData.installmentsList : undefined,
       dueDate: formData.dueDate,
-      status: editingId ? (sales.find(s => s.id === editingId)?.status || 'Pendente') : 'Pendente',
+      status: editingId ? (sales.find(s => s.id === editingId)?.status || 'Pendente') : (isDinheiroAVista ? 'Pago' : 'Pendente'),
       observations: formData.observations || '',
       receiptUrl: formData.receiptUrl,
       createdAt: Date.now()
@@ -332,11 +335,41 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
 
     if (editingId) {
       setSales(prev => prev.map(s => s.id === editingId ? saleData : s));
-      setIsModalOpen(false);
-      return;
     } else {
       setSales(prev => [saleData, ...prev]);
     }
+
+    // Lógica para pagamento automático em dinheiro (novo ou edição)
+    if (isDinheiroAVista) {
+      const cashAccount = bankAccounts.find(b => b.bankName.includes('CAIXA (DINHEIRO)'));
+      if (cashAccount) {
+        // Verifica se já existe um pagamento para esta venda na conta caixa para evitar duplicidade ao editar
+        const paymentExists = payments.some(p => p.saleId === saleData.id && p.bankAccountId === cashAccount.id);
+        
+        if (!paymentExists) {
+          // Atrasamos a inserção do pagamento para garantir que a Venda (Sale) 
+          // já tenha sido persistida ou atualizada no Supabase em caso de FK.
+          setTimeout(() => {
+            const autoPayment: Payment = {
+              id: crypto.randomUUID(),
+              saleId: saleData.id,
+              bankAccountId: cashAccount.id,
+              amount: saleData.totalValue,
+              date: saleData.date,
+              method: 'Dinheiro',
+              createdAt: Date.now()
+            };
+            setPayments(prev => [autoPayment, ...prev]);
+          }, 800);
+        }
+      }
+    }
+
+    if (editingId) {
+      setIsModalOpen(false);
+      return;
+    }
+
 
     // Resetar formulário e manter aberto
     setEditingId(null);

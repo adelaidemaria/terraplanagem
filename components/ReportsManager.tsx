@@ -38,11 +38,12 @@ import {
   AgendaItem,
   FinancialYield,
   CorporateCard,
-  CorporateCardPayment
+  CorporateCardPayment,
+  CompanyVehicle
 } from '../types';
 import Logo from './Logo';
 
-type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetOverdue' | 'fleetDue2' | 'fleetDue15' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement' | 'cashFlow';
+type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetAlerts' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement' | 'cashFlow';
 
 interface ReportsManagerProps {
   customers: Customer[];
@@ -63,6 +64,7 @@ interface ReportsManagerProps {
   corporateCards?: CorporateCard[];
   corporateCardPayments?: CorporateCardPayment[];
   initialReport?: ReportType;
+  companyVehicles: CompanyVehicle[];
 }
 
 const itemLabels: Record<keyof MaintenanceIntervals, string> = {
@@ -86,6 +88,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
   customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, accountCategories, accountSubcategories, bankAccounts, bankTransfers,  yields = [],
   fleet,
   maintenanceRecords,
+  companyVehicles,
   agendaItems = [],
   corporateCards = [],
   corporateCardPayments = [],
@@ -162,7 +165,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       return String(item.customerId) === targetId || (targetName && item.customerName === targetName);
     };
 
-    const getFleetAlerts = (statusFilter: 'overdue' | 'warning' | 'info' | 'all') => {
+    const getFleetAlerts = (statusFilter: 'overdue' | 'upcoming' | 'all') => {
       const alerts: any[] = [];
       const today = new Date();
       fleet.forEach(equip => {
@@ -178,18 +181,19 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             nextDate.setMonth(lastDate.getMonth() + equip.intervals[itemKey]);
             const diffDays = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-            let status: 'overdue' | 'warning' | 'info' | 'ok' = 'ok';
+            let status: 'overdue' | 'upcoming' | 'ok' = 'ok';
             if (diffDays <= 0) status = 'overdue';
-            else if (diffDays <= 2) status = 'warning';
-            else if (diffDays <= 15) status = 'info';
+            else if (diffDays <= 30) status = 'upcoming';
 
             if (statusFilter === 'all' || status === statusFilter) {
+              const v = companyVehicles.find(v => v.id === equip.vehicleId);
               alerts.push({
-                equipName: `${equip.type} - ${equip.model}`,
+                equipName: v ? `${v.type} - ${v.model}` : 'Veículo não encontrado',
                 item: itemLabels[itemKey],
                 dueDate: nextDate.toLocaleDateString(),
                 daysLeft: diffDays,
-                statusText: diffDays <= 0 ? `Vencido há ${Math.abs(diffDays)} dias` : `Vence em ${diffDays} dias`
+                statusText: diffDays <= 0 ? `Vencido há ${Math.abs(diffDays)} dias` : `Vence em ${diffDays} dias`,
+                status
               });
             }
           }
@@ -661,40 +665,51 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           title: 'Configuração de Prazos de Manutenção Preventiva',
           headerInfo: 'Relatório geral de intervalos por equipamento',
           headers: ['Equipamento', 'Troca Óleo', 'Filtro Diesel', 'Filtro Óleo', 'Filtro Ar Int.', 'Filtro Ar Ext.', 'Sangrar Filtro', 'Outros'],
-          rows: fleet.map(e => [
-            `${e.type} - ${e.model}`,
-            formatMonths(e.intervals.oilChange),
-            formatMonths(e.intervals.dieselFilter),
-            formatMonths(e.intervals.oilFilter),
-            formatMonths(e.intervals.internalAirFilter),
-            formatMonths(e.intervals.externalAirFilter),
-            formatMonths(e.intervals.bleedDieselFilter),
-            formatMonths(e.intervals.others)
-          ])
+          rows: fleet.map(e => {
+            const v = companyVehicles.find(v => v.id === e.vehicleId);
+            return [
+              v ? `${v.type} - ${v.model}` : 'Veículo não encontrado',
+              formatMonths(e.intervals.oilChange),
+              formatMonths(e.intervals.dieselFilter),
+              formatMonths(e.intervals.oilFilter),
+              formatMonths(e.intervals.internalAirFilter),
+              formatMonths(e.intervals.externalAirFilter),
+              formatMonths(e.intervals.bleedDieselFilter),
+              formatMonths(e.intervals.others)
+            ];
+          })
         };
       }
-      case 'fleetOverdue': {
-        const items = getFleetAlerts('overdue');
+      case 'fleetAlerts': {
+        const rows: any[] = [];
+        const sections = [
+          { id: 'overdue', label: 'MANUTENÇÕES VENCIDAS', filter: 'overdue' as const },
+          { id: 'upcoming', label: 'VENCENDO EM ATÉ 30 DIAS', filter: 'upcoming' as const }
+        ];
+
+        sections.forEach((sec, idx) => {
+          const items = getFleetAlerts(sec.filter).filter(i => {
+            if (selectedEquipmentId === 'all') return true;
+            const equip = fleet.find(f => f.id === selectedEquipmentId);
+            const v = companyVehicles.find(v => v.id === equip?.vehicleId);
+            const equipName = v ? `${v.type} - ${v.model}` : '';
+            return i.equipName === equipName;
+          });
+          if (items.length > 0) {
+            if (rows.length > 0) rows.push(['MONTH_SEPARATOR', '', '', '']);
+            rows.push([sec.label, 'SECTION_HEADER', '', '']);
+            rows.push(['COLUMN_HEADERS', '', '', '']);
+            items.forEach(i => {
+              rows.push([i.equipName, i.item, i.dueDate, i.statusText.toUpperCase()]);
+            });
+          }
+        });
+
         return {
-          title: 'Relatório de Manutenções Vencidas',
+          title: 'Relatório de Alertas de Manutenção Preventiva',
+          headerInfo: 'Resumo geral de manutenções vencidas e próximas do vencimento.',
           headers: ['Equipamento', 'Item de Manutenção', 'Data Vencimento', 'Status'],
-          rows: items.map(i => [i.equipName, i.item, i.dueDate, i.statusText.toUpperCase()])
-        };
-      }
-      case 'fleetDue2': {
-        const items = getFleetAlerts('warning');
-        return {
-          title: 'Manutenções Vencendo em 2 Dias',
-          headers: ['Equipamento', 'Item de Manutenção', 'Data Vencimento', 'Status'],
-          rows: items.map(i => [i.equipName, i.item, i.dueDate, i.statusText.toUpperCase()])
-        };
-      }
-      case 'fleetDue15': {
-        const items = getFleetAlerts('info');
-        return {
-          title: 'Manutenções Vencendo em 15 Dias',
-          headers: ['Equipamento', 'Item de Manutenção', 'Data Vencimento', 'Status'],
-          rows: items.map(i => [i.equipName, i.item, i.dueDate, i.statusText.toUpperCase()])
+          rows: rows
         };
       }
       case 'fleetHistory': {
@@ -709,7 +724,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
         const equipTitle = selectedEquipmentId === 'all'
           ? 'Todos os Equipamentos'
-          : fleet.find(f => f.id === selectedEquipmentId)?.model || '---';
+          : (() => {
+              const equip = fleet.find(f => f.id === selectedEquipmentId);
+              const v = companyVehicles.find(v => v.id === equip?.vehicleId);
+              return v ? `${v.type} - ${v.model}` : '---';
+            })();
 
         return {
           title: `Histórico de Manutenções - ${equipTitle}`,
@@ -719,7 +738,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             const equip = fleet.find(f => f.id === r.equipmentId);
             return [
               new Date(r.date).toLocaleDateString(),
-              equip ? `${equip.type} - ${equip.model}` : '---',
+              (() => {
+                const equip = fleet.find(f => f.id === r.equipmentId);
+                const v = companyVehicles.find(v => v.id === equip?.vehicleId);
+                return v ? `${v.type} - ${v.model}` : '---';
+              })(),
               r.nfNumber || '---',
               r.performedItems.map(i => itemLabels[i]).join(', '),
               r.observations || '---'
@@ -1744,8 +1767,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               <div className="relative group">
                 <select
                   className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-blue-200 transition-all appearance-none cursor-pointer"
-                  value={['customers', 'vendors', 'customersSummary', 'vendorsSummary', 'banks'].includes(selectedReport || '') ? selectedReport || '' : ''}
-                  onChange={(e) => setSelectedReport(e.target.value as ReportType)}
+                  value={['customers', 'vendors', 'customersSummary', 'vendorsSummary', 'banks', 'accountCategoriesList', 'agenda'].includes(selectedReport || '') ? selectedReport || '' : ''}
+                  onChange={(e) => {
+                    setSelectedReport(e.target.value as ReportType);
+                    setSelectedEquipmentId('all');
+                  }}
                 >
                   <option value="" disabled>Selecione um Relatório...</option>
                   <option value="customers">👥 Listagem de Clientes</option>
@@ -1770,13 +1796,14 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               <div className="relative group">
                 <select
                   className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white focus:border-rose-200 transition-all appearance-none cursor-pointer"
-                  value={['fleetOverdue', 'fleetDue2', 'fleetDue15', 'fleetHistory', 'fleetIntervals'].includes(selectedReport || '') ? selectedReport || '' : ''}
-                  onChange={(e) => setSelectedReport(e.target.value as ReportType)}
+                  value={['fleetAlerts', 'fleetHistory', 'fleetIntervals'].includes(selectedReport || '') ? selectedReport || '' : ''}
+                  onChange={(e) => {
+                    setSelectedReport(e.target.value as ReportType);
+                    setSelectedEquipmentId('all');
+                  }}
                 >
                   <option value="" disabled>Selecione um Relatório...</option>
-                  <option value="fleetOverdue">🚨 Preventivas VENCIDAS</option>
-                  <option value="fleetDue2">⚠️ Vencendo em 2 Dias</option>
-                  <option value="fleetDue15">📅 Vencendo em 15 Dias</option>
+                  <option value="fleetAlerts">🚨 ALERTAS DE MANUTENÇÃO</option>
                   <option value="fleetHistory">📜 Histórico Completo</option>
                   <option value="fleetIntervals">⏱️ Prazos Cadastrados</option>
                 </select>
@@ -1794,7 +1821,10 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                 <select
                   className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:border-emerald-200 transition-all appearance-none cursor-pointer"
                   value={['dre'].includes(selectedReport || '') ? selectedReport || '' : ''}
-                  onChange={(e) => setSelectedReport(e.target.value as ReportType)}
+                  onChange={(e) => {
+                    setSelectedReport(e.target.value as ReportType);
+                    setSelectedEquipmentId('all');
+                  }}
                 >
                   <option value="" disabled>Selecione um Relatório...</option>
                   <option value="dre">📈 DRE (Resultado)</option>
@@ -1834,12 +1864,34 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       onChange={(e) => setSelectedEquipmentId(e.target.value)}
                     >
                       <option value="all">TODOS OS EQUIPAMENTOS</option>
-                      {fleet.map(e => <option key={e.id} value={e.id}>{e.type} - {e.model}</option>)}
+                      {fleet.map(e => {
+                        const v = companyVehicles.find(v => v.id === e.vehicleId);
+                        return <option key={e.id} value={e.id}>{v?.type} - {v?.model}</option>;
+                      })}
                     </select>
                   </div>
                 )}
 
-                {['cashFlow', 'dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory', 'cardFees'].includes(selectedReport) && (
+                {selectedReport === 'fleetAlerts' && (
+                  <div className="flex-1 space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                      <Truck size={14} className="mr-1" /> Equipamento
+                    </label>
+                    <select
+                      className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-rose-500 font-bold"
+                      value={selectedEquipmentId}
+                      onChange={(e) => setSelectedEquipmentId(e.target.value)}
+                    >
+                      <option value="all">TODOS OS VEÍCULOS</option>
+                      {fleet.map(e => {
+                        const v = companyVehicles.find(v => v.id === e.vehicleId);
+                        return <option key={e.id} value={e.id}>{v?.type} - {v?.model}</option>;
+                      })}
+                    </select>
+                  </div>
+                )}
+
+                {['cashFlow', 'dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory', 'cardFees', 'fleetAlerts'].includes(selectedReport) && (
                   <>
                     {['dre', 'sales', 'receivables', 'receivablesPending'].includes(selectedReport) && (
                       <div className="flex-1 space-y-2">
@@ -2408,6 +2460,16 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       );
                     }
 
+                    if (row[1] === 'SECTION_HEADER') {
+                      return (
+                        <tr key={i} className="bg-slate-800 text-white border-b-2 border-slate-900">
+                          <td colSpan={reportContent.headers.length} className="px-4 py-2 font-black text-xs tracking-[0.2em]">
+                            {row[0]}
+                          </td>
+                        </tr>
+                      );
+                    }
+
                     if (row[0] === 'MONTH_SEPARATOR') {
                       return (
                         <tr key={i} className="bg-white border-0">
@@ -2470,6 +2532,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                           k === 4 ? 'w-[110px]' :
                                             k === 5 ? 'w-[110px]' :
                                               k === 6 ? 'w-[110px]' : ''
+                                ) : selectedReport === 'fleetAlerts' ? (
+                                  k === 0 ? 'w-full min-w-[350px]' :
+                                    k === 1 ? 'w-[250px]' :
+                                      k === 2 ? 'w-[140px]' :
+                                        k === 3 ? 'w-[140px]' : ''
                                 ) : selectedReport === 'dre' ? (
                                   k === 0 ? 'w-[120px]' :
                                     k === 1 ? 'w-full' :

@@ -116,8 +116,7 @@ export interface MaintenanceIntervals {
 
 export interface Equipment {
   id: string;
-  type: string;
-  model: string;
+  vehicleId: string;
   intervals: MaintenanceIntervals;
   observations?: string;
   createdAt: number;
@@ -130,6 +129,19 @@ export interface MaintenanceRecord {
   nfNumber?: string;
   performedItems: (keyof MaintenanceIntervals)[];
   observations: string;
+  receiptUrl?: string;
+  createdAt: number;
+}
+
+export interface CompanyVehicle {
+  id: string;
+  licensePlate: string;
+  type: string;
+  model: string;
+  year: string;
+  description: string;
+  documentUrl?: string;
+  status: 'Ativo' | 'Vendido';
   createdAt: number;
 }
 
@@ -239,7 +251,7 @@ export interface BankStatementItem {
   isValidated?: boolean; // User confirmed for import
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards';
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards';
 
 export interface AdminUser {
   id: string;

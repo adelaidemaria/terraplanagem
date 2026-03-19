@@ -1,1 +1,0 @@
-import { createClient } from \'@supabase/supabase-js\';\nexport const executeSql = async (sql) => {\n  // Note: we might not be able to execute arbitary sql from client if not set up with RPC\n  return {error: \'Requires Supabase Studio/Dashboard execution.\'};\n};
