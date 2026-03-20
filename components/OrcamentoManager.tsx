@@ -1,26 +1,27 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import {
-  Plus,
-  Search,
-  Trash2,
-  Edit,
-  X,
-  Printer,
-  Eye,
-  AlertTriangle,
-  FileText,
-  CheckCircle2,
-  Clock,
-  XCircle,
-  ChevronDown,
-  Building2,
-  User,
-  MapPin,
-  ClipboardList,
-  Calendar
-} from 'lucide-react';
-import { Orcamento, OrcamentoItem } from '../types';
+import { Orcamento, OrcamentoItem, ConfiguracaoEmpresa, CampoExtra } from '../types';
 import { supabase } from '../lib/supabase';
+import { 
+  Plus, 
+  Search, 
+  Trash2, 
+  Edit, 
+  X, 
+  Printer, 
+  Eye, 
+  AlertTriangle, 
+  FileText, 
+  CheckCircle2, 
+  Clock, 
+  XCircle, 
+  ChevronDown, 
+  Building2, 
+  User, 
+  MapPin, 
+  ClipboardList, 
+  Calendar,
+  Layout
+} from 'lucide-react';
 
 interface OrcamentoManagerProps {
   orcamentos: Orcamento[];
@@ -75,130 +76,210 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 // ==============================================================
 // PRINT LAYOUT COMPONENT
 // ==============================================================
-const OrcamentoPrintView: React.FC<{ orcamento: Orcamento }> = ({ orcamento }) => {
+const OrcamentoPrintView: React.FC<{ orcamento: Orcamento, company: ConfiguracaoEmpresa | null }> = ({ orcamento, company }) => {
   const total = (orcamento.items || []).reduce((acc, i) => acc + i.value, 0);
+
+  // Função para formatar data por extenso
+  const formatDataExtenso = (dataStr: string) => {
+    const data = new Date(dataStr + 'T12:00:00'); 
+    const meses = [
+      "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+      "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ];
+    return `Bauru/SP, ${data.getDate()} de ${meses[data.getMonth()]} de ${data.getFullYear()}`;
+  };
+  
+  // Dados fallback caso não existam no banco
+  const companyData = company || {
+    nome_fantasia: 'TERRAPLANAGEM BAURU',
+    cnpj: '54.148.867/0001-18',
+    inscricao_municipal: '641024',
+    endereco: 'Rua Batista de Carvalho, 4-33, Centro, Bauru/SP',
+    telefone: '(14) 99188-5658',
+    email: 'terraplanagembauru@gmail.com'
+  };
+
   return (
-    <div className="print:block font-sans text-slate-800 max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="border-b-4 border-amber-500 pb-4 mb-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="text-2xl font-black text-slate-900 mb-1">TERRAPLANAGEM BAURU</div>
-            <div className="text-[10px] text-slate-600 font-bold uppercase tracking-wider mb-2">
-              CNPJ: 54.148.867/0001-18 | I.M.: 641024
-            </div>
-            <div className="text-[10px] text-slate-500 space-y-0.5">
-              <p>Rua Batista de Carvalho, 4-33, Centro, Bauru/SP</p>
-              <p>Fone: (14) 99188-5658 | Email: terraplanagembauru@gmail.com</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-3xl font-black text-amber-500 leading-tight">ORÇAMENTO</div>
-            <div className="text-sm font-bold text-slate-800">Nº {String(orcamento.numero).padStart(3, '0')}</div>
-            <div className="text-xs text-slate-500 mt-1">Emitido em: {formatDate(orcamento.dataEmissao)}</div>
-          </div>
-        </div>
-      </div>
+    <div className="print-container font-sans text-slate-800 max-w-3xl mx-auto">
+      {/* 
+          Usamos uma tabela mestre para que o thead (cabeçalho) 
+          se repita automaticamente em todas as páginas impressas.
+      */}
+      <table className="w-full border-collapse">
+        <thead>
+          <tr>
+            <td className="p-0 border-0">
+              <div className="header-spacer h-4 print:block hidden"></div>
+              {/* Header Real */}
+              <div className="border-b-4 border-amber-500 pb-4 mb-6">
+                <div className="flex items-start justify-between">
+                  {/* Lado Esquerdo: Dados da Empresa */}
+                  <div className="flex flex-col gap-3 max-w-[60%]">
+                    {companyData.logo_url && (
+                      <img src={companyData.logo_url} alt="Logo" className="h-20 w-auto object-contain self-start" />
+                    )}
+                    {!companyData.logo_url && (
+                      <div className="text-2xl font-black text-slate-900 leading-none">{companyData.nome_fantasia}</div>
+                    )}
+                    
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">
+                        {companyData.cnpj && `CNPJ: ${companyData.cnpj}`} {companyData.inscricao_municipal && `| I.M.: ${companyData.inscricao_municipal}`}
+                      </div>
+                      <div className="text-[10px] text-slate-500 leading-relaxed">
+                        <p>{companyData.endereco}</p>
+                        <p>Fone: {companyData.telefone} | Email: {companyData.email}</p>
+                      </div>
+                    </div>
+                  </div>
 
-      {/* Client info */}
-      <div className="bg-slate-50 rounded-xl p-5 mb-6 border border-slate-200">
-        <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center">
-          <User size={14} className="mr-1.5" /> Dados do Cliente
-        </h3>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <span className="text-xs text-slate-500 font-bold">Nome / Razão Social</span>
-            <p className="font-bold text-slate-900 mt-0.5">{orcamento.nome}</p>
-          </div>
-          {orcamento.cpfCnpj && (
-            <div>
-              <span className="text-xs text-slate-500 font-bold">CPF / CNPJ</span>
-              <p className="font-bold text-slate-900 mt-0.5">{orcamento.cpfCnpj}</p>
-            </div>
-          )}
-          {orcamento.endereco && (
-            <div className="col-span-2">
-              <span className="text-xs text-slate-500 font-bold">Endereço</span>
-              <p className="font-bold text-slate-900 mt-0.5">{orcamento.endereco}</p>
-            </div>
-          )}
-          {orcamento.dadosComplementares && (
-            <div className="col-span-2">
-              <span className="text-xs text-slate-500 font-bold">Dados Complementares</span>
-              <p className="text-slate-700 mt-0.5">{orcamento.dadosComplementares}</p>
-            </div>
-          )}
-        </div>
-      </div>
+                  {/* Lado Direito: Dados do Orçamento */}
+                  <div className="text-right pt-1">
+                    <div className="text-3xl font-black text-amber-500 leading-none">ORÇAMENTO</div>
+                    <div className="text-xl font-black text-slate-800 tracking-tighter mt-1">Nº {String(orcamento.numero).padStart(3, '0')}</div>
+                    <div className="text-[10px] text-slate-400 font-bold mt-2 uppercase tracking-tight">Emitido em: {formatDate(orcamento.dataEmissao)}</div>
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </thead>
 
-      {/* Services */}
-      <div className="mb-6">
-        <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center">
-          <ClipboardList size={14} className="mr-1.5" /> Descrição dos Serviços
-        </h3>
-        <table className="w-full border border-slate-200 rounded-xl overflow-hidden text-sm">
-          <thead>
-            <tr className="bg-slate-800 text-white">
-              <th className="px-4 py-2.5 text-left font-bold">Descrição</th>
-              <th className="px-4 py-2.5 text-right font-bold w-40">Valor Unitário</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(orcamento.items || []).map((item, idx) => (
-              <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                <td className="px-4 py-2.5">{item.description}</td>
-                <td className="px-4 py-2.5 text-right font-bold">{formatCurrency(item.value)}</td>
-              </tr>
-            ))}
-          </tbody>
-          {!orcamento.ocultarTotal && (
-            <tfoot>
-              <tr className="bg-amber-50 border-t-2 border-amber-400">
-                <td className="px-4 py-3 font-black text-slate-800 uppercase text-sm">TOTAL GERAL</td>
-                <td className="px-4 py-3 text-right font-black text-amber-700 text-lg">{formatCurrency(total)}</td>
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </div>
+        <tbody>
+          <tr>
+            <td className="p-0 border-0">
+              {/* Client info */}
+              <div className="rounded-xl p-5 mb-6 border border-slate-200 break-inside-avoid">
+                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center">
+                  <User size={14} className="mr-1.5" /> Dados do Cliente
+                </h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-xs text-slate-500 font-bold">Nome / Razão Social</span>
+                    <p className="font-bold text-slate-900 mt-0.5">{orcamento.nome}</p>
+                  </div>
+                  {orcamento.cpfCnpj && (
+                    <div>
+                      <span className="text-xs text-slate-500 font-bold">CPF / CNPJ</span>
+                      <p className="font-bold text-slate-900 mt-0.5">{orcamento.cpfCnpj}</p>
+                    </div>
+                  )}
+                  {orcamento.endereco && (
+                    <div className="col-span-2">
+                      <span className="text-xs text-slate-500 font-bold">Endereço</span>
+                      <p className="font-bold text-slate-900 mt-0.5">{orcamento.endereco}</p>
+                    </div>
+                  )}
+                  {orcamento.dadosComplementares && (
+                    <div className="col-span-2">
+                      <span className="text-xs text-slate-500 font-bold">Dados Complementares</span>
+                      <p className="text-slate-700 mt-0.5">{orcamento.dadosComplementares}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-      {/* Payment & Details */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-          <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Pagamento</h4>
-          <p className="text-sm"><span className="font-bold">Forma:</span> {orcamento.formaPagamento}</p>
-          <p className="text-sm mt-1"><span className="font-bold">Condição:</span> {orcamento.condicaoPagamento}</p>
-        </div>
-        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-          <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 flex items-center">
-            <Calendar size={12} className="mr-1" /> Início dos Serviços
-          </h4>
-          <p className="text-sm font-bold text-slate-800">{orcamento.inicioServicos}</p>
-        </div>
-      </div>
+              {/* Services */}
+              {(orcamento.items || []).some(item => item.description.trim() !== '') && (
+                <div className="mb-6 break-inside-avoid-page">
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center">
+                    <ClipboardList size={14} className="mr-1.5" /> Descrição dos Serviços
+                  </h3>
+                  <table className="w-full border border-slate-200 rounded-xl overflow-hidden text-sm">
+                    <thead>
+                      <tr className="bg-slate-800 text-white">
+                        <th className="px-4 py-2.5 text-left font-bold border-r border-slate-700">Descrição</th>
+                        <th className="px-4 py-2.5 text-right font-bold w-40">Valor Unitário</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(orcamento.items || []).filter(item => item.description.trim() !== '').map((item, idx) => (
+                        <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                          <td className="px-4 py-2.5 border-r border-slate-100 whitespace-pre-wrap">{item.description}</td>
+                          <td className="px-4 py-2.5 text-right font-bold">
+                            {item.value > 0 ? formatCurrency(item.value) : ''}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {!orcamento.ocultarTotal && (
+                      <tfoot>
+                        <tr className="bg-amber-50 border-t-2 border-amber-400">
+                          <td className="px-4 py-3 font-black text-slate-800 uppercase text-sm border-r border-amber-100">TOTAL GERAL</td>
+                          <td className="px-4 py-3 text-right font-black text-amber-700 text-lg">{formatCurrency(total)}</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              )}
 
-      {orcamento.informacoesComplementares && (
-        <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6">
-          <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2">Informações Complementares</h4>
-          <p className="text-sm text-slate-700">{orcamento.informacoesComplementares}</p>
-        </div>
-      )}
+              {/* Campos Extras Dinâmicos */}
+              {orcamento.camposExtras?.filter(c => c.ativo && (c.titulo || c.descricao)).map((campo) => (
+                <div key={campo.id} className="mb-6 border border-slate-200 rounded-xl p-5 break-inside-avoid">
+                  {campo.titulo && <div className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                    <Layout size={12} className="text-slate-400" /> {campo.titulo}
+                  </div>}
+                  <div className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+                    {campo.descricao}
+                  </div>
+                </div>
+              ))}
 
-      {/* Footer */}
-      <div className="border-t-2 border-slate-200 pt-6 mt-8">
-        <div className="flex flex-col gap-1 text-[11px] text-slate-500 font-medium">
-          <p>Orçamento válido por 30 dias a partir da data de emissão.</p>
-          <p>Empresa Optante Simples Nacional</p>
-        </div>
-        <div className="grid grid-cols-2 gap-8 mt-8">
-          <div className="text-center">
-            <div className="border-t border-slate-400 pt-2 mt-8 text-xs text-slate-500">Assinatura do Responsável</div>
-          </div>
-          <div className="text-center">
-            <div className="border-t border-slate-400 pt-2 mt-8 text-xs text-slate-500">Aceite do Cliente</div>
-          </div>
-        </div>
-      </div>
+              {/* Payment & Details */}
+              <div className="grid grid-cols-2 gap-4 mb-6 break-inside-avoid">
+                <div className="p-4 rounded-xl border border-slate-200">
+                  <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Pagamento</h4>
+                  <p className="text-sm"><span className="font-bold">Forma:</span> {orcamento.formaPagamento}</p>
+                  <p className="text-sm mt-1"><span className="font-bold">Condição:</span> {orcamento.condicaoPagamento}</p>
+                </div>
+                <div className="p-4 rounded-xl border border-slate-200">
+                  <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 flex items-center">
+                    <Calendar size={12} className="mr-1" /> Início dos Serviços
+                  </h4>
+                  <p className="text-sm font-bold text-slate-800">{orcamento.inicioServicos}</p>
+                </div>
+              </div>
+
+              {orcamento.informacoesComplementares && orcamento.informacoesComplementares.length > 0 && (
+                <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6 break-inside-avoid">
+                  <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 border-b border-blue-100 pb-2">Informações Complementares</h4>
+                  <div className="space-y-3">
+                    {orcamento.informacoesComplementares.map((info, i) => (
+                      <p key={i} className="text-sm text-slate-700 whitespace-pre-wrap">{info}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Footer e Assinatura */}
+              <div className="border-t-2 border-slate-200 pt-6 mt-8 break-inside-avoid">
+                <div className="flex flex-col gap-1 text-sm text-slate-500 font-medium">
+                  <p>Orçamento válido por 30 dias a partir da data de emissão.</p>
+                  <p>Empresa Optante Simples Nacional</p>
+                  <div className="mt-4 pt-4 border-t border-slate-100/50">
+                    <p className="text-slate-800 font-bold text-base">{formatDataExtenso(orcamento.dataEmissao)}</p>
+                  </div>
+                </div>
+                <div className="mt-12 flex justify-center">
+                  <div className="text-center max-w-sm w-full">
+                    {companyData.assinatura_tipo === 'imagem' && companyData.assinatura_url ? (
+                      <img src={companyData.assinatura_url} alt="Assinatura" className="h-16 mx-auto mb-1 object-contain" />
+                    ) : (
+                      <div className="signature text-2xl text-blue-900 mb-1">
+                        {companyData.responsavel_assinatura_digital || companyData.nome_fantasia}
+                      </div>
+                    )}
+                    <div className="border-t border-slate-400 pt-2 text-sm text-slate-800 font-bold">
+                      {companyData.responsavel_nome || companyData.nome_fantasia}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 };
@@ -213,8 +294,17 @@ const OrcamentoManager: React.FC<OrcamentoManagerProps> = ({ orcamentos, setOrca
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [companyConfig, setCompanyConfig] = useState<ConfiguracaoEmpresa | null>(null);
 
   const dateInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      const { data } = await supabase.from('configuracao_empresa').select('*').limit(1).single();
+      if (data) setCompanyConfig(data);
+    };
+    fetchConfig();
+  }, []);
 
   // Auto-focus the date field whenever the modal opens in add/edit mode
   useEffect(() => {
@@ -233,7 +323,8 @@ const OrcamentoManager: React.FC<OrcamentoManagerProps> = ({ orcamentos, setOrca
     formaPagamento: 'A Vista',
     condicaoPagamento: 'Pix',
     inicioServicos: 'A Combinar com o cliente',
-    informacoesComplementares: '',
+    informacoesComplementares: [],
+    camposExtras: [],
     dataEmissao: today(),
     status: 'Aguardando Cliente',
     efetivadoInfo: '',
@@ -315,7 +406,8 @@ const OrcamentoManager: React.FC<OrcamentoManagerProps> = ({ orcamentos, setOrca
       formaPagamento: formData.formaPagamento || 'A Vista',
       condicaoPagamento: formData.condicaoPagamento || 'Pix',
       inicioServicos: formData.inicioServicos || 'A Combinar com o cliente',
-      informacoesComplementares: formData.informacoesComplementares || '',
+      informacoesComplementares: formData.informacoesComplementares || [],
+      camposExtras: formData.camposExtras || [],
       dataEmissao: formData.dataEmissao!,
       status: formData.status || 'Aguardando Cliente',
       efetivadoInfo: formData.status === 'Efetivado' ? (formData.efetivadoInfo || '') : '',
@@ -515,8 +607,8 @@ const OrcamentoManager: React.FC<OrcamentoManagerProps> = ({ orcamentos, setOrca
 
       {/* ─── Modal ────────────────────────────────── */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:bg-white print:p-0 print:items-start">
-          <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl overflow-y-auto max-h-[95vh] print:shadow-none print:max-h-none print:rounded-none">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:relative print:block print:bg-white print:p-0 print:z-0 print:backdrop-blur-none">
+          <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl overflow-y-auto max-h-[95vh] print:shadow-none print:max-h-none print:rounded-none print:overflow-visible print:w-full print:max-w-none">
 
             {/* Modal Header — hidden when printing */}
             <div className="flex items-center justify-between px-6 py-5 border-b print:hidden">
@@ -531,7 +623,7 @@ const OrcamentoManager: React.FC<OrcamentoManagerProps> = ({ orcamentos, setOrca
               {/* Print layout */}
               {modalMode === 'print' ? (
                 <div>
-                  <OrcamentoPrintView orcamento={formData as Orcamento} />
+                  <OrcamentoPrintView orcamento={formData as Orcamento} company={companyConfig} />
                   <div className="flex justify-end gap-3 pt-6 border-t mt-6 print:hidden">
                     <button onClick={() => setIsModalOpen(false)} className="px-5 py-2 text-slate-500 font-bold hover:bg-slate-50 rounded-lg">Fechar</button>
                     <button onClick={() => window.print()} className="px-8 py-2 bg-slate-900 text-white font-bold rounded-lg shadow-xl flex items-center gap-2 hover:bg-slate-800 transition-colors">
@@ -668,7 +760,6 @@ const OrcamentoManager: React.FC<OrcamentoManagerProps> = ({ orcamentos, setOrca
                           <span className="text-xs font-black text-slate-400 w-5 shrink-0">{idx + 1}</span>
                           <input
                             readOnly={isViewOnly}
-                            required
                             placeholder="Descrição do serviço..."
                             className="flex-1 text-sm border-0 outline-none bg-transparent text-slate-700 placeholder-slate-300"
                             value={item.description}
@@ -710,6 +801,93 @@ const OrcamentoManager: React.FC<OrcamentoManagerProps> = ({ orcamentos, setOrca
                       <span className={`font-black text-2xl ${formData.ocultarTotal ? 'text-slate-300 line-through decoration-amber-500/50' : 'text-slate-900'}`}>
                         {formatCurrency(total)}
                       </span>
+                    </div>
+                  </div>
+
+                  {/* Campos Extras Dinâmicos (Editor) */}
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                        <Layout size={13} /> Detalhes Extras do Orçamento
+                      </h4>
+                      {!isViewOnly && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData(p => ({
+                            ...p,
+                            camposExtras: [...(p.camposExtras || []), { id: crypto.randomUUID(), titulo: '', descricao: '', ativo: true }]
+                          }))}
+                          className="text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg px-3 py-1.5 flex items-center gap-1 transition-colors"
+                        >
+                          <Plus size={12} /> Adicionar Campo Extra
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {(formData.camposExtras || []).map((campo, index) => (
+                        <div key={campo.id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm relative group">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3 flex-1">
+                              <span className="text-[10px] font-black text-slate-300">#EXTRA 0{index + 1}</span>
+                              <input
+                                readOnly={isViewOnly}
+                                placeholder="Título do Bloco (Ex: Cláusula 01, VALOR A PAGAR, Observação)"
+                                className="flex-1 text-xs font-bold uppercase tracking-wider border-0 border-b border-transparent focus:border-blue-300 outline-none bg-transparent placeholder-slate-300 text-slate-700"
+                                value={campo.titulo}
+                                onChange={e => setFormData(p => ({
+                                  ...p,
+                                  camposExtras: p.camposExtras?.map(c => c.id === campo.id ? { ...c, titulo: e.target.value } : c)
+                                }))}
+                              />
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  disabled={isViewOnly}
+                                  type="checkbox"
+                                  className="w-3.5 h-3.5 text-blue-500 border-slate-300 rounded focus:ring-blue-500"
+                                  checked={campo.ativo}
+                                  onChange={e => setFormData(p => ({
+                                    ...p,
+                                    camposExtras: p.camposExtras?.map(c => c.id === campo.id ? { ...c, ativo: e.target.checked } : c)
+                                  }))}
+                                />
+                                <span className="text-[10px] font-extrabold uppercase text-slate-400">Ativar</span>
+                              </label>
+                              {!isViewOnly && (
+                                <button
+                                  type="button"
+                                  onClick={() => setFormData(p => ({
+                                    ...p,
+                                    camposExtras: p.camposExtras?.filter(c => c.id === campo.id ? false : true)
+                                  }))}
+                                  className="text-slate-300 hover:text-rose-500 transition-colors"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <textarea
+                            readOnly={isViewOnly}
+                            rows={3}
+                            placeholder="Descreva aqui os detalhes..."
+                            className="w-full text-sm border-0 bg-slate-50/50 rounded-lg p-2 outline-none focus:bg-white focus:ring-1 focus:ring-blue-100 transition-all resize-none text-slate-600 placeholder-slate-300"
+                            value={campo.descricao}
+                            onChange={e => setFormData(p => ({
+                              ...p,
+                              camposExtras: p.camposExtras?.map(c => c.id === campo.id ? { ...c, descricao: e.target.value } : c)
+                            }))}
+                          />
+                        </div>
+                      ))}
+                      
+                      {(formData.camposExtras || []).length === 0 && (
+                        <div className="text-center py-6 border-2 border-dashed border-slate-100 rounded-xl">
+                          <p className="text-xs text-slate-400 font-medium italic">Nenhum campo extra adicionado.</p>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -756,17 +934,64 @@ const OrcamentoManager: React.FC<OrcamentoManagerProps> = ({ orcamentos, setOrca
                     />
                   </div>
 
-                  {/* Informações complementares */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Informações Complementares</label>
-                    <textarea
-                      readOnly={isViewOnly}
-                      rows={3}
-                      placeholder="Observações, condições especiais, validade do orçamento..."
-                      className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 resize-none disabled:bg-slate-50"
-                      value={formData.informacoesComplementares}
-                      onChange={e => setFormData(p => ({ ...p, informacoesComplementares: e.target.value }))}
-                    />
+                  {/* Complementary Information (Items Editor) */}
+                  <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest flex items-center gap-1.5">
+                        <FileText size={13} /> Informações Complementares
+                      </h4>
+                      {!isViewOnly && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData(p => ({
+                            ...p,
+                            informacoesComplementares: [...(p.informacoesComplementares || []), '']
+                          }))}
+                          className="text-[11px] font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 border border-blue-200 rounded-lg px-3 py-1.5 flex items-center gap-1 transition-colors"
+                        >
+                          <Plus size={12} /> Adicionar Informação
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {(formData.informacoesComplementares || []).map((info, index) => (
+                        <div key={index} className="flex gap-2 group">
+                          <div className="flex-1 bg-white rounded-lg border border-blue-100 shadow-sm overflow-hidden flex">
+                            <div className="w-8 shrink-0 bg-blue-50 flex items-center justify-center text-[10px] font-black text-blue-300 border-r border-blue-100">
+                              {index + 1}
+                            </div>
+                            <textarea
+                              readOnly={isViewOnly}
+                              rows={2}
+                              placeholder="Observações, condições especiais, validade..."
+                              className="w-full px-3 py-2 text-sm outline-none bg-transparent text-slate-700 placeholder-slate-300 resize-none focus:bg-blue-50/20"
+                              value={info}
+                              onChange={e => setFormData(p => ({
+                                ...p,
+                                informacoesComplementares: p.informacoesComplementares?.map((item, i) => i === index ? e.target.value : item)
+                              }))}
+                            />
+                          </div>
+                          {!isViewOnly && (
+                            <button
+                              type="button"
+                              onClick={() => setFormData(p => ({
+                                ...p,
+                                informacoesComplementares: p.informacoesComplementares?.filter((_, i) => i !== index)
+                              }))}
+                              className="text-slate-300 hover:text-rose-500 transition-colors self-center p-1"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      
+                      {(formData.informacoesComplementares || []).length === 0 && (
+                        <p className="text-center py-4 text-xs text-blue-300 font-medium italic">Pressione "+ Adicionar Informação" para incluir detalhes.</p>
+                      )}
+                    </div>
                   </div>
 
                   {/* Footer Buttons */}

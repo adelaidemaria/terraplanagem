@@ -72,6 +72,7 @@ import CorporateCardManager from './components/CorporateCardManager';
 import CompanyVehiclesManager from './components/CompanyVehiclesManager';
 import CTRManager from './components/CTRManager';
 import OrcamentoManager from './components/OrcamentoManager';
+import ConfiguracaoEmpresaManager from './components/ConfiguracaoEmpresa';
 import { useSupabaseSync } from './lib/useSupabaseSync';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
@@ -478,6 +479,8 @@ const App: React.FC = () => {
         return <CompanyVehiclesManager
           vehicles={companyVehicles} setVehicles={setCompanyVehicles}
         />;
+      case 'company-settings':
+        return <ConfiguracaoEmpresaManager />;
       case 'settings':
         return <SettingsManager
           adminUser={{ username: currentUserEmail || 'Usuário', password: '' } as AdminUser}
@@ -578,6 +581,7 @@ const App: React.FC = () => {
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Configurações</span>
           </div>
           <NavItem id="accountPlan" label="Plano de Contas" icon={BookOpen} />
+          <NavItem id="company-settings" label="Dados da Empresa" icon={Building2} />
           <NavItem id="settings" label="Acesso ao Sistema" icon={User} />
         </nav>
 
@@ -610,7 +614,8 @@ const App: React.FC = () => {
             {currentView === 'reports' && 'Módulo de Relatórios Gerenciais'}
             {currentView === 'fleet' && 'Controle de Máquinas / Linha Amarela'}
             {currentView === 'company-vehicles' && 'Controle de Veículos da Empresa'}
-            {currentView === 'settings' && 'Configurações do Sistema'}
+            {currentView === 'settings' && 'Segurança do Usuário'}
+            {currentView === 'company-settings' && 'Configurações da Empresa'}
             {currentView === 'nf-import' && 'Importação de Notas Fiscais'}
             {currentView === 'bank-statements' && 'Importação de Extrato Bancário'}
             {currentView === 'ctr' && 'Controle de CTR (Transporte de Resíduos)'}

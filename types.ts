@@ -268,6 +268,13 @@ export interface OrcamentoItem {
   value: number;
 }
 
+export interface CampoExtra {
+  id: string;
+  titulo: string;
+  descricao: string;
+  ativo: boolean;
+}
+
 export interface Orcamento {
   id: string;
   numero: number;
@@ -279,7 +286,8 @@ export interface Orcamento {
   formaPagamento: string;
   condicaoPagamento: string;
   inicioServicos: string;
-  informacoesComplementares?: string;
+  informacoesComplementares?: string[];
+  camposExtras?: CampoExtra[];
   dataEmissao: string;
   status: 'Aguardando Cliente' | 'Efetivado' | 'Não concluído';
   efetivadoInfo?: string;
@@ -287,7 +295,24 @@ export interface Orcamento {
   createdAt: number;
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos';
+export interface ConfiguracaoEmpresa {
+    id: string;
+    nome_fantasia: string;
+    razao_social?: string;
+    cnpj?: string;
+    inscricao_municipal?: string;
+    endereco?: string;
+    telefone?: string;
+    email?: string;
+    logo_url?: string;
+    responsavel_nome?: string;
+    responsavel_assinatura_digital?: string;
+    assinatura_tipo?: 'digital' | 'imagem';
+    assinatura_url?: string;
+    updated_at?: string;
+}
+
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos' | 'company-settings';
 
 export interface AdminUser {
   id: string;
