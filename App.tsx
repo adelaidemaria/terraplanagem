@@ -18,6 +18,7 @@ import {
   ArrowRightLeft,
   CalendarDays,
   PiggyBank,
+  Landmark,
   FileUp,
   Car,
   ClipboardList
@@ -45,7 +46,8 @@ import {
   CorporateCardPayment,
   CompanyVehicle,
   CTR,
-  Orcamento
+  Orcamento,
+  SimplesNacionalFaturamento
 } from './types';
 
 // Components
@@ -72,6 +74,7 @@ import CorporateCardManager from './components/CorporateCardManager';
 import CompanyVehiclesManager from './components/CompanyVehiclesManager';
 import CTRManager from './components/CTRManager';
 import OrcamentoManager from './components/OrcamentoManager';
+import SimplesNacionalManager from './components/SimplesNacionalManager';
 import ConfiguracaoEmpresaManager from './components/ConfiguracaoEmpresa';
 import { useSupabaseSync } from './lib/useSupabaseSync';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
@@ -166,8 +169,9 @@ const App: React.FC = () => {
   const [companyVehicles, setCompanyVehicles, cvLoaded] = useSupabaseSync<CompanyVehicle>('company_vehicles');
   const [ctrs, setCtrs, ctrsLoaded] = useSupabaseSync<CTR>('ctr');
   const [orcamentos, setOrcamentos, orcamentosLoaded] = useSupabaseSync<Orcamento>('orcamentos');
+  const [snFaturamentos, setSnFaturamentos, snLoaded] = useSupabaseSync<SimplesNacionalFaturamento>('simples_nacional_faturamento');
 
-  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded && cvLoaded && ctrsLoaded && orcamentosLoaded;
+  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded && cvLoaded && ctrsLoaded && orcamentosLoaded && snLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -469,6 +473,12 @@ const App: React.FC = () => {
             setCurrentView('reports');
           }}
         />;
+      case 'simples-nacional':
+        return <SimplesNacionalManager
+          sales={sales}
+          faturamentos={snFaturamentos}
+          setFaturamentos={setSnFaturamentos}
+        />;
       case 'fleet':
         return <FleetManager
           fleet={fleet} setFleet={setFleet}
@@ -543,6 +553,7 @@ const App: React.FC = () => {
           <NavItem id="sales" label="Faturamento" icon={Receipt} />
           <NavItem id="nf-import" label="Importação NF" icon={FileUp} />
           <NavItem id="receivables" label="Contas a Receber" icon={HandCoins} />
+          <NavItem id="simples-nacional" label="Simples Nacional" icon={Landmark} />
 
           <div className="pt-4 pb-1 px-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Saídas</span>
@@ -620,6 +631,7 @@ const App: React.FC = () => {
             {currentView === 'bank-statements' && 'Importação de Extrato Bancário'}
             {currentView === 'ctr' && 'Controle de CTR (Transporte de Resíduos)'}
             {currentView === 'orcamentos' && 'Orçamentos'}
+            {currentView === 'simples-nacional' && 'Simples Nacional — Anexo III'}
           </h1>
           <button
             onClick={async () => {

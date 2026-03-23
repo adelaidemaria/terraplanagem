@@ -295,6 +295,14 @@ export interface Orcamento {
   createdAt: number;
 }
 
+export interface SimplesNacionalFaturamento {
+  id: string;
+  anoMes: string; // "2025-04"
+  valor: number;
+  origem: 'manual' | 'automatico';
+  createdAt: number;
+}
+
 export interface ConfiguracaoEmpresa {
     id: string;
     nome_fantasia: string;
@@ -312,7 +320,7 @@ export interface ConfiguracaoEmpresa {
     updated_at?: string;
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos' | 'company-settings';
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos' | 'company-settings' | 'simples-nacional';
 
 export interface AdminUser {
   id: string;
