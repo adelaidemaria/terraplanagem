@@ -948,11 +948,11 @@ const SimplesNacionalContent: React.FC<SimplesNacionalManagerProps> = ({ sales, 
         const faixaObj = ANEXO_III_FAIXAS.find(f => f.faixa === result.faixa);
 
         return (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] overflow-y-auto p-2 sm:p-6 py-10 sm:py-16 animate-in fade-in duration-300">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] overflow-y-auto p-1 sm:p-2 py-2 sm:py-6 animate-in fade-in duration-300">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-auto flex flex-col h-auto min-h-fit border border-slate-200 print:shadow-none print:border-none print:p-0 print:static print:block">
               
               {/* Header Modal - Sticky para facilitar navegação */}
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white/95 backdrop-blur rounded-t-2xl sticky top-0 z-10 print:hidden transition-all">
+              <div className="px-6 py-3 border-b border-slate-100 flex items-center justify-between bg-white/95 backdrop-blur rounded-t-2xl sticky top-0 z-10 print:hidden transition-all">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-inner">
                     <Calculator size={22} />
@@ -980,8 +980,8 @@ const SimplesNacionalContent: React.FC<SimplesNacionalManagerProps> = ({ sales, 
               </div>
 
               {/* Conteúdo Relatório */}
-              <div className="flex-1 overflow-y-auto p-8 print:p-0 print:overflow-visible">
-                <div id="print-area" className="space-y-8 pb-16">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 print:p-0 print:overflow-visible">
+                <div id="print-area" className="space-y-6 pb-8">
                   
                   {/* Cabeçalho de Impressão (Oculto na tela) */}
                   <div className="hidden print:block border-b-2 border-slate-900 pb-6 mb-8">
@@ -1010,10 +1010,10 @@ const SimplesNacionalContent: React.FC<SimplesNacionalManagerProps> = ({ sales, 
                       <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-4 border-l-4 border-emerald-500 pl-3">
                         1. Apuração da Receita Bruta (RBT12)
                       </h4>
-                      <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 print:bg-white print:border-slate-200 print:p-0 print:border-none">
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 print:bg-white print:border-slate-200 print:p-0 print:border-none">
                         <div className="grid grid-rows-6 grid-flow-col gap-x-8 gap-y-0">
                         {rbtList.map((m, idx) => (
-                          <div key={idx} className={`flex justify-between text-xs py-1.5 tabular-nums ${idx === 5 || idx === 11 ? '' : 'border-b border-slate-200 print:border-slate-200 print:border-b'}`}>
+                          <div key={idx} className={`flex justify-between text-[10px] py-1 tabular-nums ${idx === 5 || idx === 11 ? '' : 'border-b border-slate-200 print:border-slate-200 print:border-b'}`}>
                             <span className="text-slate-500 font-medium">{m.label}</span>
                             <span className="font-bold text-slate-800">{formatCurrency(m.valor)}</span>
                           </div>
@@ -1027,11 +1027,11 @@ const SimplesNacionalContent: React.FC<SimplesNacionalManagerProps> = ({ sales, 
                     </section>
 
                     <section className="lg:col-span-7 print:mb-0">
-                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-4 border-l-4 border-emerald-500 pl-3">
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-2 border-l-4 border-emerald-500 pl-3">
                         2. Parametrização do Cálculo (Anexo III)
                       </h4>
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-3 bg-indigo-50/50 p-5 rounded-xl border border-indigo-100 print:bg-white print:border-slate-100">
+                        <div className="space-y-2 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 print:bg-white print:border-slate-100">
                           <div className="flex justify-between text-xs">
                             <span className="text-slate-600">RBT12 Apurado:</span>
                             <span className="font-bold">{formatCurrency(rbt12)}</span>
@@ -1050,7 +1050,7 @@ const SimplesNacionalContent: React.FC<SimplesNacionalManagerProps> = ({ sales, 
                           </div>
                         </div>
 
-                        <div className="space-y-3 bg-violet-50/50 p-5 rounded-xl border border-violet-100 print:bg-white print:border-slate-100">
+                        <div className="space-y-2 bg-violet-50/50 p-3 rounded-xl border border-violet-100 print:bg-white print:border-slate-100">
                           <div className="flex justify-between text-xs">
                             <span className="text-slate-600">Alíquota Efetiva:</span>
                             <span className="font-black text-indigo-700">{formatPercent(result.aliquotaEfetiva)}</span>
@@ -1073,7 +1073,7 @@ const SimplesNacionalContent: React.FC<SimplesNacionalManagerProps> = ({ sales, 
 
                   {/* Seção 3: Detalhamento do DAS por Natureza */}
                   <section>
-                    <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-4 border-l-4 border-emerald-500 pl-3">
+                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-2 border-l-4 border-emerald-500 pl-3">
                       3. Apuração Final do DAS (Documento de Arrecadação)
                     </h4>
                     <div className="overflow-hidden border border-slate-200 rounded-xl">
@@ -1106,10 +1106,12 @@ const SimplesNacionalContent: React.FC<SimplesNacionalManagerProps> = ({ sales, 
                             </tr>
                           )}
                         </tbody>
-                        <tfoot className="bg-emerald-50 border-t-2 border-emerald-300">
+                        <tfoot className="bg-blue-50 border-t-2 border-blue-600">
                           <tr>
-                            <td colSpan={3} className="px-5 py-4 font-black text-emerald-900 uppercase">Valor Total do DAS a Recolher:</td>
-                            <td className="px-5 py-4 text-right font-black text-lg text-emerald-900">
+                            <td colSpan={3} className="px-5 py-3 font-black text-blue-900 uppercase">
+                              <span className="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] mr-2">VALOR TOTAL DO DAS A RECOLHER:</span>
+                            </td>
+                            <td className="px-5 py-3 text-right font-black text-xl text-blue-700">
                               {formatCurrency(Math.max(0, result.das - tipoData.deducoes))}
                             </td>
                           </tr>
