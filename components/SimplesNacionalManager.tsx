@@ -1010,14 +1010,16 @@ const SimplesNacionalContent: React.FC<SimplesNacionalManagerProps> = ({ sales, 
                       <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-4 border-l-4 border-emerald-500 pl-3">
                         1. Apuração da Receita Bruta (RBT12)
                       </h4>
-                      <div className="grid grid-cols-2 gap-x-8 gap-y-2 bg-slate-50 p-5 rounded-xl border border-slate-200 print:bg-white print:border-slate-200 print:p-0 print:border-none">
+                      <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 print:bg-white print:border-slate-200 print:p-0 print:border-none">
+                        <div className="grid grid-rows-6 grid-flow-col gap-x-8 gap-y-0">
                         {rbtList.map((m, idx) => (
-                          <div key={idx} className={`flex justify-between text-xs py-1.5 tabular-nums ${idx === rbtList.length - 1 ? '' : 'border-b border-slate-200'}`}>
+                          <div key={idx} className={`flex justify-between text-xs py-1.5 tabular-nums ${idx === 5 || idx === 11 ? '' : 'border-b border-slate-200 print:border-slate-200 print:border-b'}`}>
                             <span className="text-slate-500 font-medium">{m.label}</span>
                             <span className="font-bold text-slate-800">{formatCurrency(m.valor)}</span>
                           </div>
                         ))}
-                        <div className="col-span-2 mt-4 p-3 bg-white border-2 border-slate-800 flex justify-between items-center print:mt-2 print:p-2">
+                        </div>
+                        <div className="mt-4 p-3 bg-white border-2 border-slate-800 flex justify-between items-center print:mt-2 print:p-2">
                           <span className="font-black text-slate-900 text-[10px] uppercase">RBT12 ACUMULADO:</span>
                           <span className="text-lg font-black text-slate-900 tabular-nums">{formatCurrency(rbt12)}</span>
                         </div>
