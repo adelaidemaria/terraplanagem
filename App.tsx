@@ -64,7 +64,6 @@ import TransferManager from './components/TransferManager';
 import YieldManager from './components/YieldManager';
 import ReportsManager from './components/ReportsManager';
 import FleetManager from './components/FleetManager';
-import SettingsManager from './components/SettingsManager';
 import AgendaManager from './components/AgendaManager';
 import Login from './components/Login';
 import Logo from './components/Logo';
@@ -490,12 +489,10 @@ const App: React.FC = () => {
           vehicles={companyVehicles} setVehicles={setCompanyVehicles}
         />;
       case 'company-settings':
-        return <ConfiguracaoEmpresaManager />;
-      case 'settings':
-        return <SettingsManager
+        return <ConfiguracaoEmpresaManager 
           adminUser={{ username: currentUserEmail || 'Usuário', password: '' } as AdminUser}
           onUpdateUser={() => {
-            // Placeholder temporário, daremos update depois.
+            // Recarrega informações do usuário se necessário
           }}
         />;
       default:
@@ -592,8 +589,7 @@ const App: React.FC = () => {
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Configurações</span>
           </div>
           <NavItem id="accountPlan" label="Plano de Contas" icon={BookOpen} />
-          <NavItem id="company-settings" label="Dados da Empresa" icon={Building2} />
-          <NavItem id="settings" label="Acesso ao Sistema" icon={User} />
+          <NavItem id="company-settings" label="Empresa" icon={Building2} />
         </nav>
 
         <div className="p-4 border-t border-slate-800">
@@ -625,7 +621,6 @@ const App: React.FC = () => {
             {currentView === 'reports' && 'Módulo de Relatórios Gerenciais'}
             {currentView === 'fleet' && 'Controle de Máquinas / Linha Amarela'}
             {currentView === 'company-vehicles' && 'Controle de Veículos da Empresa'}
-            {currentView === 'settings' && 'Segurança do Usuário'}
             {currentView === 'company-settings' && 'Configurações da Empresa'}
             {currentView === 'nf-import' && 'Importação de Notas Fiscais'}
             {currentView === 'bank-statements' && 'Importação de Extrato Bancário'}
