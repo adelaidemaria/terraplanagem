@@ -320,7 +320,7 @@ export interface ConfiguracaoEmpresa {
     updated_at?: string;
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos' | 'company-settings' | 'simples-nacional';
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos' | 'company-settings' | 'simples-nacional' | 'employees';
 
 export interface AdminUser {
   id: string;
@@ -346,3 +346,24 @@ export interface AgendaItem {
   completed: boolean;
   createdAt: number;
 }
+
+export interface FuncionarioDocumento {
+  id: string;
+  funcionarioId: string;
+  nome: string;
+  arquivoUrl: string;
+  createdAt: number;
+}
+
+export interface Funcionario {
+  id: string;
+  nomeCompleto: string;
+  dataRegistro: string;
+  funcao: string;
+  salarioBruto: number;
+  diferencaPf: number;
+  observacao?: string;
+  documentos?: FuncionarioDocumento[];
+  createdAt: number;
+}
+

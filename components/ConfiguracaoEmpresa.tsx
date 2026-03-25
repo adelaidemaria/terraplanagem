@@ -170,7 +170,7 @@ const ConfiguracaoEmpresaManager: React.FC<ConfiguracaoEmpresaManagerProps> = ({
               <Building2 className="text-white" size={28} />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-white tracking-tight">Configurações da Empresa</h2>
+              <h2 className="text-2xl font-black text-white tracking-tight">Configurações</h2>
               <p className="text-slate-400 text-sm font-medium">Gerencie os dados da sua empresa e o acesso de segurança.</p>
             </div>
           </div>

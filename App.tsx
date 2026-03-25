@@ -47,7 +47,9 @@ import {
   CompanyVehicle,
   CTR,
   Orcamento,
-  SimplesNacionalFaturamento
+  SimplesNacionalFaturamento,
+  Funcionario,
+  FuncionarioDocumento
 } from './types';
 
 // Components
@@ -75,6 +77,7 @@ import CTRManager from './components/CTRManager';
 import OrcamentoManager from './components/OrcamentoManager';
 import SimplesNacionalManager from './components/SimplesNacionalManager';
 import ConfiguracaoEmpresaManager from './components/ConfiguracaoEmpresa';
+import EmployeeManager from './components/EmployeeManager';
 import { useSupabaseSync } from './lib/useSupabaseSync';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
@@ -169,8 +172,9 @@ const App: React.FC = () => {
   const [ctrs, setCtrs, ctrsLoaded] = useSupabaseSync<CTR>('ctr');
   const [orcamentos, setOrcamentos, orcamentosLoaded] = useSupabaseSync<Orcamento>('orcamentos');
   const [snFaturamentos, setSnFaturamentos, snLoaded] = useSupabaseSync<SimplesNacionalFaturamento>('simples_nacional_faturamento');
+  const [employees, setEmployees, empLoaded] = useSupabaseSync<Funcionario>('funcionarios');
 
-  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded && cvLoaded && ctrsLoaded && orcamentosLoaded && snLoaded;
+  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded && cvLoaded && ctrsLoaded && orcamentosLoaded && snLoaded && empLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -450,6 +454,7 @@ const App: React.FC = () => {
           corporateCardPayments={corporateCardPayments}
           companyVehicles={companyVehicles}
           ctrs={ctrs}
+          employees={employees}
           orcamentos={orcamentos}
           initialReport={selectedReportType as any}
         />;
@@ -493,6 +498,15 @@ const App: React.FC = () => {
           adminUser={{ username: currentUserEmail || 'Usuário', password: '' } as AdminUser}
           onUpdateUser={() => {
             // Recarrega informações do usuário se necessário
+          }}
+        />;
+      case 'employees':
+        return <EmployeeManager 
+          employees={employees} 
+          setEmployees={setEmployees} 
+          onGoToReports={(type) => {
+            if (type) setSelectedReportType(type);
+            setCurrentView('reports');
           }}
         />;
       default:
@@ -586,10 +600,11 @@ const App: React.FC = () => {
           <NavItem id="fleet" label="Manutenções" icon={Wrench} />
 
           <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
-            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Configurações</span>
+            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Empresa</span>
           </div>
           <NavItem id="accountPlan" label="Plano de Contas" icon={BookOpen} />
-          <NavItem id="company-settings" label="Empresa" icon={Building2} />
+          <NavItem id="employees" label="Funcionários" icon={Users} />
+          <NavItem id="company-settings" label="Configurações" icon={Building2} />
         </nav>
 
         <div className="p-4 border-t border-slate-800">
@@ -621,12 +636,13 @@ const App: React.FC = () => {
             {currentView === 'reports' && 'Módulo de Relatórios Gerenciais'}
             {currentView === 'fleet' && 'Controle de Máquinas / Linha Amarela'}
             {currentView === 'company-vehicles' && 'Controle de Veículos da Empresa'}
-            {currentView === 'company-settings' && 'Configurações da Empresa'}
+            {currentView === 'company-settings' && 'Configurações'}
             {currentView === 'nf-import' && 'Importação de Notas Fiscais'}
             {currentView === 'bank-statements' && 'Importação de Extrato Bancário'}
             {currentView === 'ctr' && 'Controle de CTR (Transporte de Resíduos)'}
             {currentView === 'orcamentos' && 'Orçamentos'}
             {currentView === 'simples-nacional' && 'Simples Nacional — Anexo III'}
+            {currentView === 'employees' && 'Gestão de Funcionários Registrados'}
           </h1>
           <button
             onClick={async () => {

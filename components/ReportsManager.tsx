@@ -41,11 +41,12 @@ import {
   CorporateCardPayment,
   CompanyVehicle,
   CTR,
-  Orcamento
+  Orcamento,
+  Funcionario
 } from '../types';
 import Logo from './Logo';
 
-type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetAlerts' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement' | 'cashFlow' | 'ctr' | 'orcamentos';
+type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetAlerts' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement' | 'cashFlow' | 'ctr' | 'orcamentos' | 'employees';
 
 interface ReportsManagerProps {
   customers: Customer[];
@@ -69,6 +70,7 @@ interface ReportsManagerProps {
   companyVehicles: CompanyVehicle[];
   ctrs: CTR[];
   orcamentos?: Orcamento[];
+  employees?: Funcionario[];
 }
 
 const itemLabels: Record<keyof MaintenanceIntervals, string> = {
@@ -98,6 +100,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
   corporateCardPayments = [],
   ctrs = [],
   orcamentos = [],
+  employees = [],
   initialReport
 }) => {
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(initialReport || 'sales');
@@ -1777,10 +1780,26 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           rows
         };
       }
+      case 'employees': {
+        return {
+          title: 'Relatório Geral de Funcionários Registrados',
+          headerInfo: 'Listagem completa de funcionários com salários e encargos.',
+          headers: ['Nome Completo', 'Data Registro', 'Função', 'Salário Bruto', 'Diferença P/F', 'Observações'],
+          rows: employees.map(e => [
+            e.nomeCompleto,
+            formatDateDisplay(e.dataRegistro),
+            e.funcao,
+            formatCurrency(e.salarioBruto),
+            formatCurrency(e.diferencaPf || 0),
+            e.observacao || '---'
+          ]),
+          total: employees.reduce((acc, e) => acc + e.salarioBruto + (e.diferencaPf || 0), 0)
+        };
+      }
       default:
         return null;
     }
-  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, selectedCardId, statusFilter, agendaStatus, agendaCategory, corporateCards, corporateCardPayments, ctrs, orcamentos]);
+  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, selectedCardId, statusFilter, agendaStatus, agendaCategory, corporateCards, corporateCardPayments, ctrs, orcamentos, employees]);
 
   return (
     <div className="space-y-8">
@@ -1826,7 +1845,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               <div className="relative group">
                 <select
                   className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-blue-200 transition-all appearance-none cursor-pointer"
-                  value={['customers', 'vendors', 'customersSummary', 'vendorsSummary', 'banks', 'accountCategoriesList', 'agenda', 'ctr', 'orcamentos'].includes(selectedReport || '') ? selectedReport || '' : ''}
+                  value={['customers', 'vendors', 'customersSummary', 'vendorsSummary', 'banks', 'accountCategoriesList', 'agenda', 'ctr', 'orcamentos', 'employees'].includes(selectedReport || '') ? selectedReport || '' : ''}
                   onChange={(e) => {
                     setSelectedReport(e.target.value as ReportType);
                     setSelectedEquipmentId('all');
@@ -1837,6 +1856,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   <option value="customersSummary">📝 Listagem de Clientes (Resumo)</option>
                   <option value="vendors">🚚 Relatório Geral de Fornecedores</option>
                   <option value="vendorsSummary">📝 Listagem de Fornecedores (Resumo)</option>
+                  <option value="employees">👷 Relatório de Funcionários</option>
 
                   <option value="accountCategoriesList">📖 PLANO DE CONTAS</option>
                   <option value="banks">🏛️ Contas Bancárias</option>
@@ -1952,7 +1972,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   </div>
                 )}
 
-                {['cashFlow', 'dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory', 'cardFees', 'fleetAlerts', 'ctr', 'orcamentos'].includes(selectedReport) && (
+                {['cashFlow', 'dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory', 'cardFees', 'fleetAlerts', 'ctr', 'orcamentos', 'employees'].includes(selectedReport) && (
                   <>
                     {['dre', 'sales', 'receivables', 'receivablesPending'].includes(selectedReport) && (
                       <div className="flex-1 space-y-2">
@@ -2614,7 +2634,14 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                   k === 1 ? 'w-full min-w-[200px]' :
                                     k === 2 ? 'w-[120px]' :
                                       k === 3 ? 'w-[120px]' :
-                                        k === 4 ? 'w-[150px]' : ''
+                                      k === 4 ? 'w-[150px]' : ''
+                                ) : selectedReport === 'employees' ? (
+                                  k === 0 ? 'w-full text-left' :
+                                  k === 1 ? 'w-[100px] text-left' :
+                                  k === 2 ? 'w-[150px] text-left' :
+                                  k === 3 ? 'w-[120px] text-right' :
+                                  k === 4 ? 'w-[120px] text-right' :
+                                  k === 5 ? 'w-[180px] text-left' : ''
                                 ) : selectedReport === 'accountCategoriesList' ? (
                                   k === 0 ? 'w-[150px]' :
                                     k === 1 ? 'w-full' :
@@ -2871,7 +2898,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                 ${isBalance ? 'bg-slate-50/50 font-black text-slate-900 border-l border-slate-200' : ''}
                                  ${isTotalMonthRow ? 'bg-amber-500/10' : ''}
                                  ${isSubtotalRow && j === (isSectionHeader ? 0 : row.length - 1) ? 'text-right font-black border-l-2 border-slate-900' : ''}
-                                  ${(selectedReport === 'sales' && j === 5) || (selectedReport === 'customerStatement' && [2, 3, 4, 5].includes(j)) || (selectedReport === 'receivables' && j === 7) || (selectedReport === 'expensesPending' && j === 5) || (selectedReport === 'payments' && j === 6) || (selectedReport === 'receivablesPending' && j === 5) || (selectedReport === 'corporateCard' && j === 4) || (selectedReport === 'cardFees' && [4, 5, 6].includes(j)) || (selectedReport === 'bankStatement' && [2, 3, 4].includes(j)) ? 'text-right' : 'text-left'}
+                                  ${(selectedReport === 'sales' && j === 5) || (selectedReport === 'customerStatement' && [2, 3, 4, 5].includes(j)) || (selectedReport === 'receivables' && j === 7) || (selectedReport === 'expensesPending' && j === 5) || (selectedReport === 'payments' && j === 6) || (selectedReport === 'receivablesPending' && j === 5) || (selectedReport === 'corporateCard' && j === 4) || (selectedReport === 'cardFees' && [4, 5, 6].includes(j)) || (selectedReport === 'bankStatement' && [2, 3, 4].includes(j)) || (selectedReport === 'employees' && [3, 4].includes(j)) ? 'text-right' : 'text-left'}
                                  ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 4 ? 'text-right' : ''}
                                  ${(selectedReport === 'accountCategoriesList' || selectedReport === 'dre') && j === 0 ? 'w-[120px] pl-8 font-mono text-slate-500 font-bold' : ''}
                                  ${selectedReport === 'payments' ? (
@@ -2946,7 +2973,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                   ? 'TOTAL DO FATURAMENTO:'
                                   : selectedReport === 'customerStatement'
                                     ? 'Total a Receber no Período:'
-                                    : 'TOTAL DE DESPESAS:'}
+                                    : selectedReport === 'employees'
+                                      ? 'TOTAL GERAL (SALÁRIOS + DIFERENÇA):'
+                                      : 'TOTAL DE DESPESAS:'}
                       </td>
                       <td className={`px-4 py-5 text-xl whitespace-nowrap text-right ${reportContent.closingBalance !== undefined && reportContent.closingBalance < 0 ? 'text-rose-600' : 'text-slate-900 underline underline-offset-8 decoration-slate-300'}`}>
                         {formatCurrency(reportContent.closingBalance ?? reportContent.total ?? 0)}
