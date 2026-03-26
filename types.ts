@@ -8,7 +8,7 @@ export interface CustomerInteraction {
 export interface FinancialYield {
   id: string;
   accountPlanId: string;
-  bankAccountId: string;
+  bankAccountId: string | null;
   amount: number;
   date: string;
   description: string;

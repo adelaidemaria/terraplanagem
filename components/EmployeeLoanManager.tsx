@@ -5,11 +5,13 @@ import {
   DollarSign, Calendar, User, Building2, FileText, CheckCircle,
   CreditCard, Banknote, ChevronDown, ChevronUp, Hash
 } from 'lucide-react';
-import { EmprestimoFuncionario, EmprestimoParcela, Funcionario, BankAccount, AccountPlan } from '../types';
+import { EmprestimoFuncionario, EmprestimoParcela, Funcionario, BankAccount, AccountPlan, FinancialYield } from '../types';
 
 interface EmployeeLoanManagerProps {
   loans: EmprestimoFuncionario[];
   setLoans: React.Dispatch<React.SetStateAction<EmprestimoFuncionario[]>>;
+  yields: FinancialYield[];
+  setYields: React.Dispatch<React.SetStateAction<FinancialYield[]>>;
   employees: Funcionario[];
   bankAccounts: BankAccount[];
   accountPlan: AccountPlan[];
@@ -41,7 +43,7 @@ const parseCurrency = (val: string) => {
 };
 
 const EmployeeLoanManager: React.FC<EmployeeLoanManagerProps> = ({
-  loans, setLoans, employees, bankAccounts, accountPlan, onNavigateToReports
+  loans, setLoans, yields, setYields, employees, bankAccounts, accountPlan, onNavigateToReports
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState(() => {
@@ -242,8 +244,37 @@ const EmployeeLoanManager: React.FC<EmployeeLoanManagerProps> = ({
 
     if (editingId) {
       setLoans(prev => prev.map(l => l.id === editingId ? loanData : l));
+      
+      // Update the main yield if it exists
+      setYields(prev => prev.map(y => {
+        if (y.description.includes(`(Ref: ${editingId})`) && y.description.startsWith('SAÍDA EMPRÉSTIMO:')) {
+          return {
+            ...y,
+            amount: loanData.valorEmprestimo,
+            date: loanData.dataEmprestimo,
+            bankAccountId: loanData.bancoSaidaId || y.bankAccountId,
+            accountPlanId: loanData.accountPlanId || y.accountPlanId,
+            description: `SAÍDA EMPRÉSTIMO: ${loanData.funcionarioNome} (Ref: ${loanData.id})`
+          };
+        }
+        return y;
+      }));
     } else {
       setLoans(prev => [loanData, ...prev]);
+
+      // Create a financial movement for the loan exit
+      if (loanData.bancoSaidaId && loanData.accountPlanId) {
+        const newYield: FinancialYield = {
+          id: crypto.randomUUID(),
+          bankAccountId: loanData.bancoSaidaId,
+          accountPlanId: loanData.accountPlanId,
+          amount: loanData.valorEmprestimo,
+          date: loanData.dataEmprestimo,
+          description: `SAÍDA EMPRÉSTIMO: ${loanData.funcionarioNome} (Ref: ${loanData.id})`,
+          createdAt: Date.now()
+        };
+        setYields(prev => [newYield, ...prev]);
+      }
     }
 
     setIsModalOpen(false);
@@ -252,6 +283,8 @@ const EmployeeLoanManager: React.FC<EmployeeLoanManagerProps> = ({
 
   const handleDelete = (id: string) => {
     setLoans(prev => prev.filter(l => l.id !== id));
+    // Remove all associated financial movements
+    setYields(prev => prev.filter(y => !y.description.includes(`(Ref: ${id})`)));
     setDeleteConfirmId(null);
   };
 
@@ -291,6 +324,37 @@ const EmployeeLoanManager: React.FC<EmployeeLoanManagerProps> = ({
 
     const updatedLoan = { ...selectedLoanForBaixa, parcelas: updatedParcelas };
     setLoans(prev => prev.map(l => l.id === updatedLoan.id ? updatedLoan : l));
+    
+    // Create financial movement if paid via bank
+    if (baixaTipo === 'Banco' && baixaBancoId && selectedLoanForBaixa.accountPlanId) {
+      const newYield: FinancialYield = {
+        id: crypto.randomUUID(),
+        bankAccountId: baixaBancoId,
+        accountPlanId: selectedLoanForBaixa.accountPlanId,
+        amount: baixaValorPago,
+        date: baixaDataPagamento,
+        description: `RECBTO EMPRÉSTIMO: ${selectedLoanForBaixa.funcionarioNome} / Parcela ${updatedParcelas.find(p => p.id === baixaParcelaId)?.numero} (Ref: ${baixaParcelaId})`,
+        createdAt: Date.now()
+      };
+      setYields(prev => [newYield, ...prev]);
+    } else if (baixaTipo === 'Desconto Salário') {
+      const salaryAccount = accountPlan.find(p => p.accountNumber === '2.02.02.01');
+      if (salaryAccount) {
+        const parcela = updatedParcelas.find(p => p.id === baixaParcelaId);
+        const qtdParc = selectedLoanForBaixa.qtdParcelas;
+        const newYield: FinancialYield = {
+          id: crypto.randomUUID(),
+          bankAccountId: null, // No bank movement
+          accountPlanId: salaryAccount.id,
+          amount: baixaValorPago,
+          date: baixaDataPagamento,
+          description: `DESC. SALÁRIO EMPRÉSTIMO: ${selectedLoanForBaixa.funcionarioNome} – Parc ${parcela?.numero}/${qtdParc} (Ref: ${baixaParcelaId})`,
+          createdAt: Date.now()
+        };
+        setYields(prev => [newYield, ...prev]);
+      }
+    }
+
     setSelectedLoanForBaixa(updatedLoan);
     setBaixaParcelaId(null);
   };
@@ -311,6 +375,10 @@ const EmployeeLoanManager: React.FC<EmployeeLoanManagerProps> = ({
     });
     const updatedLoan = { ...loan, parcelas: updatedParcelas };
     setLoans(prev => prev.map(l => l.id === updatedLoan.id ? updatedLoan : l));
+    
+    // Remove associated financial movement
+    setYields(prev => prev.filter(y => !y.description.includes(parcelaId)));
+
     if (selectedLoanForBaixa?.id === loan.id) {
       setSelectedLoanForBaixa(updatedLoan);
     }
@@ -844,7 +912,7 @@ const EmployeeLoanManager: React.FC<EmployeeLoanManagerProps> = ({
                                 value={baixaTipo}
                                 onChange={(e) => setBaixaTipo(e.target.value as any)}
                               >
-                                <option value="Banco">🏦 Banco (Sai do Banco)</option>
+                                <option value="Banco">🏦 Banco (Entrada Banco)</option>
                                 <option value="Desconto Salário">💰 Desconto Salário</option>
                               </select>
                             </div>

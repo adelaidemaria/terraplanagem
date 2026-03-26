@@ -303,14 +303,31 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         };
       }
       case 'expensesByMonth': {
-        const filtered = expenses.filter(e => {
+        const filteredExps = expenses.filter(e => {
           const matchesCategory = selectedCategoryId === 'all' || e.accountPlanId === selectedCategoryId;
           const d = new Date(e.date).getTime();
           return matchesCategory && d >= startTimestamp && d <= endTimestamp;
-        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        });
 
-        const expensesByMonthMap = new Map<string, Expense[]>();
-        filtered.forEach(e => {
+        const filteredYieldsAsExps = (yields || []).filter(y => {
+          const ap = accountPlan.find(p => p.id === y.accountPlanId);
+          if (ap?.type !== 'Despesa') return false;
+          const matchesCategory = selectedCategoryId === 'all' || y.accountPlanId === selectedCategoryId;
+          const d = new Date(y.date).getTime();
+          return matchesCategory && d >= startTimestamp && d <= endTimestamp;
+        }).map(y => ({
+          id: y.id,
+          date: y.date,
+          accountPlanId: y.accountPlanId,
+          vendorName: (y.description || '').split(' (Ref:')[0],
+          totalValue: y.amount,
+          docNumber: 'S/N',
+        }));
+
+        const allExpensesMerged = [...filteredExps, ...filteredYieldsAsExps].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        const expensesByMonthMap = new Map<string, any[]>();
+        allExpensesMerged.forEach(e => {
           let monthKey = '';
           if (e.date && e.date.includes('-')) {
             const parts = e.date.split('-');
@@ -332,7 +349,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           }
 
           // Agrupar por Categoria (Account Plan) dentro do mês
-          const byCategoryMap = new Map<string, Expense[]>();
+          const byCategoryMap = new Map<string, any[]>();
           monthExps.forEach(e => {
             const catId = e.accountPlanId;
             const apEntry = accountPlan.find(ap => ap.id === catId);
@@ -368,18 +385,35 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           title: `Relatório de Despesas por Conta - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
           headers: ['Data Doc', 'Despesa', 'Doc', 'Fornecedor', 'Valor'],
           rows: rows,
-          total: filtered.reduce((acc, curr) => acc + curr.totalValue, 0)
+          total: allExpensesMerged.reduce((acc, curr) => acc + curr.totalValue, 0)
         };
       }
       case 'expensesByMonthFlat': {
-        const filtered = expenses.filter(e => {
+        const filteredExps = expenses.filter(e => {
           const matchesCategory = selectedCategoryId === 'all' || e.accountPlanId === selectedCategoryId;
           const d = new Date(e.date).getTime();
           return matchesCategory && d >= startTimestamp && d <= endTimestamp;
-        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        });
 
-        const expensesByMonthMap = new Map<string, Expense[]>();
-        filtered.forEach(e => {
+        const filteredYieldsAsExps = (yields || []).filter(y => {
+          const ap = accountPlan.find(p => p.id === y.accountPlanId);
+          if (ap?.type !== 'Despesa') return false;
+          const matchesCategory = selectedCategoryId === 'all' || y.accountPlanId === selectedCategoryId;
+          const d = new Date(y.date).getTime();
+          return matchesCategory && d >= startTimestamp && d <= endTimestamp;
+        }).map(y => ({
+          id: y.id,
+          date: y.date,
+          accountPlanId: y.accountPlanId,
+          vendorName: (y.description || '').split(' (Ref:')[0],
+          totalValue: y.amount,
+          docNumber: 'S/N',
+        }));
+
+        const allExpensesMerged = [...filteredExps, ...filteredYieldsAsExps].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        const expensesByMonthMap = new Map<string, any[]>();
+        allExpensesMerged.forEach(e => {
           let monthKey = '';
           if (e.date && e.date.includes('-')) {
             const parts = e.date.split('-');
@@ -423,7 +457,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           title: `Relatório de Despesas por Mês - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
           headers: ['Data Doc', 'Despesa', 'Doc', 'Fornecedor', 'Valor'],
           rows: rows,
-          total: filtered.reduce((acc, curr) => acc + curr.totalValue, 0)
+          total: allExpensesMerged.reduce((acc, curr) => acc + curr.totalValue, 0)
         };
       }
       case 'customerStatement': {
@@ -788,6 +822,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           .filter(y => {
             if (y.bankAccountId !== selectedBankId || new Date(y.date).getTime() >= startTimestamp) return false;
             if (y.description.startsWith('TAXA CARTÃO Ref:')) return false;
+            if (y.description.startsWith('SAÍDA EMPRÉSTIMO:')) return false;
+            if (y.description.startsWith('RECBTO EMPRÉSTIMO:')) return true;
             const ap = accountPlan.find(p => p.id === y.accountPlanId);
             return ap?.type !== 'Despesa';
           })
@@ -797,6 +833,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           .filter(y => {
             if (y.bankAccountId !== selectedBankId || new Date(y.date).getTime() >= startTimestamp) return false;
             if (y.description.startsWith('TAXA CARTÃO Ref:')) return false;
+            if (y.description.startsWith('SAÍDA EMPRÉSTIMO:')) return true;
+            if (y.description.startsWith('RECBTO EMPRÉSTIMO:')) return false;
             const ap = accountPlan.find(p => p.id === y.accountPlanId);
             return ap?.type === 'Despesa';
           })
@@ -857,12 +895,15 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           .filter(y => y.bankAccountId === selectedBankId && !y.description.startsWith('TAXA CARTÃO Ref:') && new Date(y.date).getTime() >= startTimestamp && new Date(y.date).getTime() <= endTimestamp)
           .map(y => {
             const ap = accountPlan.find(p => p.id === y.accountPlanId);
-            const isExpense = ap?.type === 'Despesa';
+            const isLoanExit = y.description.startsWith('SAÍDA EMPRÉSTIMO:');
+            const isLoanReturn = y.description.startsWith('RECBTO EMPRÉSTIMO:');
+            const isExpense = isLoanExit || (!isLoanReturn && ap?.type === 'Despesa');
+            
             return {
               date: y.date,
               credit: isExpense ? 0 : y.amount,
               debit: isExpense ? y.amount : 0,
-              desc: `MOV. FINANCEIRA: ${ap ? ap.description : 'S/N'} - ${y.description || ''}`
+              desc: `MOV. FINANCEIRA: ${ap ? ap.description : 'S/N'} - ${(y.description || '').split(' (Ref:')[0]}`
             };
           });
 
@@ -1433,6 +1474,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             .filter(y => {
               if (y.bankAccountId !== bank.id || new Date(y.date).getTime() > now) return false;
               if (y.description.startsWith('TAXA CARTÃO Ref:')) return false;
+              if (y.description.startsWith('SAÍDA EMPRÉSTIMO:')) return false;
+              if (y.description.startsWith('RECBTO EMPRÉSTIMO:')) return true;
               const ap = accountPlan.find(p => p.id === y.accountPlanId);
               return ap?.type !== 'Despesa';
             })
@@ -1442,6 +1485,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             .filter(y => {
               if (y.bankAccountId !== bank.id || new Date(y.date).getTime() > now) return false;
               if (y.description.startsWith('TAXA CARTÃO Ref:')) return false;
+              if (y.description.startsWith('SAÍDA EMPRÉSTIMO:')) return true;
+              if (y.description.startsWith('RECBTO EMPRÉSTIMO:')) return false;
               const ap = accountPlan.find(p => p.id === y.accountPlanId);
               return ap?.type === 'Despesa';
             })
@@ -1596,6 +1641,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         (yields || []).filter(y => {
           const d = new Date(y.date).getTime();
           if (d < startTimestamp || d > endTimestamp) return false;
+          if (y.description.startsWith('RECBTO EMPRÉSTIMO:')) return true;
+          if (y.description.startsWith('SAÍDA EMPRÉSTIMO:')) return false;
           const ap = accountPlan.find(p => p.id === y.accountPlanId);
           return ap?.type === 'Receita';
         }).reduce((acc, y) => acc + y.amount, 0);
@@ -1609,6 +1656,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         (yields || []).filter(y => {
           const d = new Date(y.date).getTime();
           if (d < startTimestamp || d > endTimestamp) return false;
+          if (y.description.startsWith('SAÍDA EMPRÉSTIMO:')) return true;
+          if (y.description.startsWith('RECBTO EMPRÉSTIMO:')) return false;
           const ap = accountPlan.find(p => p.id === y.accountPlanId);
           return ap?.type === 'Despesa';
         }).reduce((acc, y) => acc + y.amount, 0);

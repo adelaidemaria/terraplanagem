@@ -518,6 +518,8 @@ const App: React.FC = () => {
         return <EmployeeLoanManager
           loans={employeeLoans}
           setLoans={setEmployeeLoans}
+          yields={yields}
+          setYields={setYields}
           employees={employees}
           bankAccounts={bankAccounts}
           accountPlan={accountPlan}

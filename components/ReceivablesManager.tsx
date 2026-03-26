@@ -180,14 +180,17 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
 
     setPayments(newPayments);
 
+    const sale = sales.find(s => s.id === selectedSaleId);
+
     if (setYields) {
       const yieldRefId = paymentData.id;
       if (actualFee > 0) {
+        const nfDisplay = sale?.nfNumber ? `NF: ${sale.nfNumber}` : 'S/NF';
         const yieldData: FinancialYield = {
-          id: crypto.randomUUID(), // Always generate a new ID to avoid conflicts, or we could update an existing one finding by description
+          id: crypto.randomUUID(),
           accountPlanId: feeAccountId,
           bankAccountId: bankAccountId,
-          description: `TAXA CARTÃO Ref:${yieldRefId}`,
+          description: `TAXA CARTÃO ${nfDisplay} (Ref: ${yieldRefId})`,
           amount: actualFee,
           date: payDate,
           createdAt: Date.now()
@@ -195,17 +198,16 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
 
         // Remove old yield attached to this payment
         setYields(prev => {
-          const filtered = prev.filter(y => !y.description.includes(`Ref:${yieldRefId}`));
+          const filtered = prev.filter(y => !y.description.includes(yieldRefId));
           return [...filtered, yieldData];
         });
       } else {
         // If there was no fee but it was an edit, remove any existing yield
-        setYields(prev => prev.filter(y => !y.description.includes(`Ref:${yieldRefId}`)));
+        setYields(prev => prev.filter(y => !y.description.includes(yieldRefId)));
       }
     }
 
     // Update sale status (calc all payments for this sale)
-    const sale = sales.find(s => s.id === selectedSaleId);
     if (sale) {
       if (sale.installmentsList && sale.installmentsList.length > 0) {
         let allPaid = true;
@@ -269,7 +271,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
     setPayments(updatedPayments);
 
     if (setYields) {
-      setYields(prev => prev.filter(y => !y.description.includes(`Ref:${pId}`)));
+      setYields(prev => prev.filter(y => !y.description.includes(pId)));
     }
 
     const sale = sales.find(s => s.id === sId);
