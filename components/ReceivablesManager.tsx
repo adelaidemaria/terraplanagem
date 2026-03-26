@@ -26,6 +26,21 @@ const formatDateDisplay = (dateStr: string | undefined) => {
   return `${day}/${month}/${year}`;
 };
 
+const getStatusLabel = (item: { balance: number; refDate: string }) => {
+  if (item.balance <= 0.01) return 'PAGO';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dueDate = new Date(item.refDate + 'T12:00:00');
+  dueDate.setHours(0, 0, 0, 0);
+  return dueDate < today ? 'PENDENTE' : 'A RECEBER';
+};
+
+const getStatusColor = (item: { balance: number; refDate: string }) => {
+  const label = getStatusLabel(item);
+  if (label === 'PAGO') return 'bg-emerald-100 text-emerald-700';
+  return label === 'PENDENTE' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700';
+};
+
 const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments, setPayments, setSales, customers, bankAccounts, yields, setYields, accountPlan, onNavigateToReports }) => {
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString('en-CA');
@@ -429,60 +444,72 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
                     <td className="px-6 py-4 font-black text-rose-600">{formatCurrency(item.balance)}</td>
                     <td className="px-6 py-4 font-bold text-slate-500">{formatDateDisplay(item.refDate)}</td>
                     <td className="px-6 py-4 text-right">
-                      {item.balance > 0.01 ? (
-                        <button onClick={() => {
-                          setSelectedSaleId(item.saleId);
-                          setSelectedInstallmentId(item.installmentId || null);
-                          setEditingPaymentId(null);
-                          setPayAmount(item.balance);
-                          setPayMethod(item.sale.paymentMethod || 'PIX');
-                          setPayFee(0);
+                      <div className="flex items-center justify-end space-x-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getStatusColor(item)}`}>
+                          {getStatusLabel(item)}
+                        </span>
+                        {item.balance > 0.01 ? (
+                          <button onClick={() => {
+                            setSelectedSaleId(item.saleId);
+                            setSelectedInstallmentId(item.installmentId || null);
+                            setEditingPaymentId(null);
+                            setPayAmount(item.balance);
+                            setPayMethod(item.sale.paymentMethod || 'PIX');
+                            setPayFee(0);
 
-                          // Try to auto-select card fee account
-                          if (accountPlan) {
-                            const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
-                            if (cardAccount) setFeeAccountId(cardAccount.id);
-                            else {
-                              const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
-                              if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
-                              else setFeeAccountId('');
+                            // Try to auto-select card fee account
+                            if (accountPlan) {
+                              const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
+                              if (cardAccount) setFeeAccountId(cardAccount.id);
+                              else {
+                                const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
+                                if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
+                                else setFeeAccountId('');
+                              }
+                            } else {
+                              setFeeAccountId('');
                             }
-                          } else {
-                            setFeeAccountId('');
-                          }
 
-                          setCurrentReceiptUrl(undefined);
-                          setUploadError(null);
-                          setIsModalOpen(true);
-                        }} className="bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center ml-auto transition-colors">
-                          <ArrowDownCircle size={16} className="mr-1" /> DAR BAIXA
-                        </button>
-                      ) : (
-                        <div className="flex items-center justify-end space-x-2">
-                          <span className="px-3 py-1.5 rounded-lg text-sm font-bold text-slate-400 bg-slate-100 flex items-center h-8">BAIXADO</span>
-                          {(() => {
-                            const p = payments.filter(pay => pay.saleId === item.saleId && (!item.installmentId || pay.installmentId === item.installmentId)).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-                            if (!p) return null;
-                            return (
-                              <div className="flex items-center space-x-1">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const sale = sales.find(s => s.id === p.saleId);
-                                    if (!sale) return;
-                                    setEditingPaymentId(p.id);
-                                    setSelectedSaleId(p.saleId);
-                                    setSelectedInstallmentId(p.installmentId || null);
-                                    setPayAmount(p.amount);
-                                    setPayFee(p.fee || 0);
-                                    setPayDate(p.date);
-                                    setPayMethod(p.method);
-                                    setBankAccountId(p.bankAccountId);
+                            setCurrentReceiptUrl(undefined);
+                            setUploadError(null);
+                            setIsModalOpen(true);
+                          }} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center transition-colors">
+                            <ArrowDownCircle size={16} className="mr-1" /> DAR BAIXA
+                          </button>
+                        ) : (
+                          <div className="flex items-center space-x-2">
+                            {(() => {
+                              const p = payments.filter(pay => pay.saleId === item.saleId && (!item.installmentId || pay.installmentId === item.installmentId)).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                              if (!p) return null;
+                              return (
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const sale = sales.find(s => s.id === p.saleId);
+                                      if (!sale) return;
+                                      setEditingPaymentId(p.id);
+                                      setSelectedSaleId(p.saleId);
+                                      setSelectedInstallmentId(p.installmentId || null);
+                                      setPayAmount(p.amount);
+                                      setPayFee(p.fee || 0);
+                                      setPayDate(p.date);
+                                      setPayMethod(p.method);
+                                      setBankAccountId(p.bankAccountId);
 
-                                    if (setYields && yields && p.fee && p.fee > 0) {
-                                      const existingYield = yields.find(y => y.description.includes(`Ref:${p.id}`));
-                                      if (existingYield) setFeeAccountId(existingYield.accountPlanId);
-                                      else if (accountPlan) {
+                                      if (setYields && yields && p.fee && p.fee > 0) {
+                                        const existingYield = yields.find(y => y.description.includes(`Ref:${p.id}`));
+                                        if (existingYield) setFeeAccountId(existingYield.accountPlanId);
+                                        else if (accountPlan) {
+                                          const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
+                                          if (cardAccount) setFeeAccountId(cardAccount.id);
+                                          else {
+                                            const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
+                                            if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
+                                            else setFeeAccountId('');
+                                          }
+                                        }
+                                      } else if (accountPlan) {
                                         const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
                                         if (cardAccount) setFeeAccountId(cardAccount.id);
                                         else {
@@ -491,40 +518,32 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ sales, payments
                                           else setFeeAccountId('');
                                         }
                                       }
-                                    } else if (accountPlan) {
-                                      const cardAccount = accountPlan.find(acc => acc.type === 'Despesa' && acc.accountNumber === '2.03.03.02');
-                                      if (cardAccount) setFeeAccountId(cardAccount.id);
-                                      else {
-                                        const genericCardAccount = accountPlan.find(acc => acc.type === 'Despesa' && (acc.description.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('cart') || acc.subcategory.toLowerCase().includes('taxa')));
-                                        if (genericCardAccount) setFeeAccountId(genericCardAccount.id);
-                                        else setFeeAccountId('');
-                                      }
-                                    }
 
-                                    setCurrentReceiptUrl(p.receiptUrl);
-                                    setUploadError(null);
-                                    setIsModalOpen(true);
-                                  }}
-                                  className="p-1.5 h-8 flex items-center justify-center bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
-                                  title="Editar"
-                                >
-                                  <Edit size={14} />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDeleteConfirmId(p.id);
-                                  }}
-                                  className="p-1.5 h-8 flex items-center justify-center bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-colors cursor-pointer"
-                                  title="Estornar"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
+                                      setCurrentReceiptUrl(p.receiptUrl);
+                                      setUploadError(null);
+                                      setIsModalOpen(true);
+                                    }}
+                                    className="p-1.5 h-8 flex items-center justify-center bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
+                                    title="Editar"
+                                  >
+                                    <Edit size={14} />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDeleteConfirmId(p.id);
+                                    }}
+                                    className="p-1.5 h-8 flex items-center justify-center bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-colors cursor-pointer"
+                                    title="Estornar"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

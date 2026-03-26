@@ -20,6 +20,22 @@ const formatDateDisplay = (dateStr: string | undefined) => {
     return `${day}/${month}/${year}`;
 };
 
+const getStatusLabel = (expense: Expense) => {
+  if (expense.status === 'Pago') return 'PAGO';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const refDate = expense.dueDate || expense.date;
+  const dueDate = new Date(refDate + 'T12:00:00');
+  dueDate.setHours(0, 0, 0, 0);
+  return dueDate < today ? 'PENDENTE' : 'A PAGAR';
+};
+
+const getStatusColor = (expense: Expense) => {
+  if (expense.status === 'Pago') return 'bg-emerald-100 text-emerald-700';
+  const label = getStatusLabel(expense);
+  return label === 'PENDENTE' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700';
+};
+
 const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses, vendors, bankAccounts, onNavigateToReports }) => {
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString('en-CA');
@@ -284,56 +300,60 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                                         <td className="px-6 py-4 font-black text-rose-600">{formatCurrency(expense.totalValue - (expense.amountPaid || 0))}</td>
                                         <td className="px-6 py-4 text-sm font-bold text-slate-600">{formatDateDisplay(expense.dueDate)}</td>
                                         <td className="px-6 py-4 text-right">
-                                            {expense.status === 'Pendente' ? (
-                                                <button onClick={() => {
-                                                    setSelectedExpenseId(expense.id);
-                                                    setPayMethod(expense.paymentMethod || 'PIX');
-                                                    setPayDate(new Date().toLocaleDateString('en-CA'));
-                                                    setBankAccountId('');
-                                                    const saldoAberto = expense.totalValue - (expense.amountPaid || 0);
-                                                    setPayValue(saldoAberto > 0 ? saldoAberto : expense.totalValue);
-                                                    setIsModalOpen(true);
-                                                    setIsInterestFee(false);
-                                                    setIsEditingRecent(false);
-                                                    setCurrentReceiptUrl(expense.paymentReceiptUrl);
-                                                    setUploadError(null);
-                                                }} className="bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center ml-auto transition-colors">
-                                                    <ArrowUpCircle size={16} className="mr-1" /> PAGAR
-                                                </button>
-                                            ) : (
-                                                <div className="flex items-center justify-end space-x-2">
-                                                    <span className="px-3 py-1.5 rounded-lg text-sm font-bold text-slate-400 bg-slate-100 flex items-center h-8">BAIXADO</span>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setSelectedExpenseId(expense.id);
-                                                            setPayDate(expense.paymentDate || expense.date);
-                                                            setPayMethod(expense.paymentMethod || '');
-                                                            setBankAccountId(expense.bankAccountId || '');
-                                                            setPayValue(expense.amountPaid || expense.totalValue);
-                                                            setIsModalOpen(true);
-                                                            setIsInterestFee(!!expense.interestAmount && expense.interestAmount > 0);
-                                                            setIsEditingRecent(true);
-                                                            setCurrentReceiptUrl(expense.paymentReceiptUrl);
-                                                            setUploadError(null);
-                                                        }}
-                                                        className="p-1.5 h-8 flex items-center justify-center bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
-                                                        title="Editar Baixa"
-                                                    >
-                                                        <Edit size={14} />
+                                            <div className="flex items-center justify-end space-x-3">
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getStatusColor(expense)}`}>
+                                                    {getStatusLabel(expense)}
+                                                </span>
+                                                {expense.status === 'Pendente' ? (
+                                                    <button onClick={() => {
+                                                        setSelectedExpenseId(expense.id);
+                                                        setPayMethod(expense.paymentMethod || 'PIX');
+                                                        setPayDate(new Date().toLocaleDateString('en-CA'));
+                                                        setBankAccountId('');
+                                                        const saldoAberto = expense.totalValue - (expense.amountPaid || 0);
+                                                        setPayValue(saldoAberto > 0 ? saldoAberto : expense.totalValue);
+                                                        setIsModalOpen(true);
+                                                        setIsInterestFee(false);
+                                                        setIsEditingRecent(false);
+                                                        setCurrentReceiptUrl(expense.paymentReceiptUrl);
+                                                        setUploadError(null);
+                                                    }} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center transition-colors">
+                                                        <ArrowUpCircle size={16} className="mr-1" /> PAGAR
                                                     </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setDeleteConfirmId(expense.id);
-                                                        }}
-                                                        className="p-1.5 h-8 flex items-center justify-center bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-colors cursor-pointer"
-                                                        title="Estornar Baixa"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
-                                            )}
+                                                ) : (
+                                                    <div className="flex items-center space-x-2">
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedExpenseId(expense.id);
+                                                                setPayDate(expense.paymentDate || expense.date);
+                                                                setPayMethod(expense.paymentMethod || '');
+                                                                setBankAccountId(expense.bankAccountId || '');
+                                                                setPayValue(expense.amountPaid || expense.totalValue);
+                                                                setIsModalOpen(true);
+                                                                setIsInterestFee(!!expense.interestAmount && expense.interestAmount > 0);
+                                                                setIsEditingRecent(true);
+                                                                setCurrentReceiptUrl(expense.paymentReceiptUrl);
+                                                                setUploadError(null);
+                                                            }}
+                                                            className="p-1.5 h-8 flex items-center justify-center bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
+                                                            title="Editar Baixa"
+                                                        >
+                                                            <Edit size={14} />
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setDeleteConfirmId(expense.id);
+                                                            }}
+                                                            className="p-1.5 h-8 flex items-center justify-center bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-colors cursor-pointer"
+                                                            title="Estornar Baixa"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

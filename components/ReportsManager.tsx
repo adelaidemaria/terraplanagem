@@ -43,11 +43,12 @@ import {
   CTR,
   Orcamento,
   Funcionario,
-  EmprestimoFuncionario
+  EmprestimoFuncionario,
+  CompanyLoan
 } from '../types';
 import Logo from './Logo';
 
-type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetAlerts' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement' | 'cashFlow' | 'ctr' | 'orcamentos' | 'employees' | 'employeeLoans';
+type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetAlerts' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement' | 'cashFlow' | 'ctr' | 'orcamentos' | 'employees' | 'employeeLoans' | 'companyLoans';
 
 interface ReportsManagerProps {
   customers: Customer[];
@@ -73,6 +74,7 @@ interface ReportsManagerProps {
   orcamentos?: Orcamento[];
   employees?: Funcionario[];
   employeeLoans?: EmprestimoFuncionario[];
+  companyLoans?: CompanyLoan[];
 }
 
 const itemLabels: Record<keyof MaintenanceIntervals, string> = {
@@ -92,6 +94,16 @@ const formatDateDisplay = (dateStr: string | undefined) => {
   return `${day}/${month}/${year}`;
 };
 
+const getStatusLabel = (p: { status: string; vencimento: string }, type: 'payable' | 'receivable' = 'payable') => {
+  if (p.status === 'Pago' || p.status === 'CONCLUÍDO') return 'PAGO';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dueDate = new Date(p.vencimento + 'T12:00:00');
+  dueDate.setHours(0, 0, 0, 0);
+  if (dueDate < today) return 'PENDENTE';
+  return type === 'payable' ? 'A PAGAR' : 'A RECEBER';
+};
+
 const ReportsManager: React.FC<ReportsManagerProps> = ({
   customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, accountCategories, accountSubcategories, bankAccounts, bankTransfers,  yields = [],
   fleet,
@@ -104,6 +116,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
   orcamentos = [],
   employees = [],
   employeeLoans = [],
+  companyLoans = [],
   initialReport
 }) => {
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(initialReport || 'sales');
@@ -139,6 +152,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
   const [period, setPeriod] = useState<'current' | 'last' | '7days' | 'year' | 'custom' | 'today'>('current');
   const [agendaStatus, setAgendaStatus] = useState<'all' | 'pending' | 'scheduled' | 'completed'>('all');
   const [agendaCategory, setAgendaCategory] = useState<'all' | 'Lembrete' | 'Urgente'>('all');
+  const [selectedLoanId, setSelectedLoanId] = useState<string>('all');
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -290,13 +304,14 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         return {
           title: `Relatório de Contas a Pagar - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
           headerInfo: 'Listagem de despesas cadastradas que ainda não foram baixadas (pagas).',
-          headers: ['Tipo de Despesa', 'Fornecedor', 'Documento', 'Data Doc', 'Vencimento', 'Valor'],
+          headers: ['Tipo de Despesa', 'Fornecedor', 'Documento', 'Data Doc', 'Vencimento', 'Status', 'Valor'],
           rows: pending.map(e => [
             accountPlan.find(p => p.id === e.accountPlanId) ? `${accountPlan.find(p => p.id === e.accountPlanId)?.subcategory} / ${accountPlan.find(p => p.id === e.accountPlanId)?.description}` : '---',
             e.vendorName,
             e.docNumber || 'S/N',
             formatDateDisplay(e.date),
             e.dueDate ? formatDateDisplay(e.dueDate) : '---',
+            getStatusLabel({ status: e.status, vencimento: e.dueDate || e.date }, 'payable'),
             formatCurrency(e.totalValue - (e.amountPaid || 0))
           ]),
           total: pending.reduce((acc, e) => acc + (e.totalValue - (e.amountPaid || 0)), 0)
@@ -694,13 +709,14 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         return {
           title: `Relatório de Contas a Receber - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
           headerInfo: 'Listagem de faturamentos de serviços com saldo em aberto por parte dos clientes.',
-          headers: ['Data Emissão', 'Cliente', 'NF', 'Condição PG', 'Vencimento', 'Saldo a Receber'],
+          headers: ['Data Emissão', 'Cliente', 'NF', 'Condição PG', 'Vencimento', 'Status', 'Saldo a Receber'],
           rows: sorted.map(item => [
             formatDateDisplay(item.date),
             item.customerName,
             item.nf,
             item.condition,
             formatDateDisplay(item.dueDate),
+            getStatusLabel({ status: 'Pendente', vencimento: item.dueDate }, 'receivable'),
             formatCurrency(item.balance)
           ]),
           total: sorted.reduce((acc, item) => acc + item.balance, 0)
@@ -897,13 +913,17 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             const ap = accountPlan.find(p => p.id === y.accountPlanId);
             const isLoanExit = y.description.startsWith('SAÍDA EMPRÉSTIMO:');
             const isLoanReturn = y.description.startsWith('RECBTO EMPRÉSTIMO:');
-            const isExpense = isLoanExit || (!isLoanReturn && ap?.type === 'Despesa');
+            const isCompanyLoanCredit = y.description.startsWith('CRÉDITO EMPRÉSTIMO BANCÁRIO:');
+            const isCompanyLoanPayment = y.description.startsWith('PGTO PARCELA EMPRÉSTIMO:');
+            const isExpense = isLoanExit || isCompanyLoanPayment || (!isLoanReturn && !isCompanyLoanCredit && ap?.type === 'Despesa');
             
             return {
               date: y.date,
               credit: isExpense ? 0 : y.amount,
               debit: isExpense ? y.amount : 0,
-              desc: `MOV. FINANCEIRA: ${ap ? ap.description : 'S/N'} - ${(y.description || '').split(' (Ref:')[0]}`
+              desc: isCompanyLoanCredit || isCompanyLoanPayment
+                ? (y.description || '').split(' (Ref:')[0]
+                : `MOV. FINANCEIRA: ${ap ? ap.description : 'S/N'} - ${(y.description || '').split(' (Ref:')[0]}`
             };
           });
 
@@ -1304,8 +1324,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           total: cardPayments.reduce((acc, p) => acc + (p.fee || 0), 0)
         };
       }
-      case 'payments':
-        const filteredExpenses = expenses.filter(e => {
+      case 'payments': {
+        const filteredExps = expenses.filter(e => {
           const isCard = e.paymentMethod === 'Cartão Corporativo';
           const matchesCategory = selectedCategoryId === 'all' || e.accountPlanId === selectedCategoryId;
           
@@ -1317,7 +1337,39 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           if (!e.paymentDate) return false;
           const d = new Date(e.paymentDate).getTime();
           return matchesCategory && d >= startTimestamp && d <= endTimestamp && (e.status === 'Pago' || (e.amountPaid && e.amountPaid > 0));
-        }).sort((a, b) => {
+        });
+
+        const filteredYieldsAsPayments = (yields || []).filter(y => {
+          const ap = accountPlan.find(p => p.id === y.accountPlanId);
+          if (!ap || ap.type !== 'Despesa') return false;
+          const matchesCategory = selectedCategoryId === 'all' || y.accountPlanId === selectedCategoryId;
+          const d = new Date(y.date).getTime();
+          return matchesCategory && d >= startTimestamp && d <= endTimestamp;
+        }).map(y => {
+          const isLoanExit = y.description.startsWith('SAÍDA EMPRÉSTIMO:');
+          const isLoanPayment = y.description.startsWith('PGTO PARCELA EMPRÉSTIMO:');
+          const isCompanyLoanPayment = y.description.startsWith('PGTO PARCELA EMPRÉSTIMO') || y.description.includes('Parc');
+          
+          let vendor = (y.description || '').split(' (Ref:')[0];
+          if (isCompanyLoanPayment) vendor = "PGTO EMPRÉSTIMO BANCÁRIO";
+          if (isLoanExit) vendor = "SAÍDA EMPRÉSTIMO";
+
+          return {
+            id: y.id,
+            date: y.date,
+            dueDate: y.date,
+            paymentDate: y.date,
+            accountPlanId: y.accountPlanId,
+            vendorName: vendor,
+            totalValue: y.amount,
+            amountPaid: y.amount,
+            docNumber: 'S/N',
+            bankAccountId: y.bankAccountId,
+            paymentMethod: 'Transferência/Débito'
+          };
+        });
+
+        const allPaymentsMerged = [...filteredExps, ...filteredYieldsAsPayments].sort((a, b) => {
           const dateA = a.paymentMethod === 'Cartão Corporativo' ? a.date : (a.paymentDate || a.date);
           const dateB = b.paymentMethod === 'Cartão Corporativo' ? b.date : (b.paymentDate || b.date);
           return new Date(dateA).getTime() - new Date(dateB).getTime();
@@ -1326,9 +1378,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         return {
           title: `Pagamentos Realizados - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
           headers: ['Data Pagto', 'Data Vencto', 'Doc', 'Fornecedor', 'Despesa', 'Banco Saída', 'Valor'],
-          rows: filteredExpenses.map(e => {
+          rows: allPaymentsMerged.map(e => {
             const isCard = e.paymentMethod === 'Cartão Corporativo';
-            const card = isCard ? corporateCards.find(c => c.id === e.cardId) : null;
+            const card = isCard ? corporateCards?.find(c => c.id === e.cardId) : null;
             
             const bank = !isCard ? bankAccounts.find(b => b.id === e.bankAccountId) : null;
             const bankLabel = isCard 
@@ -1352,8 +1404,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               formatCurrency(isCard ? e.totalValue : (e.amountPaid || e.totalValue))
             ];
           }),
-          total: filteredExpenses.reduce((acc, curr) => acc + (curr.paymentMethod === 'Cartão Corporativo' ? curr.totalValue : (curr.amountPaid || curr.totalValue)), 0)
+          total: allPaymentsMerged.reduce((acc, curr) => acc + (curr.paymentMethod === 'Cartão Corporativo' ? curr.totalValue : (curr.amountPaid || curr.totalValue)), 0)
         };
+      }
       case 'accountPlan': {
         const rows: any[] = [];
         const types = ['Receita', 'Despesa'];
@@ -1685,10 +1738,10 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           return d >= startTimestamp && d <= endTimestamp;
         });
 
-        const dreYields = yields.filter(y => {
+        const dreYields = yields?.filter(y => {
           const d = new Date(y.date).getTime();
           return d >= startTimestamp && d <= endTimestamp;
-        });
+        }) || [];
 
         const valueByAccountId = new Map<string, number>();
 
@@ -1705,47 +1758,38 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         });
 
         let totalReceitas = 0;
-        let totalDespesas = 0;
+        let totalDespesasOperacionais = 0;
+        let totalInvestimentos = 0;
 
         const rows: any[] = [];
-        const types = ['Receita', 'Despesa'] as const;
+        
+        // --- 1. RECEITAS ---
+        rows.push(['ACCOUNT_DRE_HIERARCHY', 0, '', 'RECEITAS', '']);
+        const receitasCats = accountCategories
+          .filter(c => c.type === 'Receita')
+          .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''));
 
-        types.forEach((type, index) => {
-          if (index > 0) rows.push(['', '', '']);
-
-          const typeNum = '';
-          const typeLabel = type === 'Receita' ? 'RECEITAS' : 'DESPESAS';
-          let typeTotal = 0;
-
-          const catsForType = accountCategories
-            .filter(c => c.type === type)
-            .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''));
-
-          const typeRows: any[] = [];
-
-          catsForType.forEach(cat => {
-            let catTotal = 0;
-            const subcatsForType = accountSubcategories
-              .filter(s => s.categoryId === cat.id)
-              .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''));
-
-            const catRows: any[] = [];
-
-            subcatsForType.forEach(sub => {
+        receitasCats.forEach(cat => {
+          let catTotal = 0;
+          const catRows: any[] = [];
+          
+          accountSubcategories
+            .filter(s => s.categoryId === cat.id)
+            .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''))
+            .forEach(sub => {
               let subcatTotal = 0;
-              const accountsInSubcat = accountPlan
-                .filter(p => p.type === type && p.category === cat.name && p.subcategory === sub.name && p.description && p.mostrarDre !== false)
-                .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''));
-
               const subcatRows: any[] = [];
-
-              accountsInSubcat.forEach(acc => {
-                const accValue = valueByAccountId.get(acc.id) || 0;
-                if (accValue !== 0) {
-                  subcatTotal += accValue;
-                  subcatRows.push(['ACCOUNT_DRE_HIERARCHY', 3, acc.accountNumber || '---', acc.description, formatCurrency(accValue)]);
-                }
-              });
+              
+              accountPlan
+                .filter(p => p.type === 'Receita' && p.category === cat.name && p.subcategory === sub.name && p.mostrarDre !== false)
+                .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''))
+                .forEach(acc => {
+                  const val = valueByAccountId.get(acc.id) || 0;
+                  if (val !== 0) {
+                    subcatTotal += val;
+                    subcatRows.push(['ACCOUNT_DRE_HIERARCHY', 3, acc.accountNumber || '---', acc.description, formatCurrency(val)]);
+                  }
+                });
 
               if (subcatRows.length > 0) {
                 catTotal += subcatTotal;
@@ -1754,27 +1798,136 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               }
             });
 
-            if (catRows.length > 0) {
-              typeTotal += catTotal;
-              typeRows.push(['ACCOUNT_DRE_HIERARCHY', 1, cat.accountNumber || '---', cat.name, formatCurrency(catTotal)]);
-              typeRows.push(...catRows);
-            }
-          });
-
-          if (type === 'Receita') totalReceitas = typeTotal;
-          else totalDespesas = typeTotal;
-
-          rows.push(['ACCOUNT_DRE_HIERARCHY', 0, typeNum, typeLabel, formatCurrency(typeTotal)]);
-          rows.push(...typeRows);
+          if (catRows.length > 0) {
+            totalReceitas += catTotal;
+            rows.push(['ACCOUNT_DRE_HIERARCHY', 1, cat.accountNumber || '---', cat.name, formatCurrency(catTotal)]);
+            rows.push(...catRows);
+          }
         });
+        // Atualiza o total da Receita na linha de destaque
+        rows[0][4] = formatCurrency(totalReceitas);
 
         rows.push(['', '', '']);
-        const lucroBruto = totalReceitas - totalDespesas;
+
+        // --- 2. DESPESAS OPERACIONAIS (Categorias 1 e 2) ---
+        rows.push(['ACCOUNT_DRE_HIERARCHY', 0, '', 'DESPESAS OPERACIONAIS', '']);
+        const despesasCats = accountCategories
+          .filter(c => c.type === 'Despesa')
+          .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''));
+
+        const operacionaisCats = despesasCats.filter(c => {
+          const mainNum = parseInt((c.accountNumber || '0').split('.')[0]);
+          return mainNum < 3;
+        });
+
+        operacionaisCats.forEach(cat => {
+          let catTotal = 0;
+          const catRows: any[] = [];
+
+          accountSubcategories
+            .filter(s => s.categoryId === cat.id)
+            .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''))
+            .forEach(sub => {
+              let subcatTotal = 0;
+              const subcatRows: any[] = [];
+
+              accountPlan
+                .filter(p => p.type === 'Despesa' && p.category === cat.name && p.subcategory === sub.name && p.mostrarDre !== false)
+                .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''))
+                .forEach(acc => {
+                  const val = valueByAccountId.get(acc.id) || 0;
+                  if (val !== 0) {
+                    subcatTotal += val;
+                    subcatRows.push(['ACCOUNT_DRE_HIERARCHY', 3, acc.accountNumber || '---', acc.description, formatCurrency(val)]);
+                  }
+                });
+
+              if (subcatRows.length > 0) {
+                catTotal += subcatTotal;
+                catRows.push(['ACCOUNT_DRE_HIERARCHY', 2, sub.accountNumber || '---', sub.name, formatCurrency(subcatTotal)]);
+                catRows.push(...subcatRows);
+              }
+            });
+
+          if (catRows.length > 0) {
+            totalDespesasOperacionais += catTotal;
+            rows.push(['ACCOUNT_DRE_HIERARCHY', 1, cat.accountNumber || '---', cat.name, formatCurrency(catTotal)]);
+            rows.push(...catRows);
+          }
+        });
+        // Atualiza o total da Despesa Operacional
+        rows[rows.length - (operacionaisCats.length > 0 ? rows.slice().reverse().findIndex(r => r[1] === 0 && r[3] === 'DESPESAS OPERACIONAIS') : 1) - 1][4] = formatCurrency(totalDespesasOperacionais);
+        // Ajuste simplificado: localizar a linha de cabeçalho correta
+        const operationalHeaderIndex = rows.findIndex(r => r[1] === 0 && r[3] === 'DESPESAS OPERACIONAIS');
+        if (operationalHeaderIndex !== -1) rows[operationalHeaderIndex][4] = formatCurrency(totalDespesasOperacionais);
+
+        rows.push(['', '', '']);
+        
+        // --- 3. RESULTADO DO PERÍODO (Antes dos Investimentos) ---
+        const lucroBruto = totalReceitas - totalDespesasOperacionais;
         rows.push(['DRE_RESULT', 'RESULTADO DO PERÍODO:', formatCurrency(lucroBruto)]);
+        rows.push(['', '', '']);
+
+        // --- 4. COMPRAS E INVESTIMENTOS (Categorias 3 em diante) ---
+        rows.push(['ACCOUNT_DRE_HIERARCHY', 0, '', 'COMPRAS E INVESTIMENTOS', '']);
+        const investimentosCats = despesasCats.filter(c => {
+          const mainNum = parseInt((c.accountNumber || '0').split('.')[0]);
+          return mainNum >= 3;
+        });
+
+        investimentosCats.forEach(cat => {
+          let catTotal = 0;
+          const catRows: any[] = [];
+
+          accountSubcategories
+            .filter(s => s.categoryId === cat.id)
+            .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''))
+            .forEach(sub => {
+              let subcatTotal = 0;
+              const subcatRows: any[] = [];
+
+              accountPlan
+                .filter(p => p.type === 'Despesa' && p.category === cat.name && p.subcategory === sub.name && p.mostrarDre !== false)
+                .sort((a, b) => (a.accountNumber || '').localeCompare(b.accountNumber || ''))
+                .forEach(acc => {
+                  const val = valueByAccountId.get(acc.id) || 0;
+                  if (val !== 0) {
+                    subcatTotal += val;
+                    subcatRows.push(['ACCOUNT_DRE_HIERARCHY', 3, acc.accountNumber || '---', acc.description, formatCurrency(val)]);
+                  }
+                });
+
+              if (subcatRows.length > 0) {
+                catTotal += subcatTotal;
+                catRows.push(['ACCOUNT_DRE_HIERARCHY', 2, sub.accountNumber || '---', sub.name, formatCurrency(subcatTotal)]);
+                catRows.push(...subcatRows);
+              }
+            });
+
+          if (catRows.length > 0) {
+            totalInvestimentos += catTotal;
+            rows.push(['ACCOUNT_DRE_HIERARCHY', 1, cat.accountNumber || '---', cat.name, formatCurrency(catTotal)]);
+            rows.push(...catRows);
+          }
+        });
+        
+        // Atualiza cabeçalho de Investimentos
+        const investmentHeaderIndex = rows.findIndex(r => r[1] === 0 && r[3] === 'COMPRAS E INVESTIMENTOS');
+        if (investmentHeaderIndex !== -1) rows[investmentHeaderIndex][4] = formatCurrency(totalInvestimentos);
+
+        // Se tiver valor em compras/investimentos, mostrar o totalizador abaixo
+        if (totalInvestimentos > 0) {
+          rows.push(['DRE_RESULT_INVESTMENT', 'TOTAL DE COMPRAS/INVESTIMENTOS:', formatCurrency(totalInvestimentos)]);
+        }
+
+        // --- 5. SALDO FINAL (Diferença entre Resultado Operacional e Investimentos) ---
+        const saldoFinal = lucroBruto - totalInvestimentos;
+        rows.push(['', '', '']);
+        rows.push(['DRE_RESULT_FINAL', 'SALDO FINAL DO PERÍODO:', formatCurrency(saldoFinal)]);
 
         return {
           title: `DRE - Demonstração do Resultado - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
-          headerInfo: 'Visão gerencial de resultados baseada em faturamentos e despesas por regime de competência/emissão.',
+          headerInfo: 'Visão gerencial de resultados: Receitas - Despesas Operacionais = Resultado Operacional.',
           headers: ['Nº', 'Descrição da Conta', 'Valor do Período'],
           rows: rows
         };
@@ -1885,7 +2038,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               p.status === 'Pago' ? formatCurrency(p.valorPago) : '---',
               p.status === 'Pago'
                 ? (p.tipoBaixa === 'Desconto Salário' ? 'DESC. SALÁRIO' : `BANCO${bankParcela ? ` (${bankParcela.bankName})` : ''}`)
-                : 'PENDENTE'
+                : getStatusLabel(p)
             ]);
           });
 
@@ -1903,10 +2056,63 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           total: totalGeral
         };
       }
+      case 'companyLoans': {
+        const filtered = companyLoans
+          .filter(l => selectedLoanId === 'all' || l.id === selectedLoanId)
+          .sort((a, b) => new Date(a.dataEmprestimo).getTime() - new Date(b.dataEmprestimo).getTime());
+
+        const rows: any[] = [];
+
+        filtered.forEach((loan, loanIdx) => {
+          if (loanIdx > 0) rows.push(['MONTH_SEPARATOR', '', '', '', '', '']);
+
+          const bank = bankAccounts.find(b => b.id === loan.bancoCreditoId);
+          const pagas = loan.parcelas.filter(p => p.status === 'Pago');
+          const totalPago = pagas.reduce((s, p) => s + p.valorPago + (p.juros || 0), 0);
+          const totalPendente = loan.parcelas.filter(p => p.status === 'Pendente').reduce((s, p) => s + p.valor, 0);
+          const totalJuros = pagas.reduce((s, p) => s + (p.juros || 0), 0);
+
+          rows.push([`EMPRÉSTIMO: ${loan.nomeEmprestimo.toUpperCase()}`, 'FULL_WIDTH_HEADER', '', '', '', '']);
+          rows.push([
+            `📅 Data: ${formatDateDisplay(loan.dataEmprestimo)} | 💰 Valor: ${formatCurrency(loan.valorEmprestado)} (${loan.qtdParcelas}x) | 🏦 Banco: ${bank?.bankName || '---'}${loan.totalTaxasContrato > 0 ? ` | ⚠️ Taxas: ${formatCurrency(loan.totalTaxasContrato)}` : ''}`,
+            'FULL_WIDTH_HEADER', '', '', '', ''
+          ]);
+          if (loan.descricao) rows.push([`📝 ${loan.descricao}`, 'FULL_WIDTH_HEADER', '', '', '', '']);
+          rows.push(['COLUMN_HEADERS', '', '', '', '', '']);
+
+          loan.parcelas.forEach(p => {
+            const bankParcela = p.bancoDebitoId ? bankAccounts.find(b => b.id === p.bancoDebitoId) : null;
+            rows.push([
+              `Parc. ${String(p.numero).padStart(2, '0')}/${loan.qtdParcelas}`,
+              formatDateDisplay(p.vencimento),
+              formatCurrency(p.valor),
+              p.status === 'Pago' ? formatDateDisplay(p.dataPagamento) : '---',
+              p.status === 'Pago' ? formatCurrency(p.valorPago + (p.juros || 0)) : '---',
+              p.status === 'Pago'
+                ? `BANCO${bankParcela ? ` (${bankParcela.bankName})` : ''}${p.juros && p.juros > 0 ? ` +Juros ${formatCurrency(p.juros)}` : ''}`
+                : getStatusLabel(p)
+            ]);
+          });
+
+          rows.push([`Resumo: ${pagas.length}/${loan.qtdParcelas} pagas | Pago: ${formatCurrency(totalPago)}${totalJuros > 0 ? ` (Juros: ${formatCurrency(totalJuros)})` : ''} | Saldo Devedor: ${formatCurrency(totalPendente)}`, 'IS_TOTAL_MONTH', '', '', '', '']);
+        });
+
+        const totalEmprestado = filtered.reduce((acc, l) => acc + l.valorEmprestado, 0);
+        const totalPagoGeral = filtered.reduce((acc, l) => acc + l.parcelas.filter(p => p.status === 'Pago').reduce((s, p) => s + p.valorPago + (p.juros || 0), 0), 0);
+        const totalDevedorGeral = filtered.reduce((acc, l) => acc + l.parcelas.filter(p => p.status === 'Pendente').reduce((s, p) => s + p.valor, 0), 0);
+
+        return {
+          title: `Relatório de Empréstimos Bancos a Pagar`,
+          headerInfo: `${filtered.length} empréstimo(s) | Total Emprestado: ${formatCurrency(totalEmprestado)} | Total Pago: ${formatCurrency(totalPagoGeral)} | Saldo Devedor: ${formatCurrency(totalDevedorGeral)}`,
+          headers: ['Parcela', 'Vencimento', 'Valor', 'Data Pagto', 'Total Pago', 'Tipo Baixa'],
+          rows: rows,
+          total: totalEmprestado
+        };
+      }
       default:
         return null;
     }
-  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, selectedCardId, statusFilter, agendaStatus, agendaCategory, corporateCards, corporateCardPayments, ctrs, orcamentos, employees, employeeLoans]);
+  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, selectedCardId, statusFilter, agendaStatus, agendaCategory, corporateCards, corporateCardPayments, ctrs, orcamentos, employees, employeeLoans, companyLoans, selectedLoanId]);
 
   return (
     <div className="space-y-8">
@@ -1952,7 +2158,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               <div className="relative group">
                 <select
                   className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-blue-200 transition-all appearance-none cursor-pointer"
-                  value={['customers', 'vendors', 'customersSummary', 'vendorsSummary', 'banks', 'accountCategoriesList', 'agenda', 'ctr', 'orcamentos', 'employees', 'employeeLoans'].includes(selectedReport || '') ? selectedReport || '' : ''}
+                  value={['customers', 'vendors', 'customersSummary', 'vendorsSummary', 'banks', 'accountCategoriesList', 'agenda', 'ctr', 'orcamentos', 'employees', 'employeeLoans', 'companyLoans'].includes(selectedReport || '') ? selectedReport || '' : ''}
                   onChange={(e) => {
                     setSelectedReport(e.target.value as ReportType);
                     setSelectedEquipmentId('all');
@@ -1971,6 +2177,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   <option value="ctr">📄 Relatório CTR</option>
                   <option value="orcamentos">📋 Relatório Orçamentos</option>
                   <option value="employeeLoans">💰 Empréstimos a Funcionários</option>
+                  <option value="companyLoans">🏦 Empréstimos Bancos a Pagar</option>
                 </select>
                 <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-blue-500 transition-transform rotate-90" size={18} />
               </div>
@@ -2076,6 +2283,24 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                         const v = companyVehicles.find(v => v.id === e.vehicleId);
                         return <option key={e.id} value={e.id}>{v?.type} - {v?.model}</option>;
                       })}
+                    </select>
+                  </div>
+                )}
+
+                {selectedReport === 'companyLoans' && (
+                  <div className="flex-1 space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                      <Building2 size={14} className="mr-1" /> Escolher Empréstimo
+                    </label>
+                    <select
+                      className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-violet-500 font-bold"
+                      value={selectedLoanId}
+                      onChange={(e) => setSelectedLoanId(e.target.value)}
+                    >
+                      <option value="all">TODOS OS EMPRÉSTIMOS</option>
+                      {companyLoans?.map(l => (
+                        <option key={l.id} value={l.id}>{l.nomeEmprestimo.toUpperCase()}</option>
+                      ))}
                     </select>
                   </div>
                 )}
@@ -2354,6 +2579,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               <Logo size="lg" className="origin-left" />
               <div className="text-right">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Documento Gerencial</p>
+                <h2 className="text-xl font-black text-slate-800">Empréstimos Bancos</h2>
                 <p className="text-sm font-bold text-slate-800">Emitido em: {new Date().toLocaleString('pt-BR')}</p>
               </div>
             </div>
@@ -2416,7 +2642,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                     </th>
                   </tr>
                 </thead>
-                {selectedReport !== 'sales' && selectedReport !== 'receivables' && selectedReport !== 'customerStatement' && selectedReport !== 'expensesByMonth' && selectedReport !== 'expensesByMonthFlat' && selectedReport !== 'customers' && selectedReport !== 'vendors' && selectedReport !== 'employeeLoans' && (
+                {selectedReport !== 'sales' && selectedReport !== 'receivables' && selectedReport !== 'customerStatement' && selectedReport !== 'expensesByMonth' && selectedReport !== 'expensesByMonthFlat' && selectedReport !== 'customers' && selectedReport !== 'vendors' && selectedReport !== 'employeeLoans' && selectedReport !== 'companyLoans' && (
                   <thead className="bg-slate-50 border-y border-slate-200">
                     <tr>
                       {reportContent.headers.map((h, k) => (
@@ -2709,6 +2935,13 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                         k === 3 ? 'w-[110px]' :
                                           k === 4 ? 'w-[110px]' :
                                             k === 5 ? 'w-full' : ''
+                                ) : selectedReport === 'companyLoans' ? (
+                                  k === 0 ? 'w-[140px] min-w-[140px]' :
+                                    k === 1 ? 'w-[110px]' :
+                                      k === 2 ? 'w-[110px]' :
+                                        k === 3 ? 'w-[110px]' :
+                                          k === 4 ? 'w-[110px]' :
+                                            k === 5 ? 'w-full' : ''
                                 ) : selectedReport === 'receivables' ? (
                                   k === 0 ? 'w-full min-w-[180px]' :
                                     k === 1 ? 'w-[70px]' :
@@ -2837,13 +3070,30 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                         </tr>
                       );
                     }
-                    if (row[0] === 'DRE_RESULT') {
+                    if (row[0] === 'DRE_RESULT' || row[0] === 'DRE_RESULT_INVESTMENT' || row[0] === 'DRE_RESULT_FINAL') {
+                      const isInvest = row[0] === 'DRE_RESULT_INVESTMENT';
+                      const isFinal = row[0] === 'DRE_RESULT_FINAL';
+                      
+                      let bgColor = 'bg-amber-500/10';
+                      let borderColor = 'border-slate-900';
+                      let textColor = 'text-amber-700';
+
+                      if (isInvest) {
+                        bgColor = 'bg-slate-500/10';
+                        textColor = 'text-slate-700';
+                      }
+                      if (isFinal) {
+                        bgColor = 'bg-blue-600/10';
+                        borderColor = 'border-blue-900';
+                        textColor = 'text-blue-700 font-bold';
+                      }
+
                       return (
-                        <tr key={i} className="border-t-4 border-slate-900 bg-amber-500/10">
-                          <td colSpan={2} className="px-4 py-4 font-black text-slate-900 text-right uppercase tracking-widest text-base">
+                        <tr key={i} className={`border-t-4 ${borderColor} ${bgColor}`}>
+                          <td colSpan={2} className="px-6 py-5 font-black text-slate-900 text-right uppercase tracking-widest text-sm sm:text-base">
                             {row[1]}
                           </td>
-                          <td className="px-4 py-4 font-black text-amber-700 text-xl border-l border-slate-900 text-right whitespace-nowrap">
+                          <td className={`px-6 py-5 font-black ${textColor} text-xl sm:text-2xl border-l ${borderColor} text-right whitespace-nowrap`}>
                             {row[2]}
                           </td>
                         </tr>
@@ -3017,7 +3267,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                             <td
                               key={j}
                               colSpan={isSectionHeader ? reportContent.headers.length : (isSubtotalRow && j === 0 ? reportContent.headers.length - 1 : 1)}
-                              className={`px-4 py-3 text-slate-700 font-medium leading-relaxed print:text-[12px] ${selectedReport === 'employeeLoans' && j === 0 ? 'whitespace-nowrap' : ''}
+                              className={`px-4 py-3 text-slate-700 font-medium leading-relaxed print:text-[12px] ${(selectedReport === 'employeeLoans' || selectedReport === 'companyLoans') && j === 0 ? 'whitespace-nowrap' : ''}
                                 ${isSectionHeader ? 'text-slate-900 text-sm tracking-widest uppercase py-4 whitespace-nowrap print:text-[12px]' : ''}
                                 ${isSubtotalRow ? 'text-slate-800 text-sm print:text-[12px]' : ''}
                                 ${isCredit ? 'text-emerald-600 font-bold' : ''}
@@ -3104,7 +3354,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                       ? 'TOTAL GERAL (SALÁRIOS + DIFERENÇA):'
                                       : selectedReport === 'employeeLoans'
                                         ? 'TOTAL EMPRESTADO:'
-                                        : 'TOTAL DE DESPESAS:'}
+                                        : selectedReport === 'companyLoans'
+                                          ? 'TOTAL EMPRESTADO:'
+                                          : 'TOTAL DE DESPESAS:'}
                       </td>
                       <td className={`px-4 py-5 text-xl whitespace-nowrap text-right ${reportContent.closingBalance !== undefined && reportContent.closingBalance < 0 ? 'text-rose-600' : 'text-slate-900 underline underline-offset-8 decoration-slate-300'}`}>
                         {formatCurrency(reportContent.closingBalance ?? reportContent.total ?? 0)}

@@ -14,6 +14,7 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [editConfirmBank, setEditConfirmBank] = useState<BankAccount | null>(null);
   const [formData, setFormData] = useState<Partial<BankAccount>>({
     bankName: '',
     agency: '',
@@ -41,8 +42,14 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
   };
 
   const handleOpenEdit = (bank: BankAccount) => {
-    setEditingId(bank.id);
-    setFormData(bank);
+    setEditConfirmBank(bank);
+  };
+
+  const handleConfirmEdit = () => {
+    if (!editConfirmBank) return;
+    setEditingId(editConfirmBank.id);
+    setFormData(editConfirmBank);
+    setEditConfirmBank(null);
     setIsModalOpen(true);
   };
 
@@ -85,7 +92,6 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
             <tr>
               <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Instituição</th>
               <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Agência / Conta</th>
-              <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Saldo Inicial</th>
               <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600 text-right">Ações</th>
             </tr>
           </thead>
@@ -97,7 +103,6 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
                   {bank.isBlocked && <span className="ml-2 text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-bold inline-flex items-center"><Lock size={10} className="mr-1" /> BLOQUEADO</span>}
                 </td>
                 <td className="px-6 py-4 text-slate-600">{bank.agency} / {bank.accountNumber}</td>
-                <td className="px-6 py-4 font-semibold text-slate-700">{formatCurrency(bank.initialBalance || 0)}</td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end space-x-2">
                     <button onClick={() => handleOpenEdit(bank)} className="p-2 text-slate-400 hover:text-amber-500"><Edit size={18} /></button>
@@ -106,11 +111,29 @@ const BankAccountManager: React.FC<BankAccountManagerProps> = ({ bankAccounts, s
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan={4} className="px-6 py-10 text-center text-slate-400 italic font-medium">Cadastre aqui os bancos onde você recebe seus pagamentos.</td></tr>
+              <tr><td colSpan={3} className="px-6 py-10 text-center text-slate-400 italic font-medium">Cadastre aqui os bancos onde você recebe seus pagamentos.</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {editConfirmBank && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border-t-4 border-amber-500 animate-in zoom-in duration-200">
+            <h3 className="text-lg font-bold mb-2 flex items-center text-amber-600">
+              <AlertTriangle className="mr-2" /> Atenção!
+            </h3>
+            <p className="text-sm text-slate-600 mb-6 font-medium leading-relaxed">
+              Deseja realmente alterar esta conta? <br/><br/>
+              <span className="text-rose-600 font-black uppercase">Importante:</span> Se você alterar o <strong>Saldo Inicial</strong>, o sistema recalculará todos os saldos retroativamente, o que afetará o extrato bancário.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button onClick={() => setEditConfirmBank(null)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg transition-colors">Não</button>
+              <button onClick={handleConfirmEdit} className="px-6 py-2 bg-amber-500 text-white font-bold rounded-lg shadow-lg hover:bg-amber-600 transition-all">Sim, Alterar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">

@@ -42,6 +42,21 @@ const parseCurrency = (val: string) => {
   return Number(val.replace(/\D/g, "")) / 100;
 };
 
+const getStatusLabel = (p: { status: string; vencimento: string }) => {
+  if (p.status === 'Pago') return 'PAGO';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dueDate = new Date(p.vencimento + 'T12:00:00');
+  dueDate.setHours(0, 0, 0, 0);
+  return dueDate < today ? 'PENDENTE' : 'A PAGAR';
+};
+
+const getStatusColor = (p: { status: string; vencimento: string }) => {
+  if (p.status === 'Pago') return 'bg-emerald-100 text-emerald-700';
+  const label = getStatusLabel(p);
+  return label === 'PENDENTE' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700';
+};
+
 const EmployeeLoanManager: React.FC<EmployeeLoanManagerProps> = ({
   loans, setLoans, yields, setYields, employees, bankAccounts, accountPlan, onNavigateToReports
 }) => {
@@ -303,6 +318,16 @@ const EmployeeLoanManager: React.FC<EmployeeLoanManagerProps> = ({
     setBaixaBancoId('');
   };
 
+  const handleOpenEditBaixa = (loan: EmprestimoFuncionario, parcela: EmprestimoParcela) => {
+    setSelectedLoanForBaixa(loan);
+    setBaixaParcelaId(parcela.id);
+    setBaixaValorPago(parcela.valorPago || parcela.valor);
+    setBaixaDataPagamento(parcela.dataPagamento || new Date().toLocaleDateString('en-CA'));
+    setBaixaTipo(parcela.tipoBaixa || 'Banco');
+    setBaixaBancoId(parcela.bancoId || '');
+    setIsBaixaModalOpen(true);
+  };
+
   const handleConfirmBaixa = () => {
     if (!selectedLoanForBaixa || !baixaParcelaId) return;
     if (baixaValorPago <= 0) return alert('Informe o valor pago.');
@@ -325,30 +350,54 @@ const EmployeeLoanManager: React.FC<EmployeeLoanManagerProps> = ({
     const updatedLoan = { ...selectedLoanForBaixa, parcelas: updatedParcelas };
     setLoans(prev => prev.map(l => l.id === updatedLoan.id ? updatedLoan : l));
     
-    // Create financial movement if paid via bank
+    // Create or Update financial movement
+    const parcela = updatedParcelas.find(p => p.id === baixaParcelaId);
+    const existingYieldIdx = yields.findIndex(y => y.description.includes(`(Ref: ${baixaParcelaId})`));
+
+    let yieldData: Partial<FinancialYield> = {};
+    let yieldDescription = "";
+
     if (baixaTipo === 'Banco' && baixaBancoId && selectedLoanForBaixa.accountPlanId) {
-      const newYield: FinancialYield = {
-        id: crypto.randomUUID(),
+      yieldDescription = `RECBTO EMPRÉSTIMO: ${selectedLoanForBaixa.funcionarioNome} / Parcela ${parcela?.numero} (Ref: ${baixaParcelaId})`;
+      yieldData = {
         bankAccountId: baixaBancoId,
         accountPlanId: selectedLoanForBaixa.accountPlanId,
         amount: baixaValorPago,
         date: baixaDataPagamento,
-        description: `RECBTO EMPRÉSTIMO: ${selectedLoanForBaixa.funcionarioNome} / Parcela ${updatedParcelas.find(p => p.id === baixaParcelaId)?.numero} (Ref: ${baixaParcelaId})`,
-        createdAt: Date.now()
+        description: yieldDescription
       };
-      setYields(prev => [newYield, ...prev]);
     } else if (baixaTipo === 'Desconto Salário') {
       const salaryAccount = accountPlan.find(p => p.accountNumber === '2.02.02.01');
       if (salaryAccount) {
-        const parcela = updatedParcelas.find(p => p.id === baixaParcelaId);
-        const qtdParc = selectedLoanForBaixa.qtdParcelas;
-        const newYield: FinancialYield = {
-          id: crypto.randomUUID(),
-          bankAccountId: null, // No bank movement
+        yieldDescription = `DESC. SALÁRIO EMPRÉSTIMO: ${selectedLoanForBaixa.funcionarioNome} – Parc ${parcela?.numero}/${selectedLoanForBaixa.qtdParcelas} (Ref: ${baixaParcelaId})`;
+        yieldData = {
+          bankAccountId: null,
           accountPlanId: salaryAccount.id,
           amount: baixaValorPago,
           date: baixaDataPagamento,
-          description: `DESC. SALÁRIO EMPRÉSTIMO: ${selectedLoanForBaixa.funcionarioNome} – Parc ${parcela?.numero}/${qtdParc} (Ref: ${baixaParcelaId})`,
+          description: yieldDescription
+        };
+      }
+    }
+
+    if (yieldDescription) {
+      if (existingYieldIdx !== -1) {
+        // Update
+        const updatedYields = [...yields];
+        updatedYields[existingYieldIdx] = {
+          ...updatedYields[existingYieldIdx],
+          ...yieldData
+        };
+        setYields(updatedYields);
+      } else {
+        // Create
+        const newYield: FinancialYield = {
+          id: crypto.randomUUID(),
+          bankAccountId: yieldData.bankAccountId!,
+          accountPlanId: yieldData.accountPlanId!,
+          amount: yieldData.amount!,
+          date: yieldData.date!,
+          description: yieldDescription,
           createdAt: Date.now()
         };
         setYields(prev => [newYield, ...prev]);
@@ -356,6 +405,8 @@ const EmployeeLoanManager: React.FC<EmployeeLoanManagerProps> = ({
     }
 
     setSelectedLoanForBaixa(updatedLoan);
+    // If it was an edit, we might want to close or keep open, but current logic keeps open
+    // If we want to hide the form after confirm:
     setBaixaParcelaId(null);
   };
 
@@ -570,11 +621,18 @@ const EmployeeLoanManager: React.FC<EmployeeLoanManagerProps> = ({
                                   )}
                                 </div>
                                 <div className="flex flex-col items-end">
-                                  <span className={`font-black ${p.status === 'Pago' ? 'text-emerald-600' : 'text-slate-700'}`}>
-                                    {formatCurrency(p.status === 'Pago' ? p.valorPago : p.valor)}
-                                  </span>
-                                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase mt-1 ${p.status === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                    {p.status}
+                                  <div className="flex items-center gap-2">
+                                    {p.status === 'Pago' && (
+                                      <button onClick={() => handleOpenEditBaixa(loan, p)} className="p-1 text-slate-400 hover:text-blue-500 transition-colors" title="Editar Pagamento">
+                                        <Edit size={14} />
+                                      </button>
+                                    )}
+                                    <span className={`font-black ${p.status === 'Pago' ? 'text-emerald-600' : 'text-slate-700'}`}>
+                                      {formatCurrency(p.status === 'Pago' ? p.valorPago : p.valor)}
+                                    </span>
+                                  </div>
+                                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase mt-1 ${getStatusColor(p)}`}>
+                                    {getStatusLabel(p)}
                                   </span>
                                 </div>
                               </div>
@@ -871,12 +929,20 @@ const EmployeeLoanManager: React.FC<EmployeeLoanManagerProps> = ({
                             </button>
                           )}
                           {p.status === 'Pago' && (
-                            <button
-                              onClick={() => handleEstornarParcela(selectedLoanForBaixa, p.id)}
-                              className="text-xs text-rose-500 hover:text-rose-700 font-bold px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors"
-                            >
-                              Estornar
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleOpenEditBaixa(selectedLoanForBaixa, p)}
+                                className="text-xs text-blue-500 hover:text-blue-700 font-bold px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleEstornarParcela(selectedLoanForBaixa, p.id)}
+                                className="text-xs text-rose-500 hover:text-rose-700 font-bold px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors"
+                              >
+                                Estornar
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -957,7 +1023,9 @@ const EmployeeLoanManager: React.FC<EmployeeLoanManagerProps> = ({
                               className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg shadow-lg text-sm flex items-center gap-2"
                             >
                               <CheckCircle size={16} />
-                              Confirmar Baixa
+                              {selectedLoanForBaixa.parcelas.find(p => p.id === baixaParcelaId)?.status === 'Pago' 
+                                ? 'Salvar Alterações' 
+                                : 'Confirmar Baixa'}
                             </button>
                           </div>
                         </div>

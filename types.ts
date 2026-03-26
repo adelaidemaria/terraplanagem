@@ -7,7 +7,7 @@ export interface CustomerInteraction {
 
 export interface FinancialYield {
   id: string;
-  accountPlanId: string;
+  accountPlanId: string | null;
   bankAccountId: string | null;
   amount: number;
   date: string;
@@ -321,7 +321,7 @@ export interface ConfiguracaoEmpresa {
     updated_at?: string;
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos' | 'company-settings' | 'simples-nacional' | 'employees' | 'employee-loans';
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos' | 'company-settings' | 'simples-nacional' | 'employees' | 'employee-loans' | 'company-loans';
 
 export interface AdminUser {
   id: string;
@@ -391,6 +391,33 @@ export interface EmprestimoFuncionario {
   descricao?: string;
   qtdParcelas: number;
   parcelas: EmprestimoParcela[];
+  createdAt: string;
+}
+
+export interface CompanyLoanParcela {
+  id: string;
+  numero: number;
+  vencimento: string;
+  valor: number;
+  status: 'Pendente' | 'Pago';
+  valorPago: number;
+  dataPagamento?: string;
+  bancoDebitoId?: string;
+  juros?: number;
+  accountPlanId?: string;
+  descricao?: string;
+}
+
+export interface CompanyLoan {
+  id: string;
+  nomeEmprestimo: string;
+  valorEmprestado: number;
+  totalTaxasContrato: number;
+  dataEmprestimo: string;
+  descricao?: string;
+  bancoCreditoId: string;
+  qtdParcelas: number;
+  parcelas: CompanyLoanParcela[];
   createdAt: string;
 }
 

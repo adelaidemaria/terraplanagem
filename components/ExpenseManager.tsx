@@ -22,6 +22,22 @@ const formatDateDisplay = (dateStr: string | undefined) => {
   return `${day}/${month}/${year}`;
 };
 
+const getStatusLabel = (expense: Expense) => {
+  if (expense.status === 'Pago') return 'PAGO';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const refDate = expense.dueDate || expense.date;
+  const dueDate = new Date(refDate + 'T12:00:00');
+  dueDate.setHours(0, 0, 0, 0);
+  return dueDate < today ? 'PENDENTE' : 'A PAGAR';
+};
+
+const getStatusColor = (expense: Expense) => {
+  if (expense.status === 'Pago') return 'bg-emerald-100 text-emerald-700';
+  const label = getStatusLabel(expense);
+  return label === 'PENDENTE' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700';
+};
+
 const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, vendors, accountPlan, bankAccounts, onNavigateToReports }) => {
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString('en-CA');
@@ -432,9 +448,8 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                       PG CARTÃO
                     </span>
                   ) : (
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${expense.status === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                      }`}>
-                      {expense.status}
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${getStatusColor(expense)}`}>
+                      {getStatusLabel(expense)}
                     </span>
                   )}
                 </td>
