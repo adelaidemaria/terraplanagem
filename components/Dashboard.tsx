@@ -15,7 +15,7 @@ import {
   CreditCard,
   X
 } from 'lucide-react';
-import { DashboardStats, Sale, Expense, Customer } from '../types';
+import { DashboardStats, Sale, Expense, Customer, AccountPlan } from '../types';
 import {
   BarChart,
   Bar,
@@ -33,6 +33,7 @@ interface DashboardProps {
   expenses: Expense[];
   payments: any[];
   customers: Customer[];
+  accountPlan: AccountPlan[];
   startDate: string;
   endDate: string;
   setStartDate: (date: string) => void;
@@ -49,7 +50,7 @@ const formatDateDisplay = (dateStr: string | undefined) => {
 };
 
 const Dashboard: React.FC<DashboardProps> = ({
-  stats, sales, expenses, customers,
+  stats, sales, expenses, customers, accountPlan,
   startDate, endDate, setStartDate, setEndDate,
   hasFleetAlerts, onNavigateToFleet
 }) => {
@@ -87,7 +88,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     }).map(s => ({ ...s, type: 'receita' as const })),
     ...expenses.filter(e => {
       const d = new Date(e.date).getTime();
-      return d >= startTs && d <= endTs;
+      if (d < startTs || d > endTs) return false;
+      const plan = accountPlan.find(p => p.id === e.accountPlanId);
+      if (!plan) return true;
+      const mainNum = parseInt((plan.accountNumber || '0').split('.')[0]);
+      return mainNum < 3;
     }).map(e => ({ ...e, type: 'despesa' as const }))
   ]
     .sort((a, b) => b.createdAt - a.createdAt)

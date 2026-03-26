@@ -219,9 +219,26 @@ const App: React.FC = () => {
     const start = new Date(dashStartDate).getTime();
     const end = new Date(dashEndDate).setHours(23, 59, 59, 999);
 
+    const isOperating = (accountPlanId: string | null, isRevenue: boolean = false) => {
+      if (!accountPlanId) return true;
+      const plan = accountPlan.find(p => p.id === accountPlanId);
+      if (!plan) return true;
+      const accNum = plan.accountNumber || '0';
+      if (isRevenue) {
+        // Excluir 1.09 (Outras Receitas não operacionais conforme pedido)
+        if (accNum.startsWith('1.09')) return false;
+        return true;
+      } else {
+        // Excluir 3.xx (Investimentos)
+        const mainNum = parseInt(accNum.split('.')[0]);
+        return mainNum < 3;
+      }
+    };
+
     const filteredSales = sales.filter(s => {
       const d = new Date(s.date).getTime();
-      return d >= start && d <= end;
+      if (d < start || d > end) return false;
+      return isOperating(s.accountPlanId, true);
     });
 
     const filteredPayments = payments.filter(p => {
@@ -231,12 +248,38 @@ const App: React.FC = () => {
 
     const filteredExpenses = expenses.filter(e => {
       const d = new Date(e.date).getTime();
-      return d >= start && d <= end;
+      if (d < start || d > end) return false;
+      return isOperating(e.accountPlanId, false);
     });
 
-    const totalSales = filteredSales.reduce((acc, sale) => acc + sale.totalValue, 0);
+    const filteredYields = (yields || []).filter(y => {
+      const d = new Date(y.date).getTime();
+      if (d < start || d > end) return false;
+      
+      const ap = accountPlan.find(p => p.id === y.accountPlanId);
+      return isOperating(y.accountPlanId, ap?.type === 'Receita');
+    });
+
+    const totalSalesFromSales = filteredSales.reduce((acc, sale) => acc + sale.totalValue, 0);
+    const totalSalesFromYields = filteredYields
+      .filter(y => {
+        const ap = accountPlan.find(p => p.id === y.accountPlanId);
+        return ap?.type === 'Receita';
+      })
+      .reduce((acc, y) => acc + y.amount, 0);
+
+    const totalSales = totalSalesFromSales + totalSalesFromYields;
     const totalReceived = filteredPayments.reduce((acc, pay) => acc + pay.amount, 0);
-    const totalExpenses = filteredExpenses.reduce((acc, exp) => acc + exp.totalValue, 0);
+
+    const totalExpensesFromExpenses = filteredExpenses.reduce((acc, exp) => acc + exp.totalValue, 0);
+    const totalExpensesFromYields = filteredYields
+      .filter(y => {
+        const ap = accountPlan.find(p => p.id === y.accountPlanId);
+        return ap?.type === 'Despesa';
+      })
+      .reduce((acc, y) => acc + y.amount, 0);
+
+    const totalExpenses = totalExpensesFromExpenses + totalExpensesFromYields;
     const totalPaidExpenses = filteredExpenses.filter(e => e.status === 'Pago').reduce((acc, exp) => acc + exp.totalValue, 0);
 
     return {
@@ -247,7 +290,7 @@ const App: React.FC = () => {
       totalPaidExpenses,
       customerCount: customers.length
     };
-  }, [sales, payments, customers, expenses, dashStartDate, dashEndDate]);
+  }, [sales, payments, customers, expenses, yields, accountPlan, dashStartDate, dashEndDate]);
 
   if (!allLoaded) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-pulse flex items-center space-x-3"><div className="w-8 h-8 rounded-full border-4 border-amber-500 border-t-transparent animate-spin"></div><span className="text-xl font-bold text-slate-500">Sincronizando com Supabase...</span></div></div>;
@@ -282,6 +325,7 @@ const App: React.FC = () => {
             expenses={expenses}
             payments={payments}
             customers={customers}
+            accountPlan={accountPlan}
             startDate={dashStartDate}
             endDate={dashEndDate}
             setStartDate={setDashStartDate}
