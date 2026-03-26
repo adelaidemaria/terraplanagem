@@ -21,7 +21,8 @@ import {
   Landmark,
   FileUp,
   Car,
-  ClipboardList
+  ClipboardList,
+  Banknote
 } from 'lucide-react';
 import {
   Customer,
@@ -49,7 +50,8 @@ import {
   Orcamento,
   SimplesNacionalFaturamento,
   Funcionario,
-  FuncionarioDocumento
+  FuncionarioDocumento,
+  EmprestimoFuncionario
 } from './types';
 
 // Components
@@ -78,6 +80,7 @@ import OrcamentoManager from './components/OrcamentoManager';
 import SimplesNacionalManager from './components/SimplesNacionalManager';
 import ConfiguracaoEmpresaManager from './components/ConfiguracaoEmpresa';
 import EmployeeManager from './components/EmployeeManager';
+import EmployeeLoanManager from './components/EmployeeLoanManager';
 import { useSupabaseSync } from './lib/useSupabaseSync';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
@@ -173,8 +176,9 @@ const App: React.FC = () => {
   const [orcamentos, setOrcamentos, orcamentosLoaded] = useSupabaseSync<Orcamento>('orcamentos');
   const [snFaturamentos, setSnFaturamentos, snLoaded] = useSupabaseSync<SimplesNacionalFaturamento>('simples_nacional_faturamento');
   const [employees, setEmployees, empLoaded] = useSupabaseSync<Funcionario>('funcionarios');
+  const [employeeLoans, setEmployeeLoans, elLoaded] = useSupabaseSync<EmprestimoFuncionario>('emprestimos_funcionarios');
 
-  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded && cvLoaded && ctrsLoaded && orcamentosLoaded && snLoaded && empLoaded;
+  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded && cvLoaded && ctrsLoaded && orcamentosLoaded && snLoaded && empLoaded && elLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -455,6 +459,7 @@ const App: React.FC = () => {
           companyVehicles={companyVehicles}
           ctrs={ctrs}
           employees={employees}
+          employeeLoans={employeeLoans}
           orcamentos={orcamentos}
           initialReport={selectedReportType as any}
         />;
@@ -506,6 +511,18 @@ const App: React.FC = () => {
           setEmployees={setEmployees} 
           onGoToReports={(type) => {
             if (type) setSelectedReportType(type);
+            setCurrentView('reports');
+          }}
+        />;
+      case 'employee-loans':
+        return <EmployeeLoanManager
+          loans={employeeLoans}
+          setLoans={setEmployeeLoans}
+          employees={employees}
+          bankAccounts={bankAccounts}
+          accountPlan={accountPlan}
+          onNavigateToReports={() => {
+            setSelectedReportType('employeeLoans');
             setCurrentView('reports');
           }}
         />;
@@ -573,6 +590,7 @@ const App: React.FC = () => {
           <NavItem id="expenses" label="Lançar Despesas" icon={Wallet} />
           <NavItem id="payables" label="Contas a Pagar" icon={CreditCard} />
           <NavItem id="corporate-cards" label="Cartão Corporativo" icon={CreditCard} />
+          <NavItem id="employee-loans" label="Empréstimos Func." icon={Banknote} />
 
           <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
             <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Tesouraria</span>
@@ -643,6 +661,7 @@ const App: React.FC = () => {
             {currentView === 'orcamentos' && 'Orçamentos'}
             {currentView === 'simples-nacional' && 'Simples Nacional — Anexo III'}
             {currentView === 'employees' && 'Gestão de Funcionários Registrados'}
+            {currentView === 'employee-loans' && 'Empréstimos a Funcionários'}
           </h1>
           <button
             onClick={async () => {

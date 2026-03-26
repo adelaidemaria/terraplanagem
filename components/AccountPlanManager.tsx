@@ -332,6 +332,7 @@ const AccountPlanManager: React.FC<AccountPlanManagerProps> = ({
               <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Categoria</th>
               <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">SubCategoria</th>
               <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600">Conta</th>
+              <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600 text-center">DRE</th>
               <th className="px-6 py-4 text-xs font-bold uppercase text-slate-600 text-right">Ações</th>
             </tr>
           </thead>
@@ -348,6 +349,19 @@ const AccountPlanManager: React.FC<AccountPlanManagerProps> = ({
                 <td className="px-6 py-4 font-bold text-slate-800">{plan.category}</td>
                 <td className="px-6 py-4 font-medium text-slate-600">{plan.subcategory}</td>
                 <td className="px-6 py-4 font-medium text-slate-600">{plan.description || '---'}</td>
+                <td className="px-6 py-4 text-center">
+                  <label className="inline-flex items-center cursor-pointer" title={plan.mostrarDre === false ? 'Não exibir na DRE' : 'Exibir na DRE'}>
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 text-emerald-500 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                      checked={plan.mostrarDre !== false}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setAccountPlan(prev => prev.map(p => p.id === plan.id ? { ...p, mostrarDre: p.mostrarDre === false ? true : false } : p));
+                      }}
+                    />
+                  </label>
+                </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end space-x-2">
                     <button onClick={() => handleOpenEdit(plan)} className="p-2 text-slate-400 hover:text-amber-500"><Edit size={18} /></button>
@@ -356,7 +370,7 @@ const AccountPlanManager: React.FC<AccountPlanManagerProps> = ({
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic font-medium">Nenhum item encontrado com os filtros aplicados.</td></tr>
+              <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 italic font-medium">Nenhum item encontrado com os filtros aplicados.</td></tr>
             )}
           </tbody>
         </table>

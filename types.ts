@@ -92,6 +92,7 @@ export interface AccountPlan {
   subcategory: string;
   description: string;
   accountNumber?: string;
+  mostrarDre?: boolean;
 }
 
 export interface BankAccount {
@@ -320,7 +321,7 @@ export interface ConfiguracaoEmpresa {
     updated_at?: string;
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos' | 'company-settings' | 'simples-nacional' | 'employees';
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos' | 'company-settings' | 'simples-nacional' | 'employees' | 'employee-loans';
 
 export interface AdminUser {
   id: string;
@@ -365,5 +366,31 @@ export interface Funcionario {
   observacao?: string;
   documentos?: FuncionarioDocumento[];
   createdAt: number;
+}
+
+export interface EmprestimoParcela {
+  id: string;
+  numero: number;
+  vencimento: string;
+  valor: number;
+  status: 'Pendente' | 'Pago';
+  valorPago: number;
+  dataPagamento?: string;
+  tipoBaixa?: 'Banco' | 'Desconto Salário';
+  bancoId?: string;
+}
+
+export interface EmprestimoFuncionario {
+  id: string;
+  funcionarioId: string;
+  funcionarioNome: string;
+  dataEmprestimo: string;
+  valorEmprestimo: number;
+  bancoSaidaId?: string;
+  accountPlanId?: string;
+  descricao?: string;
+  qtdParcelas: number;
+  parcelas: EmprestimoParcela[];
+  createdAt: string;
 }
 
