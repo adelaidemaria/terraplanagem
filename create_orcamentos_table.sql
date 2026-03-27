@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS orcamentos (
     status TEXT DEFAULT 'Aguardando Cliente',
     efetivado_info TEXT,
     ocultar_total BOOLEAN DEFAULT FALSE,
+    responsavel_cliente_nome TEXT,
+    responsavel_cliente_cpf TEXT,
     created_at BIGINT
 );
 

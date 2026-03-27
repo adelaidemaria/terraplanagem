@@ -55,6 +55,15 @@ const formatDate = (dateStr: string) => {
 
 const today = () => new Date().toLocaleDateString('en-CA');
 
+const maskCPF = (v: string) => {
+  v = v.replace(/\D/g, "");
+  if (v.length > 11) v = v.substring(0, 11);
+  v = v.replace(/(\d{3})(\d)/, "$1.$2");
+  v = v.replace(/(\d{3})(\d)/, "$1.$2");
+  v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  return v;
+};
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   'Aguardando Cliente': {
     label: 'Aguardando Cliente',
@@ -261,17 +270,40 @@ const OrcamentoPrintView: React.FC<{ orcamento: Orcamento, company: Configuracao
                     <p className="text-slate-800 font-bold text-base">{formatDataExtenso(orcamento.dataEmissao)}</p>
                   </div>
                 </div>
-                <div className="mt-12 flex justify-center">
-                  <div className="text-center max-w-sm w-full">
-                    {companyData.assinatura_tipo === 'imagem' && companyData.assinatura_url ? (
-                      <img src={companyData.assinatura_url} alt="Assinatura" className="h-16 mx-auto mb-1 object-contain" />
-                    ) : (
-                      <div className="signature text-2xl text-blue-900 mb-1">
-                        {companyData.responsavel_assinatura_digital || companyData.nome_fantasia}
+                <div className="mt-16 grid grid-cols-2 gap-8 px-4">
+                  {/* Assinatura Bauru (Lado Esquerdo) */}
+                  <div className="text-center">
+                    <div className="h-16 flex items-end justify-center mb-1">
+                      {companyData.assinatura_tipo === 'imagem' && companyData.assinatura_url ? (
+                        <img src={companyData.assinatura_url} alt="Assinatura" className="max-h-full object-contain" />
+                      ) : (
+                        <div className="signature text-2xl text-blue-900 leading-none">
+                          {companyData.responsavel_assinatura_digital || companyData.nome_fantasia}
+                        </div>
+                      )}
+                    </div>
+                    <div className="border-t border-slate-400 pt-2">
+                      <div className="text-[11px] font-bold text-slate-800 uppercase leading-tight">
+                        {companyData.responsavel_nome || companyData.nome_fantasia}
                       </div>
-                    )}
-                    <div className="border-t border-slate-400 pt-2 text-sm text-slate-800 font-bold">
-                      {companyData.responsavel_nome || companyData.nome_fantasia}
+                      <div className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter mt-0.5">
+                        Responsável - {companyData.nome_fantasia}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Assinatura Cliente (Lado Direito) */}
+                  <div className="text-center">
+                    <div className="h-16 flex items-end justify-center mb-1">
+                      {/* Espaço para assinatura manual */}
+                    </div>
+                    <div className="border-t border-slate-400 pt-2">
+                      <div className="text-[11px] font-bold text-slate-800 uppercase leading-tight">
+                        {orcamento.responsavelClienteNome || orcamento.nome}
+                      </div>
+                      <div className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter mt-0.5">
+                        {orcamento.responsavelClienteCpf ? `CPF: ${orcamento.responsavelClienteCpf}` : 'Aceite da Proposta'}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -329,6 +361,8 @@ const OrcamentoManager: React.FC<OrcamentoManagerProps> = ({ orcamentos, setOrca
     status: 'Aguardando Cliente',
     efetivadoInfo: '',
     ocultarTotal: false,
+    responsavelClienteNome: '',
+    responsavelClienteCpf: '',
   });
 
   const [formData, setFormData] = useState<Partial<Orcamento>>(emptyForm());
@@ -412,6 +446,8 @@ const OrcamentoManager: React.FC<OrcamentoManagerProps> = ({ orcamentos, setOrca
       status: formData.status || 'Aguardando Cliente',
       efetivadoInfo: formData.status === 'Efetivado' ? (formData.efetivadoInfo || '') : '',
       ocultarTotal: !!formData.ocultarTotal,
+      responsavelClienteNome: formData.responsavelClienteNome || '',
+      responsavelClienteCpf: formData.responsavelClienteCpf || '',
       createdAt: Date.now(),
     };
 
@@ -733,6 +769,26 @@ const OrcamentoManager: React.FC<OrcamentoManagerProps> = ({ orcamentos, setOrca
                           className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 disabled:bg-slate-100"
                           value={formData.dadosComplementares}
                           onChange={e => setFormData(p => ({ ...p, dadosComplementares: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1">Responsável do Cliente (Para Assinatura)</label>
+                        <input
+                          readOnly={isViewOnly}
+                          placeholder="Nome do responsável"
+                          className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 disabled:bg-slate-100 font-semibold"
+                          value={formData.responsavelClienteNome}
+                          onChange={e => setFormData(p => ({ ...p, responsavelClienteNome: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1">CPF do Responsável</label>
+                        <input
+                          readOnly={isViewOnly}
+                          placeholder="000.000.000-00"
+                          className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 disabled:bg-slate-100 font-semibold"
+                          value={formData.responsavelClienteCpf}
+                          onChange={e => setFormData(p => ({ ...p, responsavelClienteCpf: maskCPF(e.target.value) }))}
                         />
                       </div>
                     </div>

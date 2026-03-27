@@ -293,6 +293,8 @@ export interface Orcamento {
   status: 'Aguardando Cliente' | 'Efetivado' | 'Não concluído';
   efetivadoInfo?: string;
   ocultarTotal?: boolean;
+  responsavelClienteNome?: string;
+  responsavelClienteCpf?: string;
   createdAt: number;
 }
 
