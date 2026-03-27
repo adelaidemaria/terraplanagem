@@ -21,6 +21,8 @@ import {
   Landmark,
   FileUp,
   Car,
+  ChevronDown,
+  ChevronUp,
   ClipboardList,
   Banknote
 } from 'lucide-react';
@@ -122,6 +124,31 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [selectedReportType, setSelectedReportType] = useState<string | null>('sales');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Accordion State for Sidebar
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    entradas: true,
+    saidas: false,
+    tesouraria: false,
+    relatorios: false,
+    veiculos: false,
+    empresa: false,
+  });
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => {
+      // Se a seção clicada já está aberta, fecha ela.
+      if (prev[section]) {
+        return { ...prev, [section]: false };
+      }
+      // Caso contrário, abre a nova e fecha todas as outras.
+      const newState: Record<string, boolean> = {};
+      Object.keys(prev).forEach(key => {
+        newState[key] = key === section;
+      });
+      return newState;
+    });
+  };
 
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -633,60 +660,122 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto sidebar-scroll min-h-0">
           <NavItem id="dashboard" label="Painel Geral" icon={LayoutDashboard} />
 
-          <div className="pt-4 pb-1 px-4">
-            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Entradas</span>
+          {/* --- ENTRADAS --- */}
+          <div className="pt-4 pb-1">
+            <button
+              onClick={() => toggleSection('entradas')}
+              className={`w-full flex items-center justify-between px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:text-amber-500 transition-colors ${!isSidebarOpen && 'hidden'} ${expandedSections.entradas ? 'text-amber-500' : 'text-slate-500'}`}
+            >
+              <span>Entradas</span>
+              {expandedSections.entradas ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            {(!isSidebarOpen || expandedSections.entradas) && (
+              <div className="space-y-1 mt-1">
+                <NavItem id="customers" label="Clientes" icon={Users} />
+                <NavItem id="orcamentos" label="Orçamentos" icon={ClipboardList} />
+                <NavItem id="sales" label="Faturamento" icon={Receipt} />
+                <NavItem id="nf-import" label="Importação NF" icon={FileUp} />
+                <NavItem id="receivables" label="Contas a Receber" icon={HandCoins} />
+                <NavItem id="simples-nacional" label="Simples Nacional" icon={Landmark} />
+              </div>
+            )}
           </div>
-          <NavItem id="customers" label="Clientes" icon={Users} />
-          <NavItem id="orcamentos" label="Orçamentos" icon={ClipboardList} />
-          <NavItem id="sales" label="Faturamento" icon={Receipt} />
-          <NavItem id="nf-import" label="Importação NF" icon={FileUp} />
-          <NavItem id="receivables" label="Contas a Receber" icon={HandCoins} />
-          <NavItem id="simples-nacional" label="Simples Nacional" icon={Landmark} />
 
-          <div className="pt-4 pb-1 px-4">
-            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Saídas</span>
+          {/* --- SAÍDAS --- */}
+          <div className="pt-2 pb-1 border-t border-slate-800/50 mt-2">
+            <button
+              onClick={() => toggleSection('saidas')}
+              className={`w-full flex items-center justify-between px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:text-amber-500 transition-colors ${!isSidebarOpen && 'hidden'} ${expandedSections.saidas ? 'text-amber-500' : 'text-slate-500'}`}
+            >
+              <span>Saídas</span>
+              {expandedSections.saidas ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            {(!isSidebarOpen || expandedSections.saidas) && (
+              <div className="space-y-1 mt-1">
+                <NavItem id="vendors" label="Fornecedores" icon={Truck} />
+                <NavItem id="expenses" label="Lançar Despesas" icon={Wallet} />
+                <NavItem id="payables" label="Contas a Pagar" icon={CreditCard} />
+                <NavItem id="corporate-cards" label="Cartão Corporativo" icon={CreditCard} />
+                <NavItem id="employee-loans" label="Empréstimos Func." icon={Banknote} />
+              </div>
+            )}
           </div>
-          <NavItem id="vendors" label="Fornecedores" icon={Truck} />
-          <NavItem id="expenses" label="Lançar Despesas" icon={Wallet} />
-          <NavItem id="payables" label="Contas a Pagar" icon={CreditCard} />
-          <NavItem id="corporate-cards" label="Cartão Corporativo" icon={CreditCard} />
-          <NavItem id="employee-loans" label="Empréstimos Func." icon={Banknote} />
 
-          <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
-            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Tesouraria</span>
+          {/* --- TESOURARIA --- */}
+          <div className="pt-2 pb-1 border-t border-slate-800/50 mt-2">
+            <button
+              onClick={() => toggleSection('tesouraria')}
+              className={`w-full flex items-center justify-between px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:text-amber-500 transition-colors ${!isSidebarOpen && 'hidden'} ${expandedSections.tesouraria ? 'text-amber-500' : 'text-slate-500'}`}
+            >
+              <span>Tesouraria</span>
+              {expandedSections.tesouraria ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            {(!isSidebarOpen || expandedSections.tesouraria) && (
+              <div className="space-y-1 mt-1">
+                <NavItem id="transfers" label="Transferências" icon={ArrowRightLeft} />
+                <NavItem id="yields" label="Rend Aplicação" icon={PiggyBank} />
+                <NavItem id="company-loans" label="Emprést. Bancos" icon={Banknote} />
+                <NavItem id="bank-statements" label="Importar Extrato" icon={FileUp} />
+                <NavItem id="banks" label="Contas Bancárias" icon={Building2} />
+              </div>
+            )}
           </div>
-          <NavItem id="transfers" label="Transferências" icon={ArrowRightLeft} />
-          <NavItem id="yields" label="Rend Aplicação" icon={PiggyBank} />
-          <NavItem id="company-loans" label="Emprést. Bancos" icon={Banknote} />
-          <NavItem id="bank-statements" label="Importar Extrato" icon={FileUp} />
-          <NavItem id="banks" label="Contas Bancárias" icon={Building2} />
 
-          <div className="pt-6 pb-2 px-4 border-t border-slate-800 mt-4">
-            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Relatórios</span>
+          {/* --- RELATÓRIOS --- */}
+          <div className="pt-2 pb-1 border-t border-slate-800/50 mt-2">
+            <button
+              onClick={() => toggleSection('relatorios')}
+              className={`w-full flex items-center justify-between px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:text-amber-500 transition-colors ${!isSidebarOpen && 'hidden'} ${expandedSections.relatorios ? 'text-amber-500' : 'text-slate-500'}`}
+            >
+              <span>Relatórios</span>
+              {expandedSections.relatorios ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            {(!isSidebarOpen || expandedSections.relatorios) && (
+              <div className="space-y-1 mt-1">
+                <NavItem id="reports" label="Módulo Relatórios" icon={Printer} />
+              </div>
+            )}
           </div>
-          <NavItem id="reports" label="Relatórios" icon={Printer} />
-          <NavItem id="ctr" label="CTR" icon={FileUp} />
 
-          <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
-            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Tarefas</span>
+          {/* --- VEÍCULOS --- */}
+          <div className="pt-2 pb-1 border-t border-slate-800/50 mt-2">
+            <button
+              onClick={() => toggleSection('veiculos')}
+              className={`w-full flex items-center justify-between px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:text-amber-500 transition-colors ${!isSidebarOpen && 'hidden'} ${expandedSections.veiculos ? 'text-amber-500' : 'text-slate-500'}`}
+            >
+              <span>Frota e Manutenção</span>
+              {expandedSections.veiculos ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            {(!isSidebarOpen || expandedSections.veiculos) && (
+              <div className="space-y-1 mt-1">
+                <NavItem id="company-vehicles" label="Cadastro Veículos" icon={Car} />
+                <NavItem id="fleet" label="Agenda Manutenção" icon={Wrench} />
+              </div>
+            )}
           </div>
-          <NavItem id="agenda" label="Agenda de Tarefas" icon={CalendarDays} />
 
-          <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
-            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Veículos da Empresa</span>
+          {/* --- EMPRESA --- */}
+          <div className="pt-2 pb-1 border-t border-slate-800/50 mt-2">
+            <button
+              onClick={() => toggleSection('empresa')}
+              className={`w-full flex items-center justify-between px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:text-amber-500 transition-colors ${!isSidebarOpen && 'hidden'} ${expandedSections.empresa ? 'text-amber-500' : 'text-slate-500'}`}
+            >
+              <span>Dados da Empresa</span>
+              {expandedSections.empresa ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            {(!isSidebarOpen || expandedSections.empresa) && (
+              <div className="space-y-1 mt-1">
+                <NavItem id="agenda" label="Agenda de Tarefas" icon={CalendarDays} />
+                <NavItem id="ctr" label="Controle de CTR" icon={FileUp} />
+                <NavItem id="accountPlan" label="Plano de Contas" icon={BookOpen} />
+                <NavItem id="employees" label="Funcionários" icon={Users} />
+                <NavItem id="company-settings" label="Configurações" icon={Building2} />
+              </div>
+            )}
           </div>
-          <NavItem id="company-vehicles" label="Cadastro" icon={Car} />
-          <NavItem id="fleet" label="Manutenções" icon={Wrench} />
-
-          <div className="pt-4 pb-1 px-4 border-t border-slate-800 mt-4">
-            <span className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${!isSidebarOpen && 'hidden'}`}>Empresa</span>
-          </div>
-          <NavItem id="accountPlan" label="Plano de Contas" icon={BookOpen} />
-          <NavItem id="employees" label="Funcionários" icon={Users} />
-          <NavItem id="company-settings" label="Configurações" icon={Building2} />
         </nav>
 
         <div className="p-4 border-t border-slate-800">
