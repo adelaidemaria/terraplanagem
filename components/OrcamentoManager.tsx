@@ -162,17 +162,19 @@ const OrcamentoPrintView: React.FC<{ orcamento: Orcamento, company: Configuracao
                 <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center">
                   <User size={14} className="mr-1.5" /> Dados do Cliente
                 </h3>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="text-xs text-slate-500 font-bold">Nome / Razão Social</span>
+                <div className="flex justify-between gap-4 text-sm mt-1">
+                  <div className="flex-1">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Nome / Razão Social</span>
                     <p className="font-bold text-slate-900 mt-0.5">{orcamento.nome}</p>
                   </div>
                   {orcamento.cpfCnpj && (
-                    <div>
-                      <span className="text-xs text-slate-500 font-bold">CPF / CNPJ</span>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">CPF / CNPJ</span>
                       <p className="font-bold text-slate-900 mt-0.5">{orcamento.cpfCnpj}</p>
                     </div>
                   )}
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm mt-3 border-t border-slate-100 pt-3">
                   {orcamento.endereco && (
                     <div className="col-span-2">
                       <span className="text-xs text-slate-500 font-bold">Endereço</span>
@@ -239,8 +241,11 @@ const OrcamentoPrintView: React.FC<{ orcamento: Orcamento, company: Configuracao
               <div className="grid grid-cols-2 gap-4 mb-6 break-inside-avoid">
                 <div className="p-4 rounded-xl border border-slate-200">
                   <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Pagamento</h4>
-                  <p className="text-sm"><span className="font-bold">Forma:</span> {orcamento.formaPagamento}</p>
-                  <p className="text-sm mt-1"><span className="font-bold">Condição:</span> {orcamento.condicaoPagamento}</p>
+                  <p className="text-sm">
+                    <span className="font-bold">Forma:</span> {orcamento.formaPagamento} 
+                    <span className="mx-3 text-slate-300">|</span> 
+                    <span className="font-bold">Condição:</span> {orcamento.condicaoPagamento}
+                  </p>
                 </div>
                 <div className="p-4 rounded-xl border border-slate-200">
                   <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 flex items-center">
@@ -262,15 +267,13 @@ const OrcamentoPrintView: React.FC<{ orcamento: Orcamento, company: Configuracao
               )}
 
               {/* Footer e Assinatura */}
-              <div className="border-t-2 border-slate-200 pt-6 mt-8 break-inside-avoid">
+              <div className="border-t-2 border-slate-200 pt-4 mt-6 break-inside-avoid">
                 <div className="flex flex-col gap-1 text-sm text-slate-500 font-medium">
-                  <p>Orçamento válido por 30 dias a partir da data de emissão.</p>
-                  <p>Empresa Optante Simples Nacional</p>
-                  <div className="mt-4 pt-4 border-t border-slate-100/50">
+                  <div className="pt-2">
                     <p className="text-slate-800 font-bold text-base">{formatDataExtenso(orcamento.dataEmissao)}</p>
                   </div>
                 </div>
-                <div className="mt-16 grid grid-cols-2 gap-8 px-4">
+                <div className="mt-10 grid grid-cols-2 gap-8 px-4">
                   {/* Assinatura Bauru (Lado Esquerdo) */}
                   <div className="text-center">
                     <div className="h-16 flex items-end justify-center mb-1">
