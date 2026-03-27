@@ -704,6 +704,22 @@ const App: React.FC = () => {
             )}
           </div>
 
+          {/* --- RELATÓRIOS --- */}
+          <div className="pt-2 pb-1 border-t border-slate-800/50 mt-2">
+            <button
+              onClick={() => toggleSection('relatorios')}
+              className={`w-full flex items-center justify-between px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:text-amber-500 transition-colors ${!isSidebarOpen && 'hidden'} ${expandedSections.relatorios ? 'text-amber-500' : 'text-slate-500'}`}
+            >
+              <span>Relatórios</span>
+              {expandedSections.relatorios ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            {(!isSidebarOpen || expandedSections.relatorios) && (
+              <div className="space-y-1 mt-1">
+                <NavItem id="reports" label="Módulo Relatórios" icon={Printer} />
+              </div>
+            )}
+          </div>
+
           {/* --- TESOURARIA --- */}
           <div className="pt-2 pb-1 border-t border-slate-800/50 mt-2">
             <button
@@ -720,22 +736,6 @@ const App: React.FC = () => {
                 <NavItem id="company-loans" label="Emprést. Bancos" icon={Banknote} />
                 <NavItem id="bank-statements" label="Importar Extrato" icon={FileUp} />
                 <NavItem id="banks" label="Contas Bancárias" icon={Building2} />
-              </div>
-            )}
-          </div>
-
-          {/* --- RELATÓRIOS --- */}
-          <div className="pt-2 pb-1 border-t border-slate-800/50 mt-2">
-            <button
-              onClick={() => toggleSection('relatorios')}
-              className={`w-full flex items-center justify-between px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:text-amber-500 transition-colors ${!isSidebarOpen && 'hidden'} ${expandedSections.relatorios ? 'text-amber-500' : 'text-slate-500'}`}
-            >
-              <span>Relatórios</span>
-              {expandedSections.relatorios ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            </button>
-            {(!isSidebarOpen || expandedSections.relatorios) && (
-              <div className="space-y-1 mt-1">
-                <NavItem id="reports" label="Módulo Relatórios" icon={Printer} />
               </div>
             )}
           </div>
