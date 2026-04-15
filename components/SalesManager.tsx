@@ -46,6 +46,12 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
 
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const [focusedCustomerIndex, setFocusedCustomerIndex] = useState(0);
+  const [newCustomersCache, setNewCustomersCache] = useState<Customer[]>([]);
+  const [isQuickCustomerModalOpen, setIsQuickCustomerModalOpen] = useState(false);
+  const [quickCustomerName, setQuickCustomerName] = useState('');
+  const [quickCustomerDoc, setQuickCustomerDoc] = useState('');
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
   const customerDropdownRef = useRef<HTMLDivElement>(null);
 
   const [accountSearchTerm, setAccountSearchTerm] = useState('');
@@ -126,7 +132,9 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
   }, [sortedRevenueAccounts, accountSearchTerm]);
 
   const filteredCustomersForDropdown = useMemo(() => {
-    const activeCustomers = customers.filter(c => c.isActive !== false || c.id === formData.customerId);
+    const allCustomers = [...customers, ...newCustomersCache];
+    const uniqueCustomers = Array.from(new Map(allCustomers.map(c => [c.id, c])).values());
+    const activeCustomers = uniqueCustomers.filter(c => c.isActive !== false || c.id === formData.customerId);
     const sorted = [...activeCustomers].sort((a, b) => a.name.localeCompare(b.name));
     if (!customerSearchTerm) return sorted;
     const search = customerSearchTerm.toLowerCase();
@@ -134,7 +142,7 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
       c.name.toLowerCase().includes(search) ||
       (c.document && c.document.includes(search))
     );
-  }, [customers, customerSearchTerm, formData.customerId]);
+  }, [customers, newCustomersCache, customerSearchTerm, formData.customerId]);
 
   const filteredSales = useMemo(() => {
     return sales
@@ -393,6 +401,59 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
     setIsNoNf(false);
 
     setTimeout(() => dateInputRef.current?.focus(), 100);
+  };
+
+  const handleQuickAddCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickCustomerName) return;
+    setIsAddingCustomer(true);
+    
+    const newCustomer: Customer = {
+      id: crypto.randomUUID(),
+      name: quickCustomerName.toUpperCase(),
+      personType: quickCustomerDoc.replace(/\D/g, '').length > 11 ? 'PJ' : 'PF',
+      document: quickCustomerDoc,
+      address: '',
+      contactPerson: '',
+      phone: '',
+      email: '',
+      isActive: true,
+      createdAt: Date.now()
+    };
+    
+    try {
+      const dbCustomer = {
+        id: newCustomer.id,
+        name: newCustomer.name,
+        person_type: newCustomer.personType,
+        document: newCustomer.document,
+        address: newCustomer.address,
+        contact_person: newCustomer.contactPerson,
+        phone: newCustomer.phone,
+        email: newCustomer.email,
+        is_active: newCustomer.isActive,
+        created_at: newCustomer.createdAt
+      };
+      
+      const { error } = await supabase.from('customers').insert([dbCustomer]);
+      if (error) throw error;
+      
+      setNewCustomersCache(prev => [...prev, newCustomer]);
+      setFormData(prev => ({ ...prev, customerId: newCustomer.id, customerName: newCustomer.name }));
+      setIsQuickCustomerModalOpen(false);
+      setQuickCustomerName('');
+      setQuickCustomerDoc('');
+      setIsCustomerDropdownOpen(false);
+      
+      setTimeout(() => {
+        const itemInput = document.querySelector('input[placeholder*="Diária"]');
+        if (itemInput) (itemInput as HTMLInputElement).focus();
+      }, 100);
+    } catch (err: any) {
+      alert('Erro ao cadastrar cliente: ' + err.message);
+    } finally {
+      setIsAddingCustomer(false);
+    }
   };
 
   return (
@@ -698,21 +759,30 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                         if (modalMode !== 'view') {
                           setIsCustomerDropdownOpen(!isCustomerDropdownOpen);
                           setCustomerSearchTerm('');
+                          setFocusedCustomerIndex(0);
                         }
                       }}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
+                        if (e.key === 'F2') {
+                          e.preventDefault();
+                          if (modalMode !== 'view') {
+                            setIsCustomerDropdownOpen(true);
+                            setCustomerSearchTerm('');
+                            setFocusedCustomerIndex(0);
+                          }
+                        } else if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
                           if (modalMode !== 'view') {
                             setIsCustomerDropdownOpen(!isCustomerDropdownOpen);
                             setCustomerSearchTerm('');
+                            setFocusedCustomerIndex(0);
                           }
                         }
                       }}
                     >
                       <div className="flex justify-between items-center whitespace-nowrap overflow-hidden">
                         <span className={`truncate ${!formData.customerId ? 'text-slate-500' : 'text-slate-800 font-bold'}`}>
-                          {formData.customerId ? customers.find(c => c.id === formData.customerId)?.name || 'Cliente não encontrado' : 'Pesquise o Cliente...'}
+                          {formData.customerId ? [...customers, ...newCustomersCache].find(c => c.id === formData.customerId)?.name || 'Cliente não encontrado' : 'Selecione o Cliente (F2 para pesquisar)...'}
                         </span>
                       </div>
                     </div>
@@ -725,24 +795,72 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                             placeholder="Pesquisar cliente..."
                             className="w-full px-3 py-1.5 border rounded-md outline-none focus:ring-2 focus:ring-amber-500 text-sm"
                             value={customerSearchTerm}
-                            onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                            onChange={(e) => {
+                              setCustomerSearchTerm(e.target.value);
+                              setFocusedCustomerIndex(0);
+                            }}
                             onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                setFocusedCustomerIndex(prev => Math.min(prev + 1, filteredCustomersForDropdown.length - 1));
+                              } else if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                setFocusedCustomerIndex(prev => Math.max(prev - 1, 0));
+                              } else if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (filteredCustomersForDropdown.length > 0) {
+                                  const c = filteredCustomersForDropdown[focusedCustomerIndex];
+                                  setFormData({ ...formData, customerId: c.id, customerName: c.name });
+                                  setIsCustomerDropdownOpen(false);
+                                  setTimeout(() => {
+                                    const itemInput = document.querySelector('input[placeholder*="Diária"]');
+                                    if (itemInput) (itemInput as HTMLInputElement).focus();
+                                  }, 100);
+                                }
+                              } else if (e.key === 'Escape') {
+                                setIsCustomerDropdownOpen(false);
+                              }
+                            }}
                           />
                         </div>
                         <div className="overflow-y-auto overflow-x-hidden flex-1 max-h-48 drop-scrollbar">
-                          {filteredCustomersForDropdown.length > 0 ? filteredCustomersForDropdown.map(c => (
+                          {filteredCustomersForDropdown.length > 0 ? filteredCustomersForDropdown.map((c, index) => (
                             <div
                               key={c.id}
-                              className={`px-4 py-2 hover:bg-amber-50 cursor-pointer text-sm truncate ${formData.customerId === c.id ? 'bg-amber-100 font-bold text-amber-700' : 'text-slate-700'}`}
+                              ref={(el) => {
+                                if (focusedCustomerIndex === index && el) {
+                                  el.scrollIntoView({ block: 'nearest' });
+                                }
+                              }}
+                              className={`px-4 py-2 hover:bg-amber-50 cursor-pointer text-sm truncate ${formData.customerId === c.id || focusedCustomerIndex === index ? 'bg-amber-100 font-bold text-amber-700' : 'text-slate-700'}`}
                               onClick={() => {
                                 setFormData({ ...formData, customerId: c.id, customerName: c.name });
                                 setIsCustomerDropdownOpen(false);
+                                setTimeout(() => {
+                                  const itemInput = document.querySelector('input[placeholder*="Diária"]');
+                                  if (itemInput) (itemInput as HTMLInputElement).focus();
+                                }, 100);
                               }}
                             >
                               <span className="font-bold">{c.name}</span>
                             </div>
                           )) : (
-                            <div className="px-4 py-3 text-sm text-slate-500 text-center italic">Nenhum cliente encontrado.</div>
+                            <div className="p-3 text-center">
+                              <p className="text-sm text-slate-500 italic mb-2">Nenhum cliente encontrado.</p>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuickCustomerName(customerSearchTerm.toUpperCase());
+                                  setIsQuickCustomerModalOpen(true);
+                                  setIsCustomerDropdownOpen(false);
+                                }}
+                                className="px-3 py-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 font-bold rounded text-xs w-full transition-colors"
+                              >
+                                + Cadastrar Cliente
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -996,6 +1114,45 @@ const SalesManager: React.FC<SalesManagerProps> = ({ sales, setSales, customers,
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {isQuickCustomerModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border-t-4 border-amber-500">
+            <h3 className="text-lg font-bold mb-4 text-slate-800 flex items-center">
+              <Plus className="mr-2 text-amber-500" /> Cadastro Rápido
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">Adicione o cliente sem sair do faturamento atual.</p>
+            <form onSubmit={handleQuickAddCustomer} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Nome do Cliente *</label>
+                <input
+                  autoFocus
+                  required
+                  type="text"
+                  className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500 uppercase font-bold"
+                  value={quickCustomerName}
+                  onChange={(e) => setQuickCustomerName(e.target.value.toUpperCase())}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">CPF/CNPJ (Opcional)</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+                  value={quickCustomerDoc}
+                  onChange={(e) => setQuickCustomerDoc(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end space-x-3 pt-2">
+                <button type="button" disabled={isAddingCustomer} onClick={() => setIsQuickCustomerModalOpen(false)} className="px-4 py-2 text-slate-500 text-sm font-bold">Cancelar</button>
+                <button disabled={isAddingCustomer} type="submit" className={`px-6 py-2 text-white text-sm font-bold rounded-lg shadow-lg flex items-center ${isAddingCustomer ? 'bg-amber-400' : 'bg-amber-500 hover:bg-amber-600'}`}>
+                  {isAddingCustomer ? 'Salvando...' : 'Cadastrar e Usar'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
