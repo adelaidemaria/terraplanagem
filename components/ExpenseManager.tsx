@@ -69,6 +69,11 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
   const [vendorSearchTerm, setVendorSearchTerm] = useState('');
   const [isVendorDropdownOpen, setIsVendorDropdownOpen] = useState(false);
   const [focusedVendorIndex, setFocusedVendorIndex] = useState(0);
+  const [newVendorsCache, setNewVendorsCache] = useState<Vendor[]>([]);
+  const [isQuickVendorModalOpen, setIsQuickVendorModalOpen] = useState(false);
+  const [quickVendorName, setQuickVendorName] = useState('');
+  const [quickVendorDoc, setQuickVendorDoc] = useState('');
+  const [isAddingVendor, setIsAddingVendor] = useState(false);
   const vendorDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -132,7 +137,9 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
   }, [sortedExpenseAccounts, accountSearchTerm]);
 
   const filteredVendorsForDropdown = useMemo(() => {
-    const activeVendors = vendors.filter(v => v.isActive !== false || v.id === formData.vendorId);
+    const allVendors = [...vendors, ...newVendorsCache];
+    const uniqueVendors = Array.from(new Map(allVendors.map(v => [v.id, v])).values());
+    const activeVendors = uniqueVendors.filter(v => v.isActive !== false || v.id === formData.vendorId);
     const sorted = [...activeVendors].sort((a, b) => a.name.localeCompare(b.name));
     if (!vendorSearchTerm) return sorted;
     const search = vendorSearchTerm.toLowerCase();
@@ -140,7 +147,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
       v.name.toLowerCase().includes(search) ||
       (v.document && v.document.includes(search))
     );
-  }, [vendors, vendorSearchTerm, formData.vendorId]);
+  }, [vendors, newVendorsCache, vendorSearchTerm, formData.vendorId]);
 
   const filteredExpenses = useMemo(() => {
     return expenses
@@ -308,6 +315,54 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
           dateInput.focus();
         }
       }, 500);
+    }
+  };
+
+  const handleQuickAddVendor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickVendorName) return;
+    setIsAddingVendor(true);
+    
+    const newVendor: Vendor = {
+      id: crypto.randomUUID(),
+      name: quickVendorName.toUpperCase(),
+      personType: quickVendorDoc.replace(/\D/g, '').length > 11 ? 'PJ' : 'PF',
+      document: quickVendorDoc,
+      address: '',
+      contactPerson: '',
+      phone: '',
+      email: '',
+      isActive: true,
+      createdAt: Date.now()
+    };
+    
+    try {
+      const dbVendor = {
+        id: newVendor.id,
+        name: newVendor.name,
+        person_type: newVendor.personType,
+        document: newVendor.document,
+        address: newVendor.address,
+        contact_person: newVendor.contactPerson,
+        phone: newVendor.phone,
+        email: newVendor.email,
+        is_active: newVendor.isActive,
+        created_at: newVendor.createdAt
+      };
+      
+      const { error } = await supabase.from('vendors').insert([dbVendor]);
+      if (error) throw error;
+      
+      setNewVendorsCache(prev => [...prev, newVendor]);
+      setFormData(prev => ({ ...prev, vendorId: newVendor.id }));
+      setIsQuickVendorModalOpen(false);
+      setQuickVendorName('');
+      setQuickVendorDoc('');
+      setTimeout(() => document.getElementById('status-pg-select')?.focus(), 100);
+    } catch (err: any) {
+      alert('Erro ao cadastrar fornecedor: ' + err.message);
+    } finally {
+      setIsAddingVendor(false);
     }
   };
 
@@ -607,7 +662,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                   >
                     <div className="flex justify-between items-center whitespace-nowrap overflow-hidden">
                       <span className={`truncate ${!formData.vendorId ? 'text-slate-500' : 'text-slate-800 font-bold'}`}>
-                        {formData.vendorId ? vendors.find(v => v.id === formData.vendorId)?.name || 'Fornecedor não encontrado' : 'Selecione o Fornecedor (F2 para pesquisar)...'}
+                        {formData.vendorId ? [...vendors, ...newVendorsCache].find(v => v.id === formData.vendorId)?.name || 'Fornecedor não encontrado' : 'Selecione o Fornecedor (F2 para pesquisar)...'}
                       </span>
                     </div>
                   </div>
@@ -674,7 +729,21 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                             <span className="font-bold">{v.name}</span>
                           </div>
                         )) : (
-                          <div className="px-4 py-3 text-sm text-slate-500 text-center italic">Nenhum fornecedor encontrado.</div>
+                          <div className="p-3 text-center">
+                            <p className="text-sm text-slate-500 italic mb-2">Nenhum fornecedor encontrado.</p>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuickVendorName(vendorSearchTerm.toUpperCase());
+                                setIsQuickVendorModalOpen(true);
+                                setIsVendorDropdownOpen(false);
+                              }}
+                              className="px-3 py-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 font-bold rounded text-xs w-full transition-colors"
+                            >
+                              + Cadastrar Fornecedor
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -947,6 +1016,43 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                     {isSubmitting ? 'Salvando...' : (editingId ? 'Salvar Alterações' : 'Confirmar Lançamento')}
                   </button>
                 )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isQuickVendorModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border-t-4 border-rose-500">
+            <h3 className="text-lg font-bold mb-4 text-slate-800 flex items-center"><Building2 className="mr-2 text-rose-500" /> Cadastro Rápido</h3>
+            <p className="text-xs text-slate-500 mb-4">Adicione o fornecedor sem sair do lançamento atual.</p>
+            <form onSubmit={handleQuickAddVendor} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Nome do Fornecedor *</label>
+                <input
+                  autoFocus
+                  required
+                  type="text"
+                  className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-rose-500 uppercase font-bold"
+                  value={quickVendorName}
+                  onChange={(e) => setQuickVendorName(e.target.value.toUpperCase())}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">CPF/CNPJ (Opcional)</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-rose-500 font-medium"
+                  value={quickVendorDoc}
+                  onChange={(e) => setQuickVendorDoc(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end space-x-3 pt-2">
+                <button type="button" disabled={isAddingVendor} onClick={() => setIsQuickVendorModalOpen(false)} className="px-4 py-2 text-slate-500 text-sm font-bold">Cancelar</button>
+                <button disabled={isAddingVendor} type="submit" className={`px-6 py-2 text-white text-sm font-bold rounded-lg shadow-lg flex items-center ${isAddingVendor ? 'bg-rose-400' : 'bg-rose-500 hover:bg-rose-600'}`}>
+                  {isAddingVendor ? 'Salvando...' : 'Cadastrar e Usar'}
+                </button>
               </div>
             </form>
           </div>
