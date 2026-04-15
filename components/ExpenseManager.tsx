@@ -63,10 +63,12 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
 
   const [accountSearchTerm, setAccountSearchTerm] = useState('');
   const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
+  const [focusedAccountIndex, setFocusedAccountIndex] = useState(0);
   const accountDropdownRef = useRef<HTMLDivElement>(null);
 
   const [vendorSearchTerm, setVendorSearchTerm] = useState('');
   const [isVendorDropdownOpen, setIsVendorDropdownOpen] = useState(false);
+  const [focusedVendorIndex, setFocusedVendorIndex] = useState(0);
   const vendorDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -582,21 +584,30 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                       if (modalMode !== 'view') {
                         setIsVendorDropdownOpen(!isVendorDropdownOpen);
                         setVendorSearchTerm('');
+                        setFocusedVendorIndex(0);
                       }
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
+                      if (e.key === 'F2') {
+                        e.preventDefault();
+                        if (modalMode !== 'view') {
+                          setIsVendorDropdownOpen(true);
+                          setVendorSearchTerm('');
+                          setFocusedVendorIndex(0);
+                        }
+                      } else if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
                         if (modalMode !== 'view') {
                           setIsVendorDropdownOpen(!isVendorDropdownOpen);
                           setVendorSearchTerm('');
+                          setFocusedVendorIndex(0);
                         }
                       }
                     }}
                   >
                     <div className="flex justify-between items-center whitespace-nowrap overflow-hidden">
                       <span className={`truncate ${!formData.vendorId ? 'text-slate-500' : 'text-slate-800 font-bold'}`}>
-                        {formData.vendorId ? vendors.find(v => v.id === formData.vendorId)?.name || 'Fornecedor não encontrado' : 'Selecione o Fornecedor...'}
+                        {formData.vendorId ? vendors.find(v => v.id === formData.vendorId)?.name || 'Fornecedor não encontrado' : 'Selecione o Fornecedor (F2 para pesquisar)...'}
                       </span>
                     </div>
                   </div>
@@ -609,15 +620,46 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                           placeholder="Pesquisar fornecedor..."
                           className="w-full px-3 py-1.5 border rounded-md outline-none focus:ring-2 focus:ring-rose-500 text-sm"
                           value={vendorSearchTerm}
-                          onChange={(e) => setVendorSearchTerm(e.target.value)}
+                          onChange={(e) => {
+                            setVendorSearchTerm(e.target.value);
+                            setFocusedVendorIndex(0);
+                          }}
                           onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'ArrowDown') {
+                              e.preventDefault();
+                              setFocusedVendorIndex(prev => Math.min(prev + 1, filteredVendorsForDropdown.length - 1));
+                            } else if (e.key === 'ArrowUp') {
+                              e.preventDefault();
+                              setFocusedVendorIndex(prev => Math.max(prev - 1, 0));
+                            } else if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (focusedVendorIndex >= 0 && focusedVendorIndex < filteredVendorsForDropdown.length) {
+                                const v = filteredVendorsForDropdown[focusedVendorIndex];
+                                const newFormData = { ...formData, vendorId: v.id };
+                                if (v.categoryId) {
+                                  newFormData.accountPlanId = v.categoryId;
+                                }
+                                setFormData(newFormData);
+                                setIsVendorDropdownOpen(false);
+                                setTimeout(() => document.getElementById('status-pg-select')?.focus(), 100);
+                              }
+                            } else if (e.key === 'Escape') {
+                              setIsVendorDropdownOpen(false);
+                            }
+                          }}
                         />
                       </div>
                       <div className="overflow-y-auto overflow-x-hidden flex-1 max-h-48 drop-scrollbar">
-                        {filteredVendorsForDropdown.length > 0 ? filteredVendorsForDropdown.map(v => (
+                        {filteredVendorsForDropdown.length > 0 ? filteredVendorsForDropdown.map((v, index) => (
                           <div
                             key={v.id}
-                            className={`px-4 py-2 hover:bg-rose-50 cursor-pointer text-sm truncate ${formData.vendorId === v.id ? 'bg-rose-100 font-bold text-rose-700' : 'text-slate-700'}`}
+                            ref={(el) => {
+                              if (focusedVendorIndex === index && el) {
+                                el.scrollIntoView({ block: 'nearest' });
+                              }
+                            }}
+                            className={`px-4 py-2 hover:bg-rose-50 cursor-pointer text-sm truncate ${formData.vendorId === v.id || focusedVendorIndex === index ? 'bg-rose-100 font-bold text-rose-700' : 'text-slate-700'}`}
                             onClick={() => {
                               const newFormData = { ...formData, vendorId: v.id };
                               // Se o fornecedor tiver uma categoria vinculada, preencher automaticamente
@@ -626,6 +668,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                               }
                               setFormData(newFormData);
                               setIsVendorDropdownOpen(false);
+                              setTimeout(() => document.getElementById('status-pg-select')?.focus(), 100);
                             }}
                           >
                             <span className="font-bold">{v.name}</span>
@@ -643,6 +686,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Status PG</label>
                     <select
+                      id="status-pg-select"
                       disabled={modalMode === 'view'}
                       className="w-full px-4 py-2 border rounded-lg bg-white border-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
                       value={formData.status} onChange={(e) => {
@@ -729,21 +773,30 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                         if (modalMode !== 'view') {
                           setIsAccountDropdownOpen(!isAccountDropdownOpen);
                           setAccountSearchTerm('');
+                          setFocusedAccountIndex(0);
                         }
                       }}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
+                        if (e.key === 'F2') {
+                          e.preventDefault();
+                          if (modalMode !== 'view') {
+                            setIsAccountDropdownOpen(true);
+                            setAccountSearchTerm('');
+                            setFocusedAccountIndex(0);
+                          }
+                        } else if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
                           if (modalMode !== 'view') {
                             setIsAccountDropdownOpen(!isAccountDropdownOpen);
                             setAccountSearchTerm('');
+                            setFocusedAccountIndex(0);
                           }
                         }
                       }}
                     >
                       <div className="flex justify-between items-center whitespace-nowrap overflow-hidden">
                         <span className={`truncate ${!formData.accountPlanId ? 'text-slate-500' : 'text-slate-800'}`}>
-                          {formData.accountPlanId ? sortedExpenseAccounts.find(p => p.id === formData.accountPlanId) ? `${sortedExpenseAccounts.find(p => p.id === formData.accountPlanId)?.subcategory} / ${sortedExpenseAccounts.find(p => p.id === formData.accountPlanId)?.description}` : 'Conta selecionada não encontrada' : 'Selecione a Conta de Despesa...'}
+                          {formData.accountPlanId ? sortedExpenseAccounts.find(p => p.id === formData.accountPlanId) ? `${sortedExpenseAccounts.find(p => p.id === formData.accountPlanId)?.subcategory} / ${sortedExpenseAccounts.find(p => p.id === formData.accountPlanId)?.description}` : 'Conta selecionada não encontrada' : 'Selecione a Conta de Despesa (F2 para pesquisar)...'}
                         </span>
                       </div>
                     </div>
@@ -756,18 +809,46 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                             placeholder="Pesquisar conta..."
                             className="w-full px-3 py-1.5 border rounded-md outline-none focus:ring-2 focus:ring-rose-500 text-sm"
                             value={accountSearchTerm}
-                            onChange={(e) => setAccountSearchTerm(e.target.value)}
+                            onChange={(e) => {
+                              setAccountSearchTerm(e.target.value);
+                              setFocusedAccountIndex(0);
+                            }}
                             onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                setFocusedAccountIndex(prev => Math.min(prev + 1, filteredExpenseAccountsForDropdown.length - 1));
+                              } else if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                setFocusedAccountIndex(prev => Math.max(prev - 1, 0));
+                              } else if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (focusedAccountIndex >= 0 && focusedAccountIndex < filteredExpenseAccountsForDropdown.length) {
+                                  const p = filteredExpenseAccountsForDropdown[focusedAccountIndex];
+                                  setFormData({ ...formData, accountPlanId: p.id });
+                                  setIsAccountDropdownOpen(false);
+                                  setTimeout(() => document.querySelector<HTMLInputElement>('input[placeholder^="Ex: Combustível"]')?.focus(), 100);
+                                }
+                              } else if (e.key === 'Escape') {
+                                setIsAccountDropdownOpen(false);
+                              }
+                            }}
                           />
                         </div>
                         <div className="overflow-y-auto overflow-x-hidden flex-1 max-h-48 drop-scrollbar">
-                          {filteredExpenseAccountsForDropdown.length > 0 ? filteredExpenseAccountsForDropdown.map(p => (
+                          {filteredExpenseAccountsForDropdown.length > 0 ? filteredExpenseAccountsForDropdown.map((p, index) => (
                             <div
                               key={p.id}
-                              className={`px-4 py-2 hover:bg-rose-50 cursor-pointer text-sm truncate ${formData.accountPlanId === p.id ? 'bg-rose-100 font-bold text-rose-700' : 'text-slate-700'}`}
+                              ref={(el) => {
+                                if (focusedAccountIndex === index && el) {
+                                  el.scrollIntoView({ block: 'nearest' });
+                                }
+                              }}
+                              className={`px-4 py-2 hover:bg-rose-50 cursor-pointer text-sm truncate ${formData.accountPlanId === p.id || focusedAccountIndex === index ? 'bg-rose-100 font-bold text-rose-700' : 'text-slate-700'}`}
                               onClick={() => {
                                 setFormData({ ...formData, accountPlanId: p.id });
                                 setIsAccountDropdownOpen(false);
+                                setTimeout(() => document.querySelector<HTMLInputElement>('input[placeholder^="Ex: Combustível"]')?.focus(), 100);
                               }}
                             >
                               {p.subcategory} / {p.description}
