@@ -155,9 +155,15 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
     return expenses
       .filter(e => {
         const docDate = e.date;
+        const dueDate = e.dueDate || e.date;
+        
         const matchesSearch = e.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (e.docNumber && e.docNumber.includes(searchTerm));
-        const matchesDate = (!startDate || docDate >= startDate) && (!endDate || docDate <= endDate);
+        
+        // Melhora na Experiência: Se estiver pesquisando por texto, ignora a data inicial 
+        // para encontrar registros antigos sem precisar mudar o seletor de período.
+        const matchesDate = (searchTerm || !startDate || docDate >= startDate || dueDate >= startDate) && 
+                           (!endDate || docDate <= endDate || dueDate <= endDate);
 
         const matchesNf = nfFilter === 'all' ||
           (nfFilter === 'noNf' && e.isNoDoc) ||
@@ -503,6 +509,9 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                 } else if (val === 'thisYear') {
                   setStartDate(new Date(today.getFullYear(), 0, 1).toLocaleDateString('en-CA'));
                   setEndDate(new Date(today.getFullYear(), 11, 31).toLocaleDateString('en-CA'));
+                } else if (val === 'all') {
+                  setStartDate('');
+                  setEndDate('');
                 }
               }}
             >
@@ -510,6 +519,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
               <option value="current">Mês Atual</option>
               <option value="last">Mês Anterior</option>
               <option value="thisYear">Ano Atual</option>
+              <option value="all">Todas as Datas</option>
               <option value="custom">Personalizado</option>
             </select>
           </div>
