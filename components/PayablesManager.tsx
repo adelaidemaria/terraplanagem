@@ -61,6 +61,7 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [currentReceiptUrl, setCurrentReceiptUrl] = useState<string | undefined>(undefined);
+    const [payObservations, setPayObservations] = useState('');
 
     const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
@@ -119,7 +120,8 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                 paymentDate: payDate,
                 amountPaid: newTotalPaid,
                 interestAmount: interest,
-                paymentReceiptUrl: currentReceiptUrl
+                paymentReceiptUrl: currentReceiptUrl,
+                paymentObservations: payObservations
             } : exp);
 
             return updated;
@@ -137,7 +139,8 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
             paymentDate: undefined,
             amountPaid: 0,
             interestAmount: 0,
-            paymentReceiptUrl: undefined
+            paymentReceiptUrl: undefined,
+            paymentObservations: undefined
         } : exp));
         setDeleteConfirmId(null);
     };
@@ -316,6 +319,7 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                                                         setIsInterestFee(false);
                                                         setIsEditingRecent(false);
                                                         setCurrentReceiptUrl(expense.paymentReceiptUrl);
+                                                        setPayObservations(expense.paymentObservations || '');
                                                         setUploadError(null);
                                                     }} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center transition-colors">
                                                         <ArrowUpCircle size={16} className="mr-1" /> PAGAR
@@ -334,6 +338,7 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                                                                 setIsInterestFee(!!expense.interestAmount && expense.interestAmount > 0);
                                                                 setIsEditingRecent(true);
                                                                 setCurrentReceiptUrl(expense.paymentReceiptUrl);
+                                                                setPayObservations(expense.paymentObservations || '');
                                                                 setUploadError(null);
                                                             }}
                                                             className="p-1.5 h-8 flex items-center justify-center bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
@@ -406,6 +411,7 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                                                     setIsInterestFee(!!expense.interestAmount && expense.interestAmount > 0);
                                                     setIsEditingRecent(true);
                                                     setCurrentReceiptUrl(expense.paymentReceiptUrl);
+                                                    setPayObservations(expense.paymentObservations || '');
                                                     setUploadError(null);
                                                 }}
                                                 className="p-1.5 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
@@ -556,6 +562,16 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                                     )}
                                 </div>
                                 {uploadError && <p className="text-[10px] text-rose-500 mt-1 font-bold">{uploadError}</p>}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold mb-1 text-slate-700">Descrição / Observação</label>
+                                <textarea
+                                    className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-emerald-500 text-sm h-20 resize-none"
+                                    placeholder="Caso haja alguma observação sobre este pagamento..."
+                                    value={payObservations}
+                                    onChange={(e) => setPayObservations(e.target.value)}
+                                />
                             </div>
 
                             <div className="flex justify-end space-x-3 mt-8">

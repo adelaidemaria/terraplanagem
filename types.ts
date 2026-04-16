@@ -158,6 +158,14 @@ export interface ExpenseItem {
   value: number;
 }
 
+export interface ExpenseInstallment {
+  id: string;
+  number: number;
+  dueDate: string;
+  value: number;
+  status: 'Pendente' | 'Pago';
+}
+
 export interface SaleInstallment {
   id: string;
   number: number;
@@ -201,14 +209,18 @@ export interface Expense {
   isNoDoc?: boolean;
   paymentMethod: string;
   paymentCondition: 'A Vista' | 'A Prazo';
+  installments?: number;
+  installmentsList?: ExpenseInstallment[];
   dueDate?: string;
   status: 'Pendente' | 'Pago';
   bankAccountId?: string;
   paymentDate?: string;
   amountPaid?: number;
   interestAmount?: number;
+  invoiceTotalValue?: number;
   receiptUrl?: string;
   paymentReceiptUrl?: string;
+  paymentObservations?: string;
   bankTransId?: string;
   cardId?: string;
   createdAt: number;

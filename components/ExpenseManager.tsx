@@ -100,7 +100,9 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
     docNumber: '',
     isNoDoc: false,
     paymentMethod: 'Boleto',
-    paymentCondition: 'A Prazo',
+    paymentCondition: 'A Vista',
+    installments: 1,
+    installmentsList: [],
     date: new Date().toLocaleDateString('en-CA'),
     dueDate: '',
     status: 'Pendente'
@@ -177,7 +179,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
     setModalMode('add');
     setFormData({
       vendorId: '', accountPlanId: '', items: [{ id: crypto.randomUUID(), description: '', value: 0 }],
-      docNumber: '', isNoDoc: false, paymentMethod: 'Boleto', paymentCondition: 'A Prazo',
+      docNumber: '', isNoDoc: false, paymentMethod: 'Boleto', paymentCondition: 'A Vista', installments: 1, installmentsList: [],
       date: new Date().toLocaleDateString('en-CA'),
       dueDate: '', status: 'Pendente'
     });
@@ -255,6 +257,44 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
     return (formData.items || []).reduce((acc, item) => acc + item.value, 0);
   };
 
+  const generateInstallments = () => {
+    if (!formData.installments || formData.installments < 1) return;
+    const total = calculateTotal();
+    const instValue = Number((total / formData.installments).toFixed(2));
+    const list: any[] = [];
+    const baseDate = formData.dueDate || formData.date || new Date().toLocaleDateString('en-CA');
+    const [yearStr, monthStr, dayStr] = baseDate.split('-');
+    let lastDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+
+    let sum = 0;
+    for (let i = 1; i <= formData.installments; i++) {
+        let value = instValue;
+        if (i === formData.installments) {
+            value = Number((total - sum).toFixed(2));
+        } else {
+            sum += value;
+        }
+
+        const date = new Date(lastDate);
+        if (i > 1) {
+            date.setMonth(date.getMonth() + 1);
+        }
+
+        list.push({
+            id: crypto.randomUUID(),
+            number: i,
+            dueDate: date.toLocaleDateString('en-CA'),
+            value: value,
+            status: 'Pendente'
+        });
+        
+        if (i > 1) {
+            lastDate = date;
+        }
+    }
+    setFormData(prev => ({ ...prev, installmentsList: list }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -270,39 +310,71 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
     setIsSubmitting(true);
 
     const vendor = vendors.find(v => v.id === formData.vendorId);
-    const expenseData: Expense = {
-      id: editingId || crypto.randomUUID(),
-      vendorId: formData.vendorId!,
-      vendorName: vendor?.name || '---',
-      accountPlanId: formData.accountPlanId!,
-      items: formData.items || [],
-      totalValue: total,
-      date: formData.date!,
-      docNumber: formData.docNumber || '',
-      isNoDoc: formData.isNoDoc || false,
-      paymentMethod: formData.paymentMethod || 'Boleto',
-      paymentCondition: formData.paymentCondition || 'A Prazo',
-      dueDate: formData.dueDate,
-      status: formData.status as any || 'Pendente',
-      receiptUrl: formData.receiptUrl,
-      paymentReceiptUrl: formData.paymentReceiptUrl,
-      bankAccountId: formData.status === 'Pago' ? formData.bankAccountId : undefined,
-      paymentDate: formData.status === 'Pago' ? (formData.paymentDate || formData.date) : undefined,
-      amountPaid: formData.status === 'Pago' ? total : undefined,
-      createdAt: Date.now()
-    };
+    let expensesToSave: Expense[] = [];
+
+    // Se estiver no form 'A Prazo' com lista de parcelas geradas no modo INSERIR
+    if (!editingId && formData.paymentCondition === 'A Prazo' && formData.installmentsList && formData.installmentsList.length > 0) {
+      expensesToSave = formData.installmentsList.map(inst => ({
+        id: crypto.randomUUID(),
+        vendorId: formData.vendorId!,
+        vendorName: vendor?.name || '---',
+        accountPlanId: formData.accountPlanId!,
+        // Prorrateia o valor dos itens para que o total de itens case com o total da parcela
+        items: (formData.items || []).map(item => ({
+          ...item,
+          id: crypto.randomUUID(),
+          description: `Parcela ${inst.number}/${formData.installments} - ${item.description}`,
+          value: Number(((item.value / total) * inst.value).toFixed(2))
+        })),
+        totalValue: inst.value,
+        invoiceTotalValue: total,
+        date: formData.date!,
+        docNumber: `${formData.docNumber || 'S/N'} - Parcela ${inst.number}/${formData.installments}`,
+        isNoDoc: formData.isNoDoc || false,
+        paymentMethod: formData.paymentMethod || 'Boleto',
+        paymentCondition: 'A Prazo',
+        dueDate: inst.dueDate,
+        status: inst.status as any || 'Pendente',
+        receiptUrl: formData.receiptUrl,
+        createdAt: Date.now()
+      }));
+    } else {
+      // Criação Padrão / Vista ou Modo Edição Unitária
+      expensesToSave = [{
+        id: editingId || crypto.randomUUID(),
+        vendorId: formData.vendorId!,
+        vendorName: vendor?.name || '---',
+        accountPlanId: formData.accountPlanId!,
+        items: formData.items || [],
+        totalValue: total,
+        date: formData.date!,
+        docNumber: formData.docNumber || '',
+        isNoDoc: formData.isNoDoc || false,
+        paymentMethod: formData.paymentMethod || 'Boleto',
+        paymentCondition: formData.paymentCondition || 'A Vista',
+        dueDate: formData.dueDate,
+        status: formData.status as any || 'Pendente',
+        receiptUrl: formData.receiptUrl,
+        paymentReceiptUrl: formData.paymentReceiptUrl,
+        bankAccountId: formData.status === 'Pago' ? formData.bankAccountId : undefined,
+        paymentDate: formData.status === 'Pago' ? (formData.paymentDate || formData.date) : undefined,
+        amountPaid: formData.status === 'Pago' ? total : undefined,
+        createdAt: editingId ? (formData.createdAt || Date.now()) : Date.now()
+      }];
+    }
 
     if (editingId) {
-      setExpenses(prev => prev.map(ex => ex.id === editingId ? expenseData : ex));
+      setExpenses(prev => prev.map(ex => ex.id === editingId ? expensesToSave[0] : ex));
       setTimeout(() => {
         setIsSubmitting(false);
       }, 500);
       setIsModalOpen(false);
     } else {
-      setExpenses(prev => [expenseData, ...prev]);
+      setExpenses(prev => [...expensesToSave, ...prev]);
       setFormData({
+
         vendorId: '', accountPlanId: '', items: [{ id: crypto.randomUUID(), description: '', value: 0 }],
-        docNumber: '', isNoDoc: false, paymentMethod: 'Boleto', paymentCondition: 'A Prazo',
+        docNumber: '', isNoDoc: false, paymentMethod: 'Boleto', paymentCondition: 'A Vista', installments: 1, installmentsList: [],
         date: new Date().toLocaleDateString('en-CA'),
         dueDate: '', status: 'Pendente'
       });
@@ -584,6 +656,26 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
               </div>
             )}
 
+            {formData.docNumber?.includes('Parcela') && (
+              <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="bg-emerald-600 p-2 rounded-lg text-white">
+                    <BookOpen size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-emerald-900">Esta é uma despesa parcelada</h4>
+                    <p className="text-xs text-emerald-700">Documento: <span className="font-bold underline">{formData.docNumber}</span></p>
+                  </div>
+                </div>
+                {formData.invoiceTotalValue && (
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase font-bold text-emerald-600">Total da Nota Fiscal</p>
+                    <p className="text-lg font-black text-emerald-800">{formatCurrency(formData.invoiceTotalValue)}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-4">
                 {/* Row 1: Data Documento, Nº DOC, Despesas S/N */}
@@ -697,7 +789,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                                 }
                                 setFormData(newFormData);
                                 setIsVendorDropdownOpen(false);
-                                setTimeout(() => document.getElementById('status-pg-select')?.focus(), 100);
+                                setTimeout(() => document.getElementById('expense-item-desc-0')?.focus(), 100);
                               }
                             } else if (e.key === 'Escape') {
                               setIsVendorDropdownOpen(false);
@@ -723,7 +815,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                               }
                               setFormData(newFormData);
                               setIsVendorDropdownOpen(false);
-                              setTimeout(() => document.getElementById('status-pg-select')?.focus(), 100);
+                              setTimeout(() => document.getElementById('expense-item-desc-0')?.focus(), 100);
                             }}
                           >
                             <span className="font-bold">{v.name}</span>
@@ -750,14 +842,72 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                   )}
                 </div>
 
-                {/* Row 3: Status PG, Forma Pagto, VENCIMENTO */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Items List - Moved below Fornecedor */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="font-bold text-slate-800 text-sm flex items-center">
+                      <CreditCard size={16} className="mr-2 text-rose-500" /> Itens da Despesa
+                    </h4>
+                    {modalMode !== 'view' && (
+                      <button type="button" onClick={handleAddItem} className="text-rose-600 hover:text-rose-700 font-bold text-xs uppercase">+ Adicionar Item</button>
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    {(formData.items || []).map((item, index) => (
+                      <div key={item.id} className="flex gap-3 bg-white p-3 rounded-lg shadow-sm border">
+                        <div className="flex-1">
+                          <input
+                            id={`expense-item-desc-${index}`}
+                            readOnly={modalMode === 'view'}
+                            required placeholder="Ex: Combustível, Manutenção de Escavadeira, Aluguel..."
+                            className="w-full text-sm font-medium border-b border-transparent focus:border-rose-500 outline-none"
+                            value={item.description}
+                            onChange={(e) => updateItem(item.id, 'description', e.target.value)}
+                          />
+                        </div>
+                        <div className="w-32">
+                          <div className="relative">
+                            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">R$</span>
+                            <input
+                              readOnly={modalMode === 'view'}
+                              required className="w-full text-right text-sm font-black border-b border-transparent focus:border-rose-500 outline-none pl-6 text-rose-600"
+                              value={formatInputCurrency(item.value)}
+                              onChange={(e) => updateItem(item.id, 'value', parseCurrencyInput(e.target.value))}
+                            />
+                          </div>
+                        </div>
+                        {modalMode !== 'view' && (formData.items?.length || 0) > 1 && (
+                          <button type="button" onClick={() => handleRemoveItem(item.id)} className="text-slate-300 hover:text-rose-500"><X size={16} /></button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 pt-4 border-t flex justify-between items-center px-2">
+                    <span className="font-bold text-slate-500 uppercase text-xs">Valor Total da Despesa</span>
+                    <span className="font-black text-2xl text-rose-600">{formatCurrency(calculateTotal())}</span>
+                  </div>
+                </div>
+
+                {/* Row 3: Condição PG, Status PG, Forma Pagto, VENCIMENTO */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Condição PG</label>
+                    <select
+                      id="condicao-pg-select"
+                      disabled={modalMode === 'edit'}
+                      className="w-full px-4 py-2 border rounded-lg bg-white border-slate-200 outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50 disabled:bg-slate-50"
+                      value={formData.paymentCondition} onChange={(e) => setFormData({ ...formData, paymentCondition: e.target.value as any })}
+                    >
+                      <option value="A Vista">À Vista</option>
+                      <option value="A Prazo">A Prazo</option>
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Status PG</label>
                     <select
                       id="status-pg-select"
-                      disabled={modalMode === 'view'}
-                      className="w-full px-4 py-2 border rounded-lg bg-white border-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
+                      disabled={modalMode === 'view' || (modalMode === 'add' && formData.paymentCondition === 'A Prazo')}
+                      className={`w-full px-4 py-2 border rounded-lg bg-white border-slate-200 outline-none focus:ring-2 focus:ring-rose-500 ${(modalMode === 'view' || (modalMode === 'add' && formData.paymentCondition === 'A Prazo')) && 'opacity-50 bg-slate-50'}`}
                       value={formData.status} onChange={(e) => {
                         const newStatus = e.target.value as any;
                         const updates: any = { status: newStatus };
@@ -788,7 +938,9 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">VENCIMENTO</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">
+                      {formData.paymentCondition === 'A Prazo' ? 'Vencimento (1ª)' : 'VENCIMENTO'}
+                    </label>
                     <input
                       readOnly={modalMode === 'view'}
                       type="date" className="w-full px-4 py-2 border rounded-lg bg-white border-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
@@ -796,6 +948,106 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                     />
                   </div>
                 </div>
+
+                {/* Sub Row: Parcelamento */}
+                {formData.paymentCondition === 'A Prazo' && !editingId && (
+                  <div className="animate-in fade-in zoom-in border-l-4 border-rose-500 pl-4 bg-slate-50 p-4 rounded-r-xl mt-4">
+                    <div className="flex flex-col sm:flex-row items-end gap-4">
+                      <div className="w-full sm:w-48">
+                        <label className="block text-sm font-bold text-slate-700 mb-1">Qtd Parcelas</label>
+                        <input
+                          readOnly={modalMode === 'view'}
+                          type="number" min="1" className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none"
+                          value={formData.installments} 
+                          onChange={(e) => {
+                            const num = Number(e.target.value);
+                            const itemsToCalculate = formData.items || [];
+                            const total = itemsToCalculate.reduce((acc, item) => acc + item.value, 0);
+                            const instValue = Number((total / (num || 1)).toFixed(2));
+                            const list: any[] = [];
+                            const baseDate = formData.dueDate || formData.date || new Date().toLocaleDateString('en-CA');
+                            const [yearStr, monthStr, dayStr] = baseDate.split('-');
+                            let lastDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+
+                            let sum = 0;
+                            for (let i = 1; i <= num; i++) {
+                                let value = instValue;
+                                if (i === num) value = Number((total - sum).toFixed(2));
+                                else sum += value;
+                                
+                                const date = new Date(lastDate);
+                                if (i > 1) date.setMonth(date.getMonth() + 1);
+                                list.push({ id: crypto.randomUUID(), number: i, dueDate: date.toLocaleDateString('en-CA'), value, status: 'Pendente' });
+                                if (i > 1) lastDate = date;
+                            }
+                            setFormData({ ...formData, installments: num, installmentsList: list });
+                          }}
+                        />
+                      </div>
+                      {modalMode !== 'view' && (
+                        <button type="button" onClick={generateInstallments} className="w-full sm:w-auto px-4 py-2 bg-slate-800 text-white font-bold text-sm rounded-lg hover:bg-slate-700 transition-colors whitespace-nowrap">
+                          Gerar Parcelas
+                        </button>
+                      )}
+                    </div>
+
+                    {formData.installmentsList && formData.installmentsList.length > 0 && (
+                      <div className="mt-6 border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-100 border-b border-slate-200">
+                              <th className="px-4 py-3 text-xs font-bold text-slate-600 uppercase">Nrº</th>
+                              <th className="px-4 py-3 text-xs font-bold text-slate-600 uppercase">Vencimento</th>
+                              <th className="px-4 py-3 text-xs font-bold text-slate-600 uppercase">Valor R$</th>
+                              <th className="px-4 py-3 text-xs font-bold text-slate-600 uppercase">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {formData.installmentsList.map((inst, idx) => (
+                              <tr key={inst.id} className="border-b last:border-0 border-slate-100 hover:bg-slate-50">
+                                <td className="px-4 py-3 font-bold text-slate-700">{inst.number} / {formData.installments}</td>
+                                <td className="px-4 py-3">
+                                  <input
+                                    readOnly={modalMode === 'view'}
+                                    type="date"
+                                    className="w-full px-2 py-1 text-sm border-b border-transparent focus:border-rose-500 outline-none bg-transparent"
+                                    value={inst.dueDate}
+                                    onChange={(e) => {
+                                      const newList = [...(formData.installmentsList || [])];
+                                      newList[idx].dueDate = e.target.value;
+                                      setFormData({ ...formData, installmentsList: newList });
+                                    }}
+                                  />
+                                </td>
+                                <td className="px-4 py-3 font-black text-rose-600">
+                                  <div className="relative">
+                                    <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] text-rose-400 font-bold">R$</span>
+                                    <input
+                                      readOnly={modalMode === 'view'}
+                                      type="text"
+                                      className="w-full text-right text-sm font-black border-b border-transparent focus:border-rose-500 outline-none pl-6 text-rose-600 bg-transparent"
+                                      value={formatInputCurrency(inst.value)}
+                                      onChange={(e) => {
+                                        const cleanValue = e.target.value.replace(/\D/g, '');
+                                        const newList = [...(formData.installmentsList || [])];
+                                        newList[idx].value = Number(cleanValue) / 100;
+                                        setFormData({ ...formData, installmentsList: newList });
+                                      }}
+                                    />
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-[10px] font-bold px-2 py-1 rounded bg-rose-100 text-rose-700 uppercase tracking-widest">{inst.status}</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
 
                 {/* Sub Row: Details when Status is Pago */}
                 {formData.status === 'Pago' && (
@@ -962,50 +1214,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                 </div>
               </div>
 
-              {/* Items List */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="font-bold text-slate-800 text-sm flex items-center">
-                    <CreditCard size={16} className="mr-2 text-rose-500" /> Itens da Despesa
-                  </h4>
-                  {modalMode !== 'view' && (
-                    <button type="button" onClick={handleAddItem} className="text-rose-600 hover:text-rose-700 font-bold text-xs uppercase">+ Adicionar Item</button>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  {(formData.items || []).map((item, index) => (
-                    <div key={item.id} className="flex gap-3 bg-white p-3 rounded-lg shadow-sm border">
-                      <div className="flex-1">
-                        <input
-                          readOnly={modalMode === 'view'}
-                          required placeholder="Ex: Combustível, Manutenção de Escavadeira, Aluguel..."
-                          className="w-full text-sm font-medium border-b border-transparent focus:border-rose-500 outline-none"
-                          value={item.description}
-                          onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                        />
-                      </div>
-                      <div className="w-32">
-                        <div className="relative">
-                          <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">R$</span>
-                          <input
-                            readOnly={modalMode === 'view'}
-                            required className="w-full text-right text-sm font-black border-b border-transparent focus:border-rose-500 outline-none pl-6 text-rose-600"
-                            value={formatInputCurrency(item.value)}
-                            onChange={(e) => updateItem(item.id, 'value', parseCurrencyInput(e.target.value))}
-                          />
-                        </div>
-                      </div>
-                      {modalMode !== 'view' && (formData.items?.length || 0) > 1 && (
-                        <button type="button" onClick={() => handleRemoveItem(item.id)} className="text-slate-300 hover:text-rose-500"><X size={16} /></button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 pt-4 border-t flex justify-between items-center px-2">
-                  <span className="font-bold text-slate-500 uppercase text-xs">Valor Total da Despesa</span>
-                  <span className="font-black text-2xl text-rose-600">{formatCurrency(calculateTotal())}</span>
-                </div>
-              </div>
+              {/* Items List foi movido para o topo, abaixo de Fornecedor */}
 
               <div className="flex justify-end space-x-3 pt-4 border-t">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2 text-slate-500 font-bold hover:bg-slate-50 rounded-lg transition-colors">

@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { UploadCloud, FileType, Check, AlertCircle, Trash2, Edit2, Save, Plus, Search, X, ChevronRight, ChevronLeft, Building2 } from 'lucide-react';
-import { BankAccount, AccountPlan, Expense, Payment, Sale, BankStatementItem, Customer, Vendor } from '../types';
+import { BankAccount, AccountPlan, Expense, Payment, Sale, BankStatementItem, Customer, Vendor, FinancialYield } from '../types';
 
 interface BankStatementManagerProps {
   bankAccounts: BankAccount[];
   accountPlan: AccountPlan[];
   expenses: Expense[];
   payments: Payment[];
+  yields: FinancialYield[];
   customers: Customer[];
   vendors: Vendor[];
   onImportExits: (expenses: Expense[]) => void;
@@ -104,6 +105,7 @@ const BankStatementManager: React.FC<BankStatementManagerProps> = ({
   accountPlan,
   expenses,
   payments,
+  yields,
   customers,
   vendors,
   onImportExits,
@@ -134,7 +136,8 @@ const BankStatementManager: React.FC<BankStatementManagerProps> = ({
     if (!id) return false;
     const inExpenses = expenses.some(e => e.bankTransId === id);
     const inPayments = payments.some(p => p.bankTransId === id);
-    return inExpenses || inPayments;
+    const inYields = (yields || []).some(y => (y as any).bankTransId === id);
+    return inExpenses || inPayments || inYields;
   };
 
   const parseItemDescription = (descriptionRaw: string, isExpense: boolean) => {

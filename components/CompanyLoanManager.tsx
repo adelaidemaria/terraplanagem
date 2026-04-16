@@ -178,7 +178,7 @@ const CompanyLoanManager: React.FC<CompanyLoanManagerProps> = ({
         amount: loanData.valorEmprestado,
         date: loanData.dataEmprestimo,
         bankAccountId: loanData.bancoCreditoId,
-        description: `CRÉDITO EMPRÉSTIMO BANCOS: ${loanData.nomeEmprestimo} (Ref: ${loanData.id})`
+        description: `CRÉDITO EMPRÉSTIMO BANCÁRIO: ${loanData.nomeEmprestimo} (Ref: ${loanData.id})`
       };
       setYields(updatedYields);
     } else {
@@ -189,7 +189,7 @@ const CompanyLoanManager: React.FC<CompanyLoanManagerProps> = ({
         accountPlanId: null,
         amount: loanData.valorEmprestado,
         date: loanData.dataEmprestimo,
-        description: `CRÉDITO EMPRÉSTIMO BANCOS: ${loanData.nomeEmprestimo} (Ref: ${loanData.id})`,
+        description: `CRÉDITO EMPRÉSTIMO BANCÁRIO: ${loanData.nomeEmprestimo} (Ref: ${loanData.id})`,
         createdAt: Date.now()
       };
       setYields(prev => [newYield, ...prev]);

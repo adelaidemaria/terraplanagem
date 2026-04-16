@@ -422,6 +422,7 @@ const App: React.FC = () => {
           accountPlan={accountPlan}
           expenses={expenses}
           payments={payments}
+          yields={yields}
           customers={customers}
           vendors={vendors}
           onImportExits={(newExpenses) => setExpenses(prev => [...newExpenses, ...prev])}

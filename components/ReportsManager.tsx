@@ -337,6 +337,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           vendorName: (y.description || '').split(' (Ref:')[0],
           totalValue: y.amount,
           docNumber: 'S/N',
+          dueDate: y.date,
+          status: 'Pago',
+          paymentDate: y.date
         }));
 
         const allExpensesMerged = [...filteredExps, ...filteredYieldsAsExps].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -381,6 +384,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               const ap = accountPlan.find(p => p.id === e.accountPlanId);
               rows.push([
                 formatDateDisplay(e.date),
+                formatDateDisplay(e.dueDate),
+                e.status === 'Pago' ? formatDateDisplay(e.paymentDate) : '',
                 ap ? ap.description : 'DIVERSOS',
                 e.docNumber || 'S/N',
                 e.vendorName,
@@ -398,7 +403,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
         return {
           title: `Relatório de Despesas por Conta - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
-          headers: ['Data Doc', 'Despesa', 'Doc', 'Fornecedor', 'Valor'],
+          headers: ['Data Doc', 'Vencimento', 'Data Pgto', 'Despesa', 'Doc', 'Fornecedor', 'Valor'],
           rows: rows,
           total: allExpensesMerged.reduce((acc, curr) => acc + curr.totalValue, 0)
         };
@@ -423,6 +428,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           vendorName: (y.description || '').split(' (Ref:')[0],
           totalValue: y.amount,
           docNumber: 'S/N',
+          dueDate: y.date,
+          status: 'Pago',
+          paymentDate: y.date
         }));
 
         const allExpensesMerged = [...filteredExps, ...filteredYieldsAsExps].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -456,6 +464,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             const ap = accountPlan.find(p => p.id === e.accountPlanId);
             rows.push([
               formatDateDisplay(e.date),
+              formatDateDisplay(e.dueDate),
+              e.status === 'Pago' ? formatDateDisplay(e.paymentDate) : '',
               ap ? `${ap.subcategory} / ${ap.description}` : 'DIVERSOS',
               e.docNumber || 'S/N',
               e.vendorName,
@@ -470,7 +480,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
         return {
           title: `Relatório de Despesas por Mês - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
-          headers: ['Data Doc', 'Despesa', 'Doc', 'Fornecedor', 'Valor'],
+          headers: ['Data Doc', 'Vencimento', 'Data Pgto', 'Despesa', 'Doc', 'Fornecedor', 'Valor'],
           rows: rows,
           total: allExpensesMerged.reduce((acc, curr) => acc + curr.totalValue, 0)
         };
@@ -837,9 +847,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         const prevYieldCredits = yields
           .filter(y => {
             if (y.bankAccountId !== selectedBankId || new Date(y.date).getTime() >= startTimestamp) return false;
-            if (y.description.startsWith('TAXA CARTÃO Ref:')) return false;
-            if (y.description.startsWith('SAÍDA EMPRÉSTIMO:')) return false;
-            if (y.description.startsWith('RECBTO EMPRÉSTIMO:')) return true;
+            if (y.description.toUpperCase().includes('TAXA CARTÃO')) return false;
+            const descUpper = y.description.toUpperCase();
+            if (descUpper.includes('SAÍDA EMPRÉSTIMO:')) return false;
+            if (descUpper.includes('RECBTO EMPRÉSTIMO:')) return true;
+            if (descUpper.includes('CRÉDITO EMPRÉSTIMO')) return true;
             const ap = accountPlan.find(p => p.id === y.accountPlanId);
             return ap?.type !== 'Despesa';
           })
@@ -848,9 +860,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         const prevYieldDebits = yields
           .filter(y => {
             if (y.bankAccountId !== selectedBankId || new Date(y.date).getTime() >= startTimestamp) return false;
-            if (y.description.startsWith('TAXA CARTÃO Ref:')) return false;
-            if (y.description.startsWith('SAÍDA EMPRÉSTIMO:')) return true;
-            if (y.description.startsWith('RECBTO EMPRÉSTIMO:')) return false;
+            if (y.description.toUpperCase().includes('TAXA CARTÃO')) return false;
+            const descUpper = y.description.toUpperCase();
+            if (descUpper.includes('SAÍDA EMPRÉSTIMO:')) return true;
+            if (descUpper.includes('RECBTO EMPRÉSTIMO:')) return false;
+            if (descUpper.includes('PGTO PARCELA EMPRÉSTIMO:')) return true;
             const ap = accountPlan.find(p => p.id === y.accountPlanId);
             return ap?.type === 'Despesa';
           })
@@ -908,22 +922,26 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           });
 
         const periodYieldCredits = (yields || [])
-          .filter(y => y.bankAccountId === selectedBankId && !y.description.startsWith('TAXA CARTÃO Ref:') && new Date(y.date).getTime() >= startTimestamp && new Date(y.date).getTime() <= endTimestamp)
+          .filter(y => y.bankAccountId === selectedBankId && !y.description.startsWith('TAXA CARTÃO') && new Date(y.date).getTime() >= startTimestamp && new Date(y.date).getTime() <= endTimestamp)
           .map(y => {
             const ap = accountPlan.find(p => p.id === y.accountPlanId);
-            const isLoanExit = y.description.startsWith('SAÍDA EMPRÉSTIMO:');
-            const isLoanReturn = y.description.startsWith('RECBTO EMPRÉSTIMO:');
-            const isCompanyLoanCredit = y.description.startsWith('CRÉDITO EMPRÉSTIMO BANCÁRIO:');
-            const isCompanyLoanPayment = y.description.startsWith('PGTO PARCELA EMPRÉSTIMO:');
+            const desc = y.description || '';
+            const descUpper = desc.toUpperCase();
+            
+            const isLoanExit = descUpper.includes('SAÍDA EMPRÉSTIMO:');
+            const isLoanReturn = descUpper.includes('RECBTO EMPRÉSTIMO:');
+            const isCompanyLoanCredit = descUpper.includes('CRÉDITO EMPRÉSTIMO');
+            const isCompanyLoanPayment = descUpper.includes('PGTO PARCELA EMPRÉSTIMO:');
+            
             const isExpense = isLoanExit || isCompanyLoanPayment || (!isLoanReturn && !isCompanyLoanCredit && ap?.type === 'Despesa');
             
             return {
               date: y.date,
               credit: isExpense ? 0 : y.amount,
               debit: isExpense ? y.amount : 0,
-              desc: isCompanyLoanCredit || isCompanyLoanPayment
-                ? (y.description || '').split(' (Ref:')[0]
-                : `MOV. FINANCEIRA: ${ap ? ap.description : 'S/N'} - ${(y.description || '').split(' (Ref:')[0]}`
+              desc: (isCompanyLoanCredit || isCompanyLoanPayment || isLoanExit || isLoanReturn)
+                ? desc.split(' (Ref:')[0]
+                : `MOV. FINANCEIRA: ${ap ? ap.description : 'S/N'} - ${desc.split(' (Ref:')[0]}`
             };
           });
 
@@ -958,7 +976,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           headerInfo: `Agência: ${bank.agency} | Conta: ${bank.accountNumber}`,
           openingBalance: openingBalance,
           closingBalance: currentRunningBalance,
-          headers: ['Data', 'Descrição do Lançamento', 'Valor Crédito (+)', 'Valor Débito (-)', 'Saldo'],
+          headers: ['Data', 'Descrição do Lançamento', 'CRÉDITO (+)', 'DÉBITO (-)', 'Saldo'],
           rows: rowsWithBalance
         };
       }
@@ -1526,7 +1544,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           const allYieldCredits = yields
             .filter(y => {
               if (y.bankAccountId !== bank.id || new Date(y.date).getTime() > now) return false;
-              if (y.description.startsWith('TAXA CARTÃO Ref:')) return false;
+              if (y.description.startsWith('TAXA CARTÃO')) return false;
               if (y.description.startsWith('SAÍDA EMPRÉSTIMO:')) return false;
               if (y.description.startsWith('RECBTO EMPRÉSTIMO:')) return true;
               const ap = accountPlan.find(p => p.id === y.accountPlanId);
@@ -1537,7 +1555,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           const allYieldDebits = yields
             .filter(y => {
               if (y.bankAccountId !== bank.id || new Date(y.date).getTime() > now) return false;
-              if (y.description.startsWith('TAXA CARTÃO Ref:')) return false;
+              if (y.description.startsWith('TAXA CARTÃO')) return false;
               if (y.description.startsWith('SAÍDA EMPRÉSTIMO:')) return true;
               if (y.description.startsWith('RECBTO EMPRÉSTIMO:')) return false;
               const ap = accountPlan.find(p => p.id === y.accountPlanId);
@@ -2574,44 +2592,12 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       {
         selectedReport && reportContent && (
           <div className="bg-white p-8 sm:p-12 rounded-2xl border border-slate-100 shadow-xl print:shadow-none print:border-0 print:m-0">
-            {/* Cabeçalho Visual (Apenas Tela) */}
-            <div className="border-b-2 border-slate-900 pb-6 mb-8 flex justify-between items-center bg-white print:hidden">
-              <Logo size="lg" className="origin-left" />
-              <div className="text-right">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Documento Gerencial</p>
-                <h2 className="text-xl font-black text-slate-800">Empréstimos Bancos</h2>
-                <p className="text-sm font-bold text-slate-800">Emitido em: {new Date().toLocaleString('pt-BR')}</p>
-              </div>
-            </div>
-
-            <h2 className="text-sm font-normal text-slate-800 mb-2 border-l-4 border-amber-500 pl-4 uppercase leading-none print:hidden">
-              {typeof reportContent.title === 'string' && reportContent.title.includes('(BLOQUEADO)') ? (
-                <>
-                  {reportContent.title.split('(BLOQUEADO)')[0]}
-                  <span className="font-black text-rose-600">(BLOQUEADO)</span>
-                  {reportContent.title.split('(BLOQUEADO)')[1]}
-                </>
-              ) : reportContent.title}
-            </h2>
-            {reportContent.headerInfo && (
-              <p className="text-[10px] font-bold text-slate-500 mb-8 pl-5 uppercase tracking-widest print:hidden">{reportContent.headerInfo}</p>
-            )}
-
-            {reportContent.openingBalance !== undefined && (
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 flex justify-between items-center print:hidden">
-                <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Saldo em {new Date(startDate).toLocaleDateString('pt-BR')} (Saldo Anterior):</span>
-                <span className={`font-black text-lg ${reportContent.openingBalance >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
-                  {formatCurrency(reportContent.openingBalance)}
-                </span>
-              </div>
-            )}
-
             <div className="overflow-x-auto print:overflow-visible text-slate-800">
               <table className="w-full text-left text-sm border-collapse">
-                {/* Repete Cabeçalho em Todas as Páginas na Impressão */}
-                <thead className="hidden print:table-header-group">
-                  <tr>
-                    <th colSpan={reportContent.headers.length} className="pb-4 font-normal">
+                <thead className="print:table-header-group">
+                  {/* Bloco de Identificação da Empresa e Relatório - Repetível na Impressão */}
+                  <tr className="border-0">
+                    <th colSpan={reportContent.headers.length} className="pb-4 font-normal border-0 text-left">
                       <div className="border-b-2 border-slate-900 pb-2 mb-4 flex justify-between items-center bg-white">
                         <Logo size="lg" className="origin-left" />
                         <div className="text-right">
@@ -2631,109 +2617,125 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       {reportContent.headerInfo && (
                         <p className="text-[10px] font-bold text-slate-500 mb-4 pl-5 uppercase tracking-widest text-left">{reportContent.headerInfo}</p>
                       )}
-                      {reportContent.openingBalance !== undefined && (
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 flex justify-between items-center w-full">
-                          <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Saldo em {new Date(startDate).toLocaleDateString('pt-BR')} (Saldo Anterior):</span>
-                          <span className={`font-black text-lg ${reportContent.openingBalance >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
-                            {formatCurrency(reportContent.openingBalance)}
-                          </span>
-                        </div>
-                      )}
                     </th>
                   </tr>
-                </thead>
-                {selectedReport !== 'sales' && selectedReport !== 'receivables' && selectedReport !== 'customerStatement' && selectedReport !== 'expensesByMonth' && selectedReport !== 'expensesByMonthFlat' && selectedReport !== 'customers' && selectedReport !== 'vendors' && selectedReport !== 'employeeLoans' && selectedReport !== 'companyLoans' && (
-                  <thead className="bg-slate-50 border-y border-slate-200">
-                    <tr>
-                      {reportContent.headers.map((h, k) => (
+                  
+                  {/* Cabeçalho das Colunas - Repetível na Impressão */}
+                  <tr className="bg-slate-50 border-y border-slate-200">
+                    {reportContent.headers.map((h, k) => {
+                      // Simplificação dos nomes das colunas para extrato bancário
+                      let label = h;
+                      if (selectedReport === 'bankStatement') {
+                        if (h.toLowerCase().includes('crédito')) label = 'CRÉDITO (+)';
+                        if (h.toLowerCase().includes('débito')) label = 'DÉBITO (-)';
+                      }
+
+                      return (
                         <th
                           key={k}
                           className={`px-4 py-3 font-black text-slate-600 uppercase text-[12px] tracking-wider whitespace-nowrap
-                        ${selectedReport === 'receivables' && k === 0 ? 'w-[120px]' : ''}
-                        ${selectedReport === 'receivables' && k === 1 ? 'w-auto min-w-[200px]' : ''}
-                        ${selectedReport === 'receivables' && k === 5 ? 'w-[200px] text-left' : ''}
-                        ${selectedReport === 'receivables' && k === 6 ? 'w-[110px] text-left' : ''}
-                        ${selectedReport === 'customerStatement' ? (
-                              k === 0 ? 'w-[100px] text-left' :
-                                k === 1 ? 'w-full min-w-[300px] text-left' :
-                                  k === 2 ? 'w-[140px] text-right' :
-                                    k === 3 ? 'w-[140px] text-right' :
-                                      k === 4 ? 'w-[140px] text-right' :
-                                        k === 5 ? 'w-[160px] text-right' : ''
-                            ) : ''}
-                         ${selectedReport === 'expensesPending' ? (
-                              k === 0 ? 'w-[150px]' :
-                                k === 1 ? 'w-full min-w-[180px]' :
-                                  k === 2 ? 'w-[80px]' :
-                                    k === 3 ? 'w-[90px]' :
-                                      k === 4 ? 'w-[90px]' :
-                                        k === 5 ? 'w-[110px] text-left' : ''
-                            ) : ''}
-                        ${selectedReport === 'payments' && k === 0 ? 'w-[120px]' : ''}
-                        ${selectedReport === 'payments' && k === 4 ? 'text-left w-[120px]' : ''}
-                        ${selectedReport === 'payments' && k === 6 ? 'text-right' : ''}
-                         ${selectedReport === 'receivablesPending' && k === 5 ? 'text-left w-[120px]' : ''}
-                         ${selectedReport === 'corporateCard' && k === 4 ? 'w-[120px] text-left' : ''}
-                         ${selectedReport === 'cardFees' ? (
-                              k === 0 ? 'w-full min-w-[150px] text-left' :
-                                k === 4 || k === 5 || k === 6 ? 'w-[110px] text-left' : 'text-left'
-                            ) : ''}
-                         ${selectedReport === 'bankStatement' && (k === 2 || k === 3 || k === 4) ? 'w-[110px] text-left' : ''}
-                          ${selectedReport === 'customers' ? (
-                              k === 0 ? 'w-full min-w-[200px]' :
-                                k === 1 ? 'w-[150px]' :
-                                  k === 2 ? 'w-[100px]' :
-                                    k === 3 ? 'w-[150px]' :
-                                      k === 4 ? 'w-[200px]' :
-                                        k === 5 ? 'w-[250px]' : ''
-                            ) : ''}
-                          ${selectedReport === 'vendors' ? (
-                              k === 0 ? 'w-full min-w-[180px]' :
-                                k === 1 ? 'w-[150px]' :
-                                  k === 2 ? 'w-[150px]' :
-                                    k === 3 ? 'w-[100px]' :
-                                      k === 4 ? 'w-[150px]' :
-                                        k === 5 ? 'w-[200px]' : ''
-                            ) : ''}
-                          ${selectedReport === 'sales' ? (
-                              k === 0 ? 'w-[100px] text-left' :
-                                k === 1 ? 'w-[90px] text-left' :
-                                  k === 2 ? 'w-auto text-left' :
-                                    k === 3 ? 'w-[200px] text-left' :
-                                      k === 4 ? 'w-[110px] text-left' :
-                                        k === 5 ? 'w-[120px] text-right' : ''
-                            ) : ''}
-                          ${selectedReport === 'agenda' ? (
-                              k === 0 ? 'w-[150px] text-left' :
-                                k === 1 ? 'w-full text-left' :
-                                  k === 2 ? 'w-[150px] text-left' :
-                                    k === 3 ? 'w-[150px] text-left' : ''
-                            ) : ''}
-                          ${(['customersSummary', 'vendorsSummary'].includes(selectedReport || '')) ? (
-                              k === 0 ? (selectedReport === 'vendorsSummary' ? 'w-[200px]' : 'w-[280px]') :
-                                k === 1 ? (selectedReport === 'vendorsSummary' ? 'w-[200px]' : 'w-[170px]') :
-                                  k === 2 ? (selectedReport === 'vendorsSummary' ? 'w-[140px]' : 'w-[170px]') :
-                                    k === 3 ? (selectedReport === 'customersSummary' ? 'w-full text-left' : 'w-[130px] text-left') :
-                                      k === 4 ? (selectedReport === 'vendorsSummary' ? 'w-full text-left' : 'w-full text-left') : ''
-                            ) : ''}
-                          ${selectedReport === 'dre' ? (
+                            ${(h.toLowerCase().includes('valor') || h.toLowerCase().includes('total') || h.toLowerCase().includes('saldo') || h.toLowerCase().includes('líquido') || h.toLowerCase().includes('faturado') || h.toLowerCase().includes('recebido') || h.toLowerCase().includes('deduç') || h.toLowerCase().includes('crédito') || h.toLowerCase().includes('débito')) ? 'text-right' : 'text-left'}
+                            
+                            ${selectedReport === 'bankStatement' ? (
+                              k === 0 ? 'w-[100px]' :
+                              k === 1 ? 'w-full' : // Descrição ocupa o resto
+                              k === 2 ? 'w-[90px] sm:w-[100px]' : // Crédito
+                              k === 3 ? 'w-[90px] sm:w-[100px]' : // Débito
+                              k === 4 ? 'w-[110px] sm:w-[120px]' : '' // Saldo
+                            ) : selectedReport === 'receivables' ? (
                               k === 0 ? 'w-[120px]' :
-                                k === 1 ? 'w-full text-left' :
-                                  k === 2 ? 'w-[200px] text-right' : ''
-                            ) : ''}
-                          ${selectedReport === 'accountCategoriesList' ? (
+                              k === 1 ? 'w-auto min-w-[200px]' :
+                              k === 5 ? 'w-[200px] text-left' :
+                              k === 6 ? 'w-[110px] text-left' : ''
+                            ) : selectedReport === 'customerStatement' ? (
+                              k === 0 ? 'w-[100px] text-left' :
+                              k === 1 ? 'w-full min-w-[300px] text-left' :
+                              k === 2 ? 'w-[140px] text-right' :
+                              k === 3 ? 'w-[140px] text-right' :
+                              k === 4 ? 'w-[140px] text-right' :
+                              k === 5 ? 'w-[160px] text-right' : ''
+                            ) : selectedReport === 'expensesPending' ? (
+                              k === 0 ? 'w-[150px]' :
+                              k === 1 ? 'w-full min-w-[180px]' :
+                              k === 2 ? 'w-[140px]' :
+                              k === 3 ? 'w-[100px]' :
+                              k === 4 ? 'w-[100px]' :
+                              k === 5 ? 'w-[130px] text-left' : ''
+                            ) : selectedReport === 'payments' ? (
+                              k === 0 ? 'w-[120px]' :
+                              k === 4 ? 'text-left w-[120px]' :
+                              k === 6 ? 'text-right' : ''
+                            ) : selectedReport === 'cardFees' ? (
+                              k === 0 ? 'w-full min-w-[150px] text-left' :
+                              k === 4 || k === 5 || k === 6 ? 'w-[110px] text-left' : 'text-left'
+                            ) : selectedReport === 'customers' ? (
+                              k === 0 ? 'w-full min-w-[200px]' :
+                              k === 1 ? 'w-[150px]' :
+                              k === 2 ? 'w-[100px]' :
+                              k === 3 ? 'w-[150px]' :
+                              k === 4 ? 'w-[200px]' :
+                              k === 5 ? 'w-[250px]' : ''
+                            ) : selectedReport === 'vendors' ? (
+                              k === 0 ? 'w-full min-w-[180px]' :
+                              k === 1 ? 'w-[150px]' :
+                              k === 2 ? 'w-[150px]' :
+                              k === 3 ? 'w-[100px]' :
+                              k === 4 ? 'w-[150px]' :
+                              k === 5 ? 'w-[200px]' : ''
+                            ) : selectedReport === 'sales' ? (
+                              k === 0 ? 'w-[100px] text-left' :
+                              k === 1 ? 'w-[90px] text-left' :
+                              k === 2 ? 'w-auto text-left' :
+                              k === 3 ? 'w-[200px] text-left' :
+                              k === 4 ? 'w-[110px] text-left' :
+                              k === 5 ? 'w-[120px] text-right' : ''
+                            ) : selectedReport === 'agenda' ? (
+                              k === 0 ? 'w-[150px] text-left' :
+                              k === 1 ? 'w-full text-left' :
+                              k === 2 ? 'w-[150px] text-left' :
+                              k === 3 ? 'w-[150px] text-left' : ''
+                            ) : (['customersSummary', 'vendorsSummary'].includes(selectedReport || '')) ? (
+                              k === 0 ? (selectedReport === 'vendorsSummary' ? 'w-[200px]' : 'w-[280px]') :
+                              k === 1 ? (selectedReport === 'vendorsSummary' ? 'w-[200px]' : 'w-[170px]') :
+                              k === 2 ? (selectedReport === 'vendorsSummary' ? 'w-[140px]' : 'w-[170px]') :
+                              k === 3 ? (selectedReport === 'customersSummary' ? 'w-full text-left' : 'w-[130px] text-left') :
+                              k === 4 ? (selectedReport === 'vendorsSummary' ? 'w-full text-left' : 'w-full text-left') : ''
+                            ) : selectedReport === 'dre' ? (
+                              k === 0 ? 'w-[120px]' :
+                              k === 1 ? 'w-full text-left' :
+                              k === 2 ? 'w-[200px] text-right' : ''
+                            ) : selectedReport === 'accountCategoriesList' ? (
                               k === 0 ? 'w-[120px] text-left' :
-                                k === 1 ? 'w-full text-left' : ''
-                            ) : ''}
-                      `}
+                              k === 1 ? 'w-full text-left' : ''
+                            ) : (
+                              k === 0 ? 'w-[90px]' : ''
+                            )}
+                          `}
                         >
-                          {h}
+                          {label}
                         </th>
-                      ))}
-                    </tr>
-                  </thead>
-                )}
+                      );
+                    })}
+                  </tr>
+                </thead>
+
                 <tbody className="divide-y divide-slate-200">
+                  {/* Saldo Anterior - Aparece apenas na primeira página (atras dos Cabeçalhos das Colunas) */}
+                  {selectedReport === 'bankStatement' && reportContent.openingBalance !== undefined && (
+                    <tr className="bg-slate-50 border-y-2 border-slate-200">
+                      <td colSpan={4} className="px-5 py-4 text-left">
+                        <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                          Saldo em {(startDate && new Date(startDate).toLocaleDateString('pt-BR')) || '---'} (Saldo Anterior):
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <span className={`text-lg font-black ${reportContent.openingBalance >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
+                          {formatCurrency(reportContent.openingBalance)}
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+
                   {reportContent.rows.length > 0 ? reportContent.rows.map((row, i) => {
                     const rowString = row.join(' ');
                     const isTotalMonthRow = row[1] === 'IS_TOTAL_MONTH';
@@ -2914,13 +2916,15 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                             <th
                               key={k}
                               className={`px-4 py-3 font-black text-slate-600 uppercase text-[12px] tracking-wider whitespace-nowrap
-                                ${h.toLowerCase().includes('valor') || h.toLowerCase().includes('total') || h.toLowerCase().includes('saldo') || h.toLowerCase().includes('líquido') || h.toLowerCase().includes('faturado') || h.toLowerCase().includes('recebido') || h.toLowerCase().includes('deduç') ? 'text-right' : 'text-left'}
+                                ${(h.toLowerCase().includes('valor') || h.toLowerCase().includes('total') || h.toLowerCase().includes('saldo') || h.toLowerCase().includes('líquido') || h.toLowerCase().includes('faturado') || h.toLowerCase().includes('recebido') || h.toLowerCase().includes('deduç')) ? 'text-right' : 'text-left'}
                                 ${k === 0 ? 'w-[90px]' : ''}
                       ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') ? (
-                                  k === 1 ? 'w-[180px]' :
-                                    k === 2 ? 'w-[40px]' :
-                                      k === 3 ? 'w-full' :
-                                        k === 4 ? 'w-[100px]' : ''
+                                  k === 1 ? 'w-[90px]' :
+                                    k === 2 ? 'w-[90px]' :
+                                      k === 3 ? 'w-[200px]' :
+                                        k === 4 ? 'w-[130px]' : 
+                                          k === 5 ? 'w-full min-w-[200px]' :
+                                            k === 6 ? 'w-[110px]' : ''
                                 ) : selectedReport === 'sales' ? (
                                   k === 0 ? 'w-[100px]' :
                                     k === 1 ? 'w-[90px]' :
@@ -2991,10 +2995,10 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                             k === 5 ? 'w-[120px]' :
                                               k === 6 ? 'w-[110px]' : ''
                                 ) : selectedReport === 'bankStatement' ? (
-                                  k === 1 ? 'w-full min-w-[200px]' :
-                                    k === 2 ? 'w-[120px]' :
-                                      k === 3 ? 'w-[120px]' :
-                                      k === 4 ? 'w-[150px]' : ''
+                                  k === 1 ? 'w-full' :
+                                    k === 2 ? 'w-[100px] sm:w-[110px]' :
+                                      k === 3 ? 'w-[100px] sm:w-[110px]' :
+                                      k === 4 ? 'w-[120px] sm:w-[130px]' : ''
                                 ) : selectedReport === 'employees' ? (
                                   k === 0 ? 'w-full text-left' :
                                   k === 1 ? 'w-[100px] text-left' :
@@ -3275,8 +3279,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                 ${isBalance ? 'bg-slate-50/50 font-black text-slate-900 border-l border-slate-200' : ''}
                                  ${isTotalMonthRow ? 'bg-amber-500/10' : ''}
                                  ${isSubtotalRow && j === (isSectionHeader ? 0 : row.length - 1) ? 'text-right font-black border-l-2 border-slate-900' : ''}
-                                  ${(selectedReport === 'sales' && j === 5) || (selectedReport === 'customerStatement' && [2, 3, 4, 5].includes(j)) || (selectedReport === 'receivables' && j === 7) || (selectedReport === 'expensesPending' && j === 5) || (selectedReport === 'payments' && j === 6) || (selectedReport === 'receivablesPending' && j === 5) || (selectedReport === 'corporateCard' && j === 4) || (selectedReport === 'cardFees' && [4, 5, 6].includes(j)) || (selectedReport === 'bankStatement' && [2, 3, 4].includes(j)) || (selectedReport === 'employees' && [3, 4].includes(j)) ? 'text-right' : 'text-left'}
-                                 ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 4 ? 'text-right' : ''}
+                                  ${(selectedReport === 'sales' && j === 5) || (selectedReport === 'customerStatement' && [2, 3, 4, 5].includes(j)) || (selectedReport === 'receivables' && j === 7) || (selectedReport === 'payments' && j === 6) || (selectedReport === 'receivablesPending' && j === 5) || (selectedReport === 'corporateCard' && j === 4) || (selectedReport === 'cardFees' && [4, 5, 6].includes(j)) || (selectedReport === 'bankStatement' && [2, 3, 4].includes(j)) || (selectedReport === 'employees' && [3, 4].includes(j)) || (selectedReport?.toLowerCase().includes('expense') && j === 6) ? 'text-right' : 'text-left'}
                                  ${(selectedReport === 'accountCategoriesList' || selectedReport === 'dre') && j === 0 ? 'w-[120px] pl-8 font-mono text-slate-500 font-bold' : ''}
                                  ${selectedReport === 'payments' ? (
                                   j === 0 ? 'w-[100px]' :
@@ -3300,9 +3303,15 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                         j === 3 ? 'w-[200px]' :
                                           j === 4 ? 'w-[110px]' :
                                             j === 5 ? 'w-[120px]' : ''
+                                ) : selectedReport === 'bankStatement' ? (
+                                  j === 0 ? 'w-[90px]' :
+                                  j === 1 ? 'w-full' :
+                                  j === 2 ? 'w-[100px] sm:w-[110px] text-right' :
+                                  j === 3 ? 'w-[100px] sm:w-[110px] text-right' :
+                                  j === 4 ? 'w-[110px] sm:w-[120px] text-right' : ''
                                 ) : (selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1 ? 'min-w-[180px]' : ''}
-                                 ${((selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1) || ((selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && (j >= 0 && j <= 4)) || (selectedReport === 'payments' && j === 4) || (selectedReport === 'expensesPending' && j === 0) ? 'whitespace-nowrap' : (isSectionHeader ? '' : 'whitespace-pre-line')}
-                                ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1 ? 'min-w-[180px]' : ''}
+                                 ${((selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && [3, 4].includes(j)) || ((selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && (j >= 0 && j <= 4)) || (selectedReport === 'payments' && j === 4) || (selectedReport === 'expensesPending' && [0, 2, 5].includes(j)) || (selectedReport === 'bankStatement' && [0, 2, 3, 4].includes(j)) ? 'whitespace-nowrap' : (isSectionHeader ? '' : 'whitespace-pre-line')}
+                                ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 3 ? 'min-w-[180px]' : ''}
                                 ${(selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && j === 3 ? 'text-left' : ''}
                                 ${(isSubtotalRow && (j === 0 || j === 1)) ? 'whitespace-nowrap text-left' : ''}
                                 ${isTotalMonthRow && j === 0 ? 'font-black text-slate-900 text-sm' : ''}
