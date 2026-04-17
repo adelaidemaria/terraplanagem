@@ -153,6 +153,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
   const [agendaStatus, setAgendaStatus] = useState<'all' | 'pending' | 'scheduled' | 'completed'>('all');
   const [agendaCategory, setAgendaCategory] = useState<'all' | 'Lembrete' | 'Urgente'>('all');
   const [selectedLoanId, setSelectedLoanId] = useState<string>('all');
+  const [dreRegime, setDreRegime] = useState<'competencia' | 'caixa'>('competencia');
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -1746,34 +1747,77 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         };
       }
       case 'dre': {
-        const dreSales = sales.filter(s => {
-          const d = new Date(s.date).getTime();
-          return d >= startTimestamp && d <= endTimestamp;
-        });
-
-        const dreExpenses = expenses.filter(e => {
-          const d = new Date(e.date).getTime();
-          return d >= startTimestamp && d <= endTimestamp;
-        });
-
-        const dreYields = yields?.filter(y => {
-          const d = new Date(y.date).getTime();
-          return d >= startTimestamp && d <= endTimestamp;
-        }) || [];
-
+        const isCaixa = dreRegime === 'caixa';
         const valueByAccountId = new Map<string, number>();
 
-        dreSales.forEach(s => {
-          valueByAccountId.set(s.accountPlanId, (valueByAccountId.get(s.accountPlanId) || 0) + s.totalValue);
-        });
+        if (isCaixa) {
+          // --- REGIME DE CAIXA ---
+          
+          // Receitas por Pagamentos recebidos
+          const drePayments = payments.filter(p => {
+            const d = new Date(p.date).getTime();
+            return d >= startTimestamp && d <= endTimestamp;
+          });
 
-        dreExpenses.forEach(e => {
-          valueByAccountId.set(e.accountPlanId, (valueByAccountId.get(e.accountPlanId) || 0) + e.totalValue);
-        });
+          drePayments.forEach(p => {
+            const sale = sales.find(s => s.id === p.saleId);
+            if (sale) {
+              valueByAccountId.set(sale.accountPlanId, (valueByAccountId.get(sale.accountPlanId) || 0) + p.amount);
+            }
+          });
 
-        dreYields.forEach(y => {
-          valueByAccountId.set(y.accountPlanId, (valueByAccountId.get(y.accountPlanId) || 0) + y.amount);
-        });
+          // Despesas por Data de Pagamento
+          const drePaidExpenses = expenses.filter(e => {
+            if (e.status !== 'Pago') return false;
+            // Fallback: Data de Pagamento -> Vencimento (como aproximação se pago mas data vazia) -> Emissão
+            const refDate = e.paymentDate || e.dueDate || e.date;
+            const d = new Date(refDate).getTime();
+            return d >= startTimestamp && d <= endTimestamp;
+          });
+
+          drePaidExpenses.forEach(e => {
+            valueByAccountId.set(e.accountPlanId, (valueByAccountId.get(e.accountPlanId) || 0) + e.totalValue);
+          });
+
+          // Rendimentos (Caixa por natureza)
+          const dreYields = (yields || []).filter(y => {
+            const d = new Date(y.date).getTime();
+            return d >= startTimestamp && d <= endTimestamp;
+          });
+
+          dreYields.forEach(y => {
+            valueByAccountId.set(y.accountPlanId, (valueByAccountId.get(y.accountPlanId) || 0) + y.amount);
+          });
+
+        } else {
+          // --- REGIME DE COMPETÊNCIA (Padrão) ---
+          const dreSales = sales.filter(s => {
+            const d = new Date(s.date).getTime();
+            return d >= startTimestamp && d <= endTimestamp;
+          });
+
+          const dreExpenses = expenses.filter(e => {
+            const d = new Date(e.date).getTime();
+            return d >= startTimestamp && d <= endTimestamp;
+          });
+
+          const dreYields = yields?.filter(y => {
+            const d = new Date(y.date).getTime();
+            return d >= startTimestamp && d <= endTimestamp;
+          }) || [];
+
+          dreSales.forEach(s => {
+            valueByAccountId.set(s.accountPlanId, (valueByAccountId.get(s.accountPlanId) || 0) + s.totalValue);
+          });
+
+          dreExpenses.forEach(e => {
+            valueByAccountId.set(e.accountPlanId, (valueByAccountId.get(e.accountPlanId) || 0) + e.totalValue);
+          });
+
+          dreYields.forEach(y => {
+            valueByAccountId.set(y.accountPlanId, (valueByAccountId.get(y.accountPlanId) || 0) + y.amount);
+          });
+        }
 
         let totalReceitas = 0;
         let totalDespesasOperacionais = 0;
@@ -1945,7 +1989,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
         return {
           title: `DRE - Demonstração do Resultado - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
-          headerInfo: 'Visão gerencial de resultados: Receitas - Despesas Operacionais = Resultado Operacional.',
+          headerInfo: `Visão gerencial de resultados (${isCaixa ? 'REGIME DE CAIXA' : 'REGIME DE COMPETÊNCIA'}): Receitas - Despesas Operacionais = Resultado Operacional.`,
           headers: ['Nº', 'Descrição da Conta', 'Valor do Período'],
           rows: rows
         };
@@ -2130,7 +2174,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       default:
         return null;
     }
-  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, selectedCardId, statusFilter, agendaStatus, agendaCategory, corporateCards, corporateCardPayments, ctrs, orcamentos, employees, employeeLoans, companyLoans, selectedLoanId]);
+  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, selectedCardId, statusFilter, agendaStatus, agendaCategory, corporateCards, corporateCardPayments, ctrs, orcamentos, employees, employeeLoans, companyLoans, selectedLoanId, dreRegime]);
 
   return (
     <div className="space-y-8">
@@ -2325,6 +2369,28 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
                 {['cashFlow', 'dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory', 'cardFees', 'fleetAlerts', 'ctr', 'orcamentos', 'employees'].includes(selectedReport) && (
                   <>
+                    {selectedReport === 'dre' && (
+                      <div className="flex-1 space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                          <History size={14} className="mr-1 shadow-sm" /> Regime DRE
+                        </label>
+                        <div className="flex items-center bg-white border rounded-lg p-1">
+                          <button
+                            onClick={() => setDreRegime('competencia')}
+                            className={`flex-1 py-1 px-2 text-[10px] font-black rounded-md transition-all ${dreRegime === 'competencia' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}
+                          >
+                            COMPETÊNCIA
+                          </button>
+                          <button
+                            onClick={() => setDreRegime('caixa')}
+                            className={`flex-1 py-1 px-2 text-[10px] font-black rounded-md transition-all ${dreRegime === 'caixa' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}
+                          >
+                            CAIXA
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {['dre', 'sales', 'receivables', 'receivablesPending'].includes(selectedReport) && (
                       <div className="flex-1 space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
