@@ -2066,19 +2066,44 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       case 'employeeLoans': {
         const filtered = employeeLoans
           .filter(l => {
-            const d = new Date(l.dataEmprestimo).getTime();
-            return d >= startTimestamp && d <= endTimestamp;
+            const loanDate = new Date(l.dataEmprestimo).getTime();
+            const hasLoanInPeriod = loanDate >= startTimestamp && loanDate <= endTimestamp;
+            
+            // Verifica se houve algum pagamento dentro do período selecionado
+            const hasPaymentInPeriod = l.parcelas.some(p => 
+              p.status === 'Pago' && p.dataPagamento && 
+              new Date(p.dataPagamento).getTime() >= startTimestamp && 
+              new Date(p.dataPagamento).getTime() <= endTimestamp
+            );
+
+            return hasLoanInPeriod || hasPaymentInPeriod;
           })
           .sort((a, b) => new Date(a.dataEmprestimo).getTime() - new Date(b.dataEmprestimo).getTime());
 
         const rows: any[] = [];
+        let totalEmprestadoPeriodo = 0;
+        let totalRecebidoPeriodo = 0;
 
         filtered.forEach((loan, loanIdx) => {
           if (loanIdx > 0) rows.push(['MONTH_SEPARATOR', '', '', '', '', '']);
 
+          // Acumula o valor emprestado apenas se o empréstimo foi feito no período
+          const loanDate = new Date(loan.dataEmprestimo).getTime();
+          if (loanDate >= startTimestamp && loanDate <= endTimestamp) {
+            totalEmprestadoPeriodo += loan.valorEmprestimo;
+          }
+
+          // Acumula o valor recebido apenas dos pagamentos realizados no período
+          const pagasNoPeriodo = loan.parcelas.filter(p => 
+            p.status === 'Pago' && p.dataPagamento && 
+            new Date(p.dataPagamento).getTime() >= startTimestamp && 
+            new Date(p.dataPagamento).getTime() <= endTimestamp
+          );
+          totalRecebidoPeriodo += pagasNoPeriodo.reduce((s, p) => s + p.valorPago, 0);
+
           const bank = bankAccounts.find(b => b.id === loan.bancoSaidaId);
           const acc = accountPlan.find(p => p.id === loan.accountPlanId);
-          const pagas = loan.parcelas.filter(p => p.status === 'Pago').length;
+          const pagasCount = loan.parcelas.filter(p => p.status === 'Pago').length;
           const totalPago = loan.parcelas.filter(p => p.status === 'Pago').reduce((s, p) => s + p.valorPago, 0);
           const totalPendente = loan.parcelas.filter(p => p.status === 'Pendente').reduce((s, p) => s + p.valor, 0);
 
@@ -2104,18 +2129,17 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             ]);
           });
 
-          rows.push([`Resumo: ${pagas}/${loan.qtdParcelas} pagas | Pago: ${formatCurrency(totalPago)} | Pendente: ${formatCurrency(totalPendente)}`, 'IS_TOTAL_MONTH', '', '', '', '']);
+          rows.push([`Resumo: ${pagasCount}/${loan.qtdParcelas} pagas | Pago Total: ${formatCurrency(totalPago)} | Saldo Devedor: ${formatCurrency(totalPendente)}`, 'IS_TOTAL_MONTH', '', '', '', '']);
         });
 
-        const totalGeral = filtered.reduce((acc, l) => acc + l.valorEmprestimo, 0);
-        const totalRecebido = filtered.reduce((acc, l) => acc + l.parcelas.filter(p => p.status === 'Pago').reduce((s, p) => s + p.valorPago, 0), 0);
+        const totalSaldoDevedorGeral = filtered.reduce((acc, l) => acc + l.parcelas.filter(p => p.status === 'Pendente').reduce((s, p) => s + p.valor, 0), 0);
 
         return {
           title: `Relatório de Empréstimos a Funcionários - Período: ${formatDateDisplay(startDate)} a ${formatDateDisplay(endDate)}`,
-          headerInfo: `${filtered.length} empréstimo(s) | Total Emprestado: ${formatCurrency(totalGeral)} | Total Recebido: ${formatCurrency(totalRecebido)}`,
+          headerInfo: `${filtered.length} empréstimo(s) | Total Emprestado no Período: ${formatCurrency(totalEmprestadoPeriodo)} | Total Recebido no Período: ${formatCurrency(totalRecebidoPeriodo)}`,
           headers: ['Parcela', 'Vencimento', 'Valor', 'Data Pagto', 'Valor Pago', 'Tipo Baixa'],
           rows: rows,
-          total: totalGeral
+          total: totalSaldoDevedorGeral
         };
       }
       case 'companyLoans': {
@@ -3428,7 +3452,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                     : selectedReport === 'employees'
                                       ? 'TOTAL GERAL (SALÁRIOS + DIFERENÇA):'
                                       : selectedReport === 'employeeLoans'
-                                        ? 'TOTAL EMPRESTADO:'
+                                        ? 'SALDO DEVEDOR:'
                                         : selectedReport === 'companyLoans'
                                           ? 'TOTAL EMPRESTADO:'
                                           : 'TOTAL DE DESPESAS:'}
