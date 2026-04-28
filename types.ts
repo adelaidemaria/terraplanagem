@@ -444,6 +444,7 @@ export interface WorkOrderItem {
   unitPrice: number;
   totalPrice: number;
   costCenter?: string;
+  unitType?: string;
   observations?: string;
   createdAt: number;
 }

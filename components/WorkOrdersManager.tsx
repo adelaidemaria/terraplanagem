@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Customer, WorkOrder, WorkOrderItem, RentalEquipment, ConfiguracaoEmpresa } from '../types';
 import { supabase } from '../lib/supabase';
-import { Plus, Search, FileText, Calendar, User, AlignLeft, Edit, Trash2, CheckCircle2, ChevronDown, ChevronRight, Hash, Building2, Printer } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, User, AlignLeft, Edit, Trash2, CheckCircle2, ChevronDown, ChevronRight, Hash, Building2, Printer, Lock, LockOpen } from 'lucide-react';
 
 interface WorkOrdersManagerProps {
   customers: Customer[];
@@ -24,7 +24,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
   setRentalEquipments,
   companyConfig
 }) => {
-  const [activeTab, setActiveTab] = useState<'abertos' | 'relatorios'>('abertos');
+  const [activeTab, setActiveTab] = useState<'abertos' | 'finalizadas' | 'relatorios'>('abertos');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -52,6 +52,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
   const [itemQty, setItemQty] = useState(1);
   const [itemPrice, setItemPrice] = useState(0);
   const [itemCostCenter, setItemCostCenter] = useState('');
+  const [itemUnitType, setItemUnitType] = useState<string>('Diária');
   const [itemObs, setItemObs] = useState('');
 
   // Form (Novo Equipamento)
@@ -138,6 +139,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
         unitPrice: itemPrice,
         totalPrice: itemQty * itemPrice,
         costCenter: itemCostCenter,
+        unitType: itemUnitType,
         observations: itemObs
       } : i));
       setEditingItemId(null);
@@ -151,6 +153,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
         unitPrice: itemPrice,
         totalPrice: itemQty * itemPrice,
         costCenter: itemCostCenter,
+        unitType: itemUnitType,
         observations: itemObs,
         createdAt: Date.now()
       };
@@ -162,6 +165,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
     setItemQty(1);
     setItemPrice(0);
     setItemCostCenter('');
+    setItemUnitType('Diária');
     setItemObs('');
     
     setTimeout(() => dateInputRef.current?.focus(), 50);
@@ -223,6 +227,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
     setItemQty(item.quantity);
     setItemPrice(item.unitPrice);
     setItemCostCenter(item.costCenter || '');
+    setItemUnitType(item.unitType || '-');
     setItemObs(item.observations || '');
     setTimeout(() => dateInputRef.current?.focus(), 50);
   };
@@ -236,6 +241,19 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
       onConfirm: () => {
         setWorkOrders(prev => prev.map(w => w.id === id ? { ...w, status: 'Finalizado' } : w));
         setSelectedOrderId(null);
+        setActiveTab('finalizadas');
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  const handleReopenOrder = async (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Reabrir Ficha',
+      message: 'Esta ficha está finalizada. Deseja reabri-la para fazer alterações?',
+      onConfirm: () => {
+        setWorkOrders(prev => prev.map(w => w.id === id ? { ...w, status: 'Aberto' } : w));
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
     });
@@ -269,8 +287,29 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
     });
   };
 
+  const handleSelectOrder = (order: WorkOrder) => {
+    if (order.status === 'Finalizado' && selectedOrderId !== order.id) {
+      setConfirmModal({
+        isOpen: true,
+        title: 'Ficha Finalizada',
+        message: 'Esta ficha está finalizada. Você deseja visualizá-la? (Alterações só serão permitidas se a ficha for reaberta)',
+        onConfirm: () => {
+          setSelectedOrderId(order.id);
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        },
+        type: 'warning'
+      });
+    } else {
+      setSelectedOrderId(order.id);
+    }
+  };
+
   const openOrders = useMemo(() => {
     return workOrders.filter(o => o.status === 'Aberto').sort((a, b) => b.createdAt - a.createdAt);
+  }, [workOrders]);
+
+  const finishedOrders = useMemo(() => {
+    return workOrders.filter(o => o.status === 'Finalizado').sort((a, b) => b.createdAt - a.createdAt);
   }, [workOrders]);
 
   const reportOrders = useMemo(() => {
@@ -372,6 +411,12 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
             Fichas em Aberto
           </button>
           <button
+            onClick={() => setActiveTab('finalizadas')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeTab === 'finalizadas' ? 'bg-amber-100 text-amber-700' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}
+          >
+            Fichas Finalizadas
+          </button>
+          <button
             onClick={() => setActiveTab('relatorios')}
             className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeTab === 'relatorios' ? 'bg-amber-100 text-amber-700' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}
           >
@@ -387,46 +432,57 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
         </div>
       </div>
 
-      {activeTab === 'abertos' && (
+      {(activeTab === 'abertos' || activeTab === 'finalizadas') && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:hidden">
           <div className="lg:col-span-1 space-y-4">
-             {openOrders.length === 0 ? (
+             {(activeTab === 'abertos' ? openOrders : finishedOrders).length === 0 ? (
                <div className="bg-white rounded-xl border border-dashed border-slate-300 p-8 text-center">
-                 <p className="text-slate-500 font-bold mb-2">Nenhuma ficha em aberto.</p>
-                 <p className="text-xs text-slate-400">Clique em Nova Ficha para iniciar.</p>
+                 <p className="text-slate-500 font-bold mb-2">Nenhuma ficha {activeTab === 'abertos' ? 'em aberto' : 'finalizada'}.</p>
+                 <p className="text-xs text-slate-400">{activeTab === 'abertos' ? 'Clique em Nova Ficha para iniciar.' : 'As fichas finalizadas aparecerão aqui.'}</p>
                </div>
              ) : (
-               openOrders.map(order => {
-                 const itemsCount = workOrderItems.filter(i => i.workOrderId === order.id).length;
-                 const isActive = selectedOrderId === order.id;
-                 return (
-                   <div 
-                     key={order.id} 
-                     onClick={() => setSelectedOrderId(order.id)}
-                     className={`p-4 rounded-xl border cursor-pointer transition-all ${isActive ? 'bg-amber-50 border-amber-300 shadow-md ring-2 ring-amber-500/20' : 'bg-white border-slate-200 hover:border-amber-200'}`}
-                   >
-                     <div className="flex justify-between items-start mb-2">
-                        <div className="flex flex-wrap gap-1">
-                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${order.type === 'Locação' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
-                            {order.type}
-                          </span>
-                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${order.status === 'Aberto' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                            {order.status === 'Aberto' ? 'Ficha em Aberto' : 'Ficha Finalizada'}
-                          </span>
+               (activeTab === 'abertos' ? openOrders : finishedOrders).map(order => {
+                  const orderItems = workOrderItems.filter(i => i.workOrderId === order.id);
+                  const itemsCount = orderItems.length;
+                  const uniqueDates = Array.from(new Set(orderItems.map(i => i.date))).sort();
+                  const isActive = selectedOrderId === order.id;
+                  return (
+                    <div 
+                      key={order.id} 
+                      onClick={() => handleSelectOrder(order)}
+                      className={`p-4 rounded-xl border cursor-pointer transition-all ${isActive ? 'bg-amber-50 border-amber-300 shadow-md ring-2 ring-amber-500/20' : 'bg-white border-slate-200 hover:border-amber-200'}`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                         <div className="flex flex-wrap gap-1">
+                           <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${order.type === 'Locação' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                             {order.type}
+                           </span>
+                           <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full flex items-center gap-1 ${order.status === 'Aberto' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                             {order.status === 'Aberto' ? 'Ficha em Aberto' : <><Lock size={10} /> Ficha Finalizada</>}
+                           </span>
+                         </div>
+                         <span className="text-[10px] text-slate-400 font-bold">Iniciada em: {order.startDate.split('-').reverse().join('/')}</span>
+                      </div>
+                      <p className="font-black text-slate-800">{order.customerName}</p>
+                      {uniqueDates.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                           {uniqueDates.map(date => (
+                             <span key={date} className="text-[9px] font-black bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100">
+                               {date.split('-').reverse().join('/')}
+                             </span>
+                           ))}
                         </div>
-                        <span className="text-[10px] text-slate-400 font-bold">{order.startDate.split('-').reverse().join('/')}</span>
-                     </div>
-                     <p className="font-black text-slate-800">{order.customerName}</p>
-                     <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-50">
-                        <p className="text-xs text-slate-500 flex items-center">
-                          <Hash size={12} className="mr-1" /> {workOrderItems.filter(i => i.workOrderId === order.id).length} lançamentos
-                        </p>
-                        <p className="text-xs font-black text-slate-800">
-                          {formatCurrency(workOrderItems.filter(i => i.workOrderId === order.id).reduce((sum, item) => sum + item.totalPrice, 0))}
-                        </p>
-                     </div>
-                   </div>
-                 )
+                      )}
+                      <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-50">
+                         <p className="text-xs text-slate-500 flex items-center">
+                           <Hash size={12} className="mr-1" /> {itemsCount} lançamentos
+                         </p>
+                         <p className="text-xs font-black text-slate-800">
+                           {formatCurrency(orderItems.reduce((sum, item) => sum + item.totalPrice, 0))}
+                         </p>
+                      </div>
+                    </div>
+                  );
                })
              )}
           </div>
@@ -458,15 +514,21 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                     >
                       <Printer size={16} className="mr-2" /> Imprimir
                     </button>
-                    <button onClick={() => handleCloseOrder(selectedOrder.id)} className="px-4 py-2 bg-emerald-500 text-white text-sm font-bold rounded-lg shadow-lg shadow-emerald-200 hover:bg-emerald-600 flex items-center">
-                      <CheckCircle2 size={16} className="mr-2" /> Finalizar Ficha
-                    </button>
+                    {selectedOrder.status === 'Aberto' ? (
+                      <button onClick={() => handleCloseOrder(selectedOrder.id)} className="px-4 py-2 bg-emerald-500 text-white text-sm font-bold rounded-lg shadow-lg shadow-emerald-200 hover:bg-emerald-600 flex items-center transition-all active:scale-95">
+                        <CheckCircle2 size={16} className="mr-2" /> Finalizar Ficha
+                      </button>
+                    ) : (
+                      <button onClick={() => handleReopenOrder(selectedOrder.id)} className="px-4 py-2 bg-amber-500 text-white text-sm font-bold rounded-lg shadow-lg shadow-amber-200 hover:bg-amber-600 flex items-center transition-all active:scale-95">
+                        <LockOpen size={16} className="mr-2" /> Reabrir Ficha
+                      </button>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
                    <div className="mb-6">
-                     <form onSubmit={handleAddItem} className="bg-white p-4 rounded-xl border shadow-sm grid grid-cols-1 md:grid-cols-12 gap-4">
+                     <form onSubmit={handleAddItem} className={`bg-white p-4 rounded-xl border shadow-sm grid grid-cols-1 md:grid-cols-12 gap-4 ${selectedOrder?.status === 'Finalizado' ? 'opacity-50 pointer-events-none' : ''}`}>
                        <div className="md:col-span-2">
                           <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data</label>
                           <input ref={dateInputRef} type="date" required className="w-full px-3 py-2 border rounded-lg text-sm" value={itemDate} onChange={e => setItemDate(e.target.value)} />
@@ -475,7 +537,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                           <label className="block text-xs font-bold text-slate-500 uppercase mb-1">C.C.</label>
                           <input type="text" placeholder="Centro de Custo" className="w-full px-3 py-2 border rounded-lg text-sm" value={itemCostCenter} onChange={e => setItemCostCenter(e.target.value)} />
                        </div>
-                        <div className="md:col-span-5">
+                        <div className="md:col-span-4">
                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{selectedOrder.type === 'Locação' ? 'Descrição da Locação' : 'Descrição dos Serviços Realizados'}</label>
                           <input 
                               type="text" 
@@ -492,7 +554,15 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                               ))}
                            </datalist>
                        </div>
-                       <div className="md:col-span-3">
+                       <div className="md:col-span-2">
+                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo</label>
+                          <select className="w-full px-3 py-2 border rounded-lg text-sm" value={itemUnitType} onChange={e => setItemUnitType(e.target.value)}>
+                            <option value="-">-</option>
+                            <option value="Diária">Diária</option>
+                            <option value="Hora">Hora</option>
+                          </select>
+                       </div>
+                       <div className="md:col-span-2">
                           <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Quantidade</label>
                           <input type="number" step="0.01" required className="w-full px-3 py-2 border rounded-lg text-sm" value={itemQty} onChange={e => setItemQty(Number(e.target.value))} />
                        </div>
@@ -527,8 +597,10 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                           <div key={item.id} className="bg-white p-4 rounded-xl border flex items-center justify-between group">
                             <div>
                                <div className="flex items-center space-x-3 mb-1">
-                                 <span className="text-xs font-bold text-slate-500">{item.date.split('-').reverse().join('/')} ({formatDayOfWeek(item.date)})</span>
-                                 {item.costCenter && <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-black uppercase tracking-tighter">CC: {item.costCenter}</span>}
+                                 <span className="text-[11px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded tracking-tighter">{item.date.split('-').reverse().join('/')}</span>
+                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">({formatDayOfWeek(item.date)})</span>
+                                 {item.unitType && item.unitType !== '-' && <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-black uppercase tracking-tighter border border-blue-100">{item.unitType}</span>}
+                                 {item.costCenter && <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-black uppercase tracking-tighter">{item.costCenter}</span>}
                                  <span className="font-bold text-slate-800">{item.description}</span>
                                </div>
                                <div className="text-xs text-slate-400">
@@ -542,14 +614,16 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                             </div>
                             <div className="flex items-center space-x-4">
                                <span className="font-black text-slate-800">{formatCurrency(item.totalPrice)}</span>
-                               <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                 <button onClick={() => handleEditItem(item)} className="text-blue-400 hover:text-blue-600 p-1">
-                                   <Edit size={16} />
-                                 </button>
-                                 <button onClick={() => handleDeleteItem(item.id)} className="text-rose-400 hover:text-rose-600 p-1">
-                                   <Trash2 size={16} />
-                                 </button>
-                               </div>
+                                {selectedOrder.status === 'Aberto' && (
+                                   <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                     <button onClick={() => handleEditItem(item)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded transition-colors">
+                                       <Edit size={14} />
+                                     </button>
+                                     <button onClick={() => handleDeleteItem(item.id)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded transition-colors">
+                                       <Trash2 size={14} />
+                                     </button>
+                                   </div>
+                                 )}
                             </div>
                           </div>
                         ))}
@@ -626,8 +700,10 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                      )}
 
                      <div className="hidden print:block text-center mb-8">
-                       <h3 className="text-xl font-black text-slate-800 uppercase tracking-widest border-y py-2">Relatório de Locações e Serviços</h3>
-                       <p className="text-xs text-slate-500 mt-2">Período: {filterStartDate.split('-').reverse().join('/')} até {filterEndDate.split('-').reverse().join('/')}</p>
+                       <h3 className="text-lg font-medium text-slate-800 uppercase tracking-widest mb-4">Relatório de Locações e Serviços</h3>
+                       <div className="mt-2 border-y border-slate-200 py-3">
+                         <p className="text-xs text-slate-500 font-bold">Período: {filterStartDate.split('-').reverse().join('/')} até {filterEndDate.split('-').reverse().join('/')}</p>
+                       </div>
                      </div>
                    </td>
                  </tr>
@@ -672,7 +748,11 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                                       <tr key={item.id} className="border-t border-slate-100">
                                         <td className="py-2">{item.date.split('-').reverse().join('/')} ({formatDayOfWeek(item.date)})</td>
                                         <td className="py-2 font-medium">
-                                          {item.description} 
+                                          <div className="flex items-center gap-2">
+                                            {item.description}
+                                            {item.unitType && item.unitType !== '-' && <span className="text-[9px] bg-slate-100 px-1 rounded border border-slate-200 text-slate-500 font-black uppercase tracking-tight">{item.unitType}</span>}
+                                            {item.costCenter && <span className="text-[9px] bg-slate-50 px-1 rounded border border-slate-200 text-slate-400 font-bold uppercase tracking-tight">{item.costCenter}</span>}
+                                          </div>
                                           {item.observations && <div className="text-slate-400 font-normal text-[11px] mt-0.5">Obs: {item.observations}</div>}
                                         </td>
                                         <td className="py-2">{item.quantity} x {formatCurrency(item.unitPrice)}</td>
@@ -847,8 +927,8 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
              )}
 
              <div className="text-center mb-8">
-               <h3 className="text-lg font-black text-slate-800 uppercase tracking-widest border-y py-2">Relatório de Ficha de {selectedOrder.type}</h3>
-               <div className="mt-4 flex flex-col items-center">
+               <h3 className="text-lg font-medium text-slate-800 uppercase tracking-widest mb-4">Relatório de Ficha de {selectedOrder.type}</h3>
+               <div className="mt-4 flex flex-col items-center border-y border-slate-200 py-3">
                  <p className="text-lg font-black text-slate-800 uppercase">{selectedOrder.customerName}</p>
                  <p className="text-xs text-slate-500 font-bold">Período: {orderPeriod}</p>
                </div>
@@ -866,19 +946,23 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {selectedOrderItems.map(item => (
                     <tr key={item.id} className="print:break-inside-avoid">
-                      <td className="py-3 text-xs">{item.date.split('-').reverse().join('/')} ({formatDayOfWeek(item.date)})</td>
-                      <td className="py-3 font-medium">
-                        {item.description} 
+                      <td className="py-2 text-xs">{item.date.split('-').reverse().join('/')} ({formatDayOfWeek(item.date)})</td>
+                      <td className="py-2 font-medium">
+                        <div className="flex items-center gap-2">
+                          {item.description}
+                          {item.unitType && item.unitType !== '-' && <span className="text-[9px] bg-slate-100 px-1 rounded border border-slate-200 text-slate-500 font-black uppercase tracking-tight">{item.unitType}</span>}
+                          {item.costCenter && <span className="text-[9px] bg-slate-50 px-1 rounded border border-slate-200 text-slate-400 font-bold uppercase tracking-tight">{item.costCenter}</span>}
+                        </div>
                         {item.observations && <div className="text-slate-400 font-normal text-[11px] mt-0.5">Obs: {item.observations}</div>}
                       </td>
-                      <td className="py-3 text-xs">{item.quantity} x {formatCurrency(item.unitPrice)}</td>
-                      <td className="py-3 text-right font-bold">{formatCurrency(item.totalPrice)}</td>
+                      <td className="py-2 text-xs">{item.quantity} x {formatCurrency(item.unitPrice)}</td>
+                      <td className="py-2 text-right font-bold">{formatCurrency(item.totalPrice)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                    <tr className="border-t-2 border-slate-800">
-                      <td colSpan={3} className="py-4 text-right font-bold uppercase text-xs">Total Acumulado da Ficha:</td>
+                      <td colSpan={3} className="py-4 text-right font-bold uppercase text-xs">Valor Total:</td>
                       <td className="py-4 text-right font-black text-lg text-emerald-700">{formatCurrency(totalSelectedOrder)}</td>
                    </tr>
                 </tfoot>
@@ -888,7 +972,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
              {summariesByCostCenter.map((center, cIdx) => (
                <div key={cIdx} className="mt-8 border-2 border-slate-800 rounded-lg overflow-hidden print:break-inside-avoid shadow-sm">
                   <div className="bg-slate-800 text-white px-4 py-2 text-xs font-black uppercase tracking-wider flex justify-between items-center">
-                    <span>{center.costCenter ? `Resumo - Centro de Custo: ${center.costCenter}` : 'Resumo Geral da Ficha'}</span>
+                    <span>{center.costCenter ? `Resumo - Centro de Custo: ${center.costCenter}` : 'Resumo Geral'}</span>
                   </div>
                   <table className="w-full text-sm text-left">
                      <thead>
