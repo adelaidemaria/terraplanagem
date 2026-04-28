@@ -335,7 +335,7 @@ export interface ConfiguracaoEmpresa {
     updated_at?: string;
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos' | 'company-settings' | 'simples-nacional' | 'employees' | 'employee-loans' | 'company-loans';
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos' | 'company-settings' | 'simples-nacional' | 'employees' | 'employee-loans' | 'company-loans' | 'work-orders';
 
 export interface AdminUser {
   id: string;
@@ -435,3 +435,33 @@ export interface CompanyLoan {
   createdAt: string;
 }
 
+export interface WorkOrderItem {
+  id: string;
+  workOrderId: string;
+  date: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  observations?: string;
+  createdAt: number;
+}
+
+export interface WorkOrder {
+  id: string;
+  type: 'Locação' | 'Serviço';
+  customerId: string;
+  customerName: string;
+  status: 'Aberto' | 'Finalizado';
+  startDate: string;
+  createdAt: number;
+}
+
+export interface RentalEquipment {
+  id: string;
+  workOrderId?: string;
+  customerId?: string;
+  name: string;
+  defaultPrice: number;
+  createdAt: number;
+}

@@ -54,7 +54,10 @@ import {
   Funcionario,
   FuncionarioDocumento,
   EmprestimoFuncionario,
-  CompanyLoan
+  CompanyLoan,
+  WorkOrder,
+  WorkOrderItem,
+  RentalEquipment
 } from './types';
 
 // Components
@@ -85,6 +88,7 @@ import ConfiguracaoEmpresaManager from './components/ConfiguracaoEmpresa';
 import EmployeeManager from './components/EmployeeManager';
 import EmployeeLoanManager from './components/EmployeeLoanManager';
 import CompanyLoanManager from './components/CompanyLoanManager';
+import WorkOrdersManager from './components/WorkOrdersManager';
 import { useSupabaseSync } from './lib/useSupabaseSync';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
@@ -207,8 +211,12 @@ const App: React.FC = () => {
   const [employees, setEmployees, empLoaded] = useSupabaseSync<Funcionario>('funcionarios');
   const [employeeLoans, setEmployeeLoans, elLoaded] = useSupabaseSync<EmprestimoFuncionario>('emprestimos_funcionarios');
   const [companyLoans, setCompanyLoans, clLoaded] = useSupabaseSync<CompanyLoan>('company_loans');
+  const [workOrders, setWorkOrders, woLoaded] = useSupabaseSync<WorkOrder>('work_orders');
+  const [workOrderItems, setWorkOrderItems, woiLoaded] = useSupabaseSync<WorkOrderItem>('work_order_items');
+  const [rentalEquipments, setRentalEquipments, reLoaded] = useSupabaseSync<RentalEquipment>('rental_equipments');
+  const [companyConfigs, setCompanyConfigs, companyLoaded] = useSupabaseSync<ConfiguracaoEmpresa>('configuracao_empresa');
 
-  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded && cvLoaded && ctrsLoaded && orcamentosLoaded && snLoaded && empLoaded && elLoaded && clLoaded;
+  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded && cvLoaded && ctrsLoaded && orcamentosLoaded && snLoaded && empLoaded && elLoaded && clLoaded && woLoaded && woiLoaded && reLoaded && companyLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -617,6 +625,17 @@ const App: React.FC = () => {
             setCurrentView('reports');
           }}
         />;
+      case 'work-orders':
+        return <WorkOrdersManager
+          customers={customers}
+          workOrders={workOrders}
+          setWorkOrders={setWorkOrders}
+          workOrderItems={workOrderItems}
+          setWorkOrderItems={setWorkOrderItems}
+          rentalEquipments={rentalEquipments}
+          setRentalEquipments={setRentalEquipments}
+          companyConfig={companyConfigs[0]}
+        />;
       default:
         return <Dashboard
           stats={stats} sales={sales} expenses={expenses} payments={payments} customers={customers}
@@ -681,6 +700,7 @@ const App: React.FC = () => {
                 <NavItem id="nf-import" label="Importação NF" icon={FileUp} />
                 <NavItem id="receivables" label="Contas a Receber" icon={HandCoins} />
                 <NavItem id="simples-nacional" label="Simples Nacional" icon={Landmark} />
+                <NavItem id="work-orders" label="Locações e Serviços" icon={ClipboardList} />
               </div>
             )}
           </div>
