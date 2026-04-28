@@ -443,6 +443,7 @@ export interface WorkOrderItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  costCenter?: string;
   observations?: string;
   createdAt: number;
 }

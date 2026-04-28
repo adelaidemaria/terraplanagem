@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Customer, WorkOrder, WorkOrderItem, RentalEquipment, ConfiguracaoEmpresa } from '../types';
 import { supabase } from '../lib/supabase';
-import { Plus, Search, FileText, Calendar, User, AlignLeft, Edit, Trash2, CheckCircle2, ChevronDown, ChevronRight, Hash, Building2 } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, User, AlignLeft, Edit, Trash2, CheckCircle2, ChevronDown, ChevronRight, Hash, Building2, Printer } from 'lucide-react';
 
 interface WorkOrdersManagerProps {
   customers: Customer[];
@@ -51,6 +51,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
   const [itemDesc, setItemDesc] = useState('');
   const [itemQty, setItemQty] = useState(1);
   const [itemPrice, setItemPrice] = useState(0);
+  const [itemCostCenter, setItemCostCenter] = useState('');
   const [itemObs, setItemObs] = useState('');
 
   // Form (Novo Equipamento)
@@ -136,6 +137,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
         quantity: itemQty,
         unitPrice: itemPrice,
         totalPrice: itemQty * itemPrice,
+        costCenter: itemCostCenter,
         observations: itemObs
       } : i));
       setEditingItemId(null);
@@ -148,6 +150,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
         quantity: itemQty,
         unitPrice: itemPrice,
         totalPrice: itemQty * itemPrice,
+        costCenter: itemCostCenter,
         observations: itemObs,
         createdAt: Date.now()
       };
@@ -158,6 +161,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
     setItemDesc('');
     setItemQty(1);
     setItemPrice(0);
+    setItemCostCenter('');
     setItemObs('');
     
     setTimeout(() => dateInputRef.current?.focus(), 50);
@@ -218,6 +222,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
     setItemDesc(item.description);
     setItemQty(item.quantity);
     setItemPrice(item.unitPrice);
+    setItemCostCenter(item.costCenter || '');
     setItemObs(item.observations || '');
     setTimeout(() => dateInputRef.current?.focus(), 50);
   };
@@ -287,9 +292,52 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
   }, [workOrders, workOrderItems, filterCustomer, searchTerm, filterStartDate, filterEndDate]);
 
   const selectedOrder = workOrders.find(o => o.id === selectedOrderId);
-  const selectedOrderItems = workOrderItems.filter(i => i.workOrderId === selectedOrderId).sort((a, b) => b.createdAt - a.createdAt);
+  const selectedOrderItems = workOrderItems.filter(i => i.workOrderId === selectedOrderId).sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
   
   const totalSelectedOrder = selectedOrderItems.reduce((acc, curr) => acc + curr.totalPrice, 0);
+
+  const summariesByCostCenter = useMemo(() => {
+    const centers = new Map<string, Map<string, { quantity: number; unitPrice: number; totalPrice: number }>>();
+    
+    selectedOrderItems.forEach(item => {
+      const cc = item.costCenter || '';
+      if (!centers.has(cc)) {
+        centers.set(cc, new Map());
+      }
+      const centerMap = centers.get(cc)!;
+      const existing = centerMap.get(item.description);
+      if (existing) {
+        existing.quantity += item.quantity;
+        existing.totalPrice += item.totalPrice;
+        existing.unitPrice = item.unitPrice;
+      } else {
+        centerMap.set(item.description, {
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice
+        });
+      }
+    });
+
+    return Array.from(centers.entries()).map(([cc, itemsMap]) => ({
+      costCenter: cc,
+      items: Array.from(itemsMap.entries()).map(([name, data]) => ({ name, ...data })),
+      total: Array.from(itemsMap.values()).reduce((sum, i) => sum + i.totalPrice, 0)
+    })).sort((a, b) => {
+      if (a.costCenter === '' && b.costCenter !== '') return 1;
+      if (a.costCenter !== '' && b.costCenter === '') return -1;
+      return a.costCenter.localeCompare(b.costCenter);
+    });
+  }, [selectedOrderItems]);
+
+  const orderPeriod = useMemo(() => {
+    if (selectedOrderItems.length === 0) return selectedOrder?.startDate.split('-').reverse().join('/') || '';
+    const sortedDates = [...selectedOrderItems].sort((a, b) => a.date.localeCompare(b.date));
+    const start = sortedDates[0].date.split('-').reverse().join('/');
+    const end = sortedDates[sortedDates.length - 1].date.split('-').reverse().join('/');
+    if (start === end) return start;
+    return `${start} a ${end}`;
+  }, [selectedOrderItems, selectedOrder]);
 
   const fichaEquipments = useMemo(() => {
     if (!selectedOrderId) return [];
@@ -340,7 +388,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
       </div>
 
       {activeTab === 'abertos' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:hidden">
           <div className="lg:col-span-1 space-y-4">
              {openOrders.length === 0 ? (
                <div className="bg-white rounded-xl border border-dashed border-slate-300 p-8 text-center">
@@ -404,6 +452,12 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                     <button onClick={() => handleDeleteOrder(selectedOrder.id)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors" title="Excluir Ficha">
                       <Trash2 size={18} />
                     </button>
+                    <button 
+                      onClick={() => window.print()} 
+                      className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-black flex items-center shadow-lg transition-all active:scale-95 ring-2 ring-slate-900/10"
+                    >
+                      <Printer size={16} className="mr-2" /> Imprimir
+                    </button>
                     <button onClick={() => handleCloseOrder(selectedOrder.id)} className="px-4 py-2 bg-emerald-500 text-white text-sm font-bold rounded-lg shadow-lg shadow-emerald-200 hover:bg-emerald-600 flex items-center">
                       <CheckCircle2 size={16} className="mr-2" /> Finalizar Ficha
                     </button>
@@ -413,12 +467,16 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
                    <div className="mb-6">
                      <form onSubmit={handleAddItem} className="bg-white p-4 rounded-xl border shadow-sm grid grid-cols-1 md:grid-cols-12 gap-4">
-                       <div className="md:col-span-3">
+                       <div className="md:col-span-2">
                           <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data</label>
                           <input ref={dateInputRef} type="date" required className="w-full px-3 py-2 border rounded-lg text-sm" value={itemDate} onChange={e => setItemDate(e.target.value)} />
                        </div>
-                       <div className="md:col-span-6">
-                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{selectedOrder.type === 'Locação' ? 'Descrição da Locação' : 'Descrição dos Serviços Realizados'}</label>
+                       <div className="md:col-span-2">
+                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1">C.C.</label>
+                          <input type="text" placeholder="Centro de Custo" className="w-full px-3 py-2 border rounded-lg text-sm" value={itemCostCenter} onChange={e => setItemCostCenter(e.target.value)} />
+                       </div>
+                        <div className="md:col-span-5">
+                           <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{selectedOrder.type === 'Locação' ? 'Descrição da Locação' : 'Descrição dos Serviços Realizados'}</label>
                           <input 
                               type="text" 
                               required 
@@ -470,6 +528,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                             <div>
                                <div className="flex items-center space-x-3 mb-1">
                                  <span className="text-xs font-bold text-slate-500">{item.date.split('-').reverse().join('/')} ({formatDayOfWeek(item.date)})</span>
+                                 {item.costCenter && <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-black uppercase tracking-tighter">CC: {item.costCenter}</span>}
                                  <span className="font-bold text-slate-800">{item.description}</span>
                                </div>
                                <div className="text-xs text-slate-400">
@@ -561,8 +620,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                              CNPJ: {(companyConfig as any).cnpj} {(companyConfig as any).inscricaoMunicipal && ` | I.M.: ${(companyConfig as any).inscricaoMunicipal}`}
                            </p>
                            <p className="text-[10px] text-slate-500 font-medium leading-relaxed">{(companyConfig as any).endereco}</p>
-                           <p className="text-[10px] text-slate-500 font-bold italic">{(companyConfig as any).telefone}</p>
-                           <p className="text-[10px] text-slate-500 font-medium">{(companyConfig as any).email}</p>
+                           <p className="text-[10px] text-slate-500 font-bold">{(companyConfig as any).telefone} &nbsp; / &nbsp; E-mail: {(companyConfig as any).email}</p>
                          </div>
                        </div>
                      )}
@@ -605,7 +663,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                                     <tr className="text-slate-500 uppercase text-[10px]">
                                       <th className="pb-2">Data</th>
                                       <th className="pb-2">{order.type === 'Locação' ? 'Descrição da Locação' : 'Descrição dos Serviços Realizados'}</th>
-                                      <th className="pb-2">Qtd x Valor</th>
+                                      <th className="pb-2">Qtd x Valor Unitário</th>
                                       <th className="pb-2 text-right">Total</th>
                                     </tr>
                                   </thead>
@@ -761,6 +819,107 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
           </div>
         </div>
       )}
+
+      {/* Área de Impressão de Ficha Individual (Apenas Impressão) */}
+      <div className="hidden print:block">
+        {activeTab === 'abertos' && selectedOrderId && selectedOrder && (
+          <div className="bg-white p-0">
+             {/* Cabeçalho da Empresa */}
+             {companyConfig && (
+               <div className="flex items-start justify-between mb-8 border-b-2 border-slate-800 pb-6">
+                 <div className="flex items-center gap-6">
+                   {(companyConfig as any).logoUrl ? (
+                     <img src={(companyConfig as any).logoUrl} alt="Logo" className="h-20 w-auto object-contain" />
+                   ) : (
+                     <div className="h-20 w-20 bg-slate-100 rounded-xl flex items-center justify-center">
+                       <Building2 size={40} className="text-slate-300" />
+                     </div>
+                   )}
+                 </div>
+                 <div className="text-right space-y-1 max-w-[400px]">
+                   <p className="text-[10px] text-slate-500 font-bold">
+                     CNPJ: {(companyConfig as any).cnpj} {(companyConfig as any).inscricaoMunicipal && ` | I.M.: ${(companyConfig as any).inscricaoMunicipal}`}
+                   </p>
+                   <p className="text-[10px] text-slate-500 font-medium leading-relaxed">{(companyConfig as any).endereco}</p>
+                   <p className="text-[10px] text-slate-500 font-bold">{(companyConfig as any).telefone} &nbsp; / &nbsp; E-mail: {(companyConfig as any).email}</p>
+                 </div>
+               </div>
+             )}
+
+             <div className="text-center mb-8">
+               <h3 className="text-lg font-black text-slate-800 uppercase tracking-widest border-y py-2">Relatório de Ficha de {selectedOrder.type}</h3>
+               <div className="mt-4 flex flex-col items-center">
+                 <p className="text-lg font-black text-slate-800 uppercase">{selectedOrder.customerName}</p>
+                 <p className="text-xs text-slate-500 font-bold">Período: {orderPeriod}</p>
+               </div>
+             </div>
+
+             <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="text-slate-600 uppercase text-[10px] border-b-2 border-slate-800">
+                    <th className="pb-2">Data</th>
+                    <th className="pb-2">{selectedOrder.type === 'Locação' ? 'Descrição da Locação' : 'Descrição dos Serviços Realizados'}</th>
+                    <th className="pb-2">Qtd x Valor Unitário</th>
+                    <th className="pb-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {selectedOrderItems.map(item => (
+                    <tr key={item.id} className="print:break-inside-avoid">
+                      <td className="py-3 text-xs">{item.date.split('-').reverse().join('/')} ({formatDayOfWeek(item.date)})</td>
+                      <td className="py-3 font-medium">
+                        {item.description} 
+                        {item.observations && <div className="text-slate-400 font-normal text-[11px] mt-0.5">Obs: {item.observations}</div>}
+                      </td>
+                      <td className="py-3 text-xs">{item.quantity} x {formatCurrency(item.unitPrice)}</td>
+                      <td className="py-3 text-right font-bold">{formatCurrency(item.totalPrice)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                   <tr className="border-t-2 border-slate-800">
+                      <td colSpan={3} className="py-4 text-right font-bold uppercase text-xs">Total Acumulado da Ficha:</td>
+                      <td className="py-4 text-right font-black text-lg text-emerald-700">{formatCurrency(totalSelectedOrder)}</td>
+                   </tr>
+                </tfoot>
+             </table>
+
+             {/* Resumo Consolidado por Centro de Custo */}
+             {summariesByCostCenter.map((center, cIdx) => (
+               <div key={cIdx} className="mt-8 border-2 border-slate-800 rounded-lg overflow-hidden print:break-inside-avoid shadow-sm">
+                  <div className="bg-slate-800 text-white px-4 py-2 text-xs font-black uppercase tracking-wider flex justify-between items-center">
+                    <span>{center.costCenter ? `Resumo - Centro de Custo: ${center.costCenter}` : 'Resumo Geral da Ficha'}</span>
+                  </div>
+                  <table className="w-full text-sm text-left">
+                     <thead>
+                       <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-600 border-b border-slate-200">
+                         <th className="px-4 py-2">Equipamento / Serviço</th>
+                         <th className="px-4 py-2 text-center">Diárias/Qtd</th>
+                         <th className="px-4 py-2 text-right">Vlr Unitário</th>
+                         <th className="px-4 py-2 text-right">Vlr Total</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-100">
+                       {center.items.map((sum, idx) => (
+                         <tr key={idx}>
+                           <td className="px-4 py-2 font-bold text-slate-800 uppercase text-xs">{sum.name}</td>
+                           <td className="px-4 py-2 text-center font-bold">{sum.quantity}</td>
+                           <td className="px-4 py-2 text-right text-xs">{formatCurrency(sum.unitPrice)}</td>
+                           <td className="px-4 py-2 text-right font-black">{formatCurrency(sum.totalPrice)}</td>
+                         </tr>
+                       ))}
+                     </tbody>
+                     <tr className="bg-slate-50 border-t border-slate-300">
+                        <td colSpan={3} className="px-4 py-2 text-right font-black uppercase text-[10px]">Total do Centro de Custo:</td>
+                        <td className="px-4 py-2 text-right font-black text-slate-900 border-l border-slate-200 bg-amber-50/30">{formatCurrency(center.total)}</td>
+                     </tr>
+                  </table>
+               </div>
+             ))}
+
+          </div>
+        )}
+      </div>
     </div>
   );
 };
