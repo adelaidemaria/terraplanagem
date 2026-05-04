@@ -739,26 +739,36 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                                     <tr className="text-slate-500 uppercase text-[10px]">
                                       <th className="pb-2">Data</th>
                                       <th className="pb-2">{order.type === 'Locação' ? 'Descrição da Locação' : 'Descrição dos Serviços Realizados'}</th>
-                                      <th className="pb-2">Qtd x Valor Unitário</th>
+                                      <th className="pb-2">Diária X Vlr Unitário</th>
                                       <th className="pb-2 text-right">Total</th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {items.map(item => (
-                                      <tr key={item.id} className="border-t border-slate-100">
-                                        <td className="py-2">{item.date.split('-').reverse().join('/')} ({formatDayOfWeek(item.date)})</td>
-                                        <td className="py-2 font-medium">
-                                          <div className="flex items-center gap-2">
-                                            {item.description}
-                                            {item.unitType && item.unitType !== '-' && <span className="text-[9px] bg-slate-100 px-1 rounded border border-slate-200 text-slate-500 font-black uppercase tracking-tight">{item.unitType}</span>}
-                                            {item.costCenter && <span className="text-[9px] bg-slate-50 px-1 rounded border border-slate-200 text-slate-400 font-bold uppercase tracking-tight">{item.costCenter}</span>}
-                                          </div>
-                                          {item.observations && <div className="text-slate-400 font-normal text-[11px] mt-0.5">Obs: {item.observations}</div>}
-                                        </td>
-                                        <td className="py-2">{item.quantity} x {formatCurrency(item.unitPrice)}</td>
-                                        <td className="py-2 text-right font-bold">{formatCurrency(item.totalPrice)}</td>
-                                      </tr>
-                                    ))}
+                                    {items.map((item, idx) => {
+                                      const isNewDay = idx > 0 && item.date !== items[idx - 1].date;
+                                      return (
+                                        <React.Fragment key={item.id}>
+                                          {isNewDay && (
+                                            <tr className="border-t-4 border-double border-slate-800">
+                                              <td colSpan={4} className="py-1"></td>
+                                            </tr>
+                                          )}
+                                          <tr className="print:break-inside-avoid">
+                                            <td className="py-2 text-xs">{item.date.split('-').reverse().join('/')} ({formatDayOfWeek(item.date)})</td>
+                                            <td className="py-2 text-xs font-medium">
+                                              <div className="flex items-center gap-2">
+                                                {item.description}
+                                                {item.unitType && item.unitType !== '-' && <span className="text-[9px] bg-slate-100 px-1 rounded border border-slate-200 text-slate-500 font-black uppercase tracking-tight">{item.unitType}</span>}
+                                                {item.costCenter && <span className="text-[9px] bg-slate-50 px-1 rounded border border-slate-200 text-slate-400 font-bold uppercase tracking-tight">{item.costCenter}</span>}
+                                              </div>
+                                              {item.observations && <div className="text-slate-400 font-normal text-[11px] mt-0.5">Obs: {item.observations}</div>}
+                                            </td>
+                                            <td className="py-2 text-xs">{item.quantity} x {formatCurrency(item.unitPrice)}</td>
+                                            <td className="py-2 text-right font-bold text-xs">{formatCurrency(item.totalPrice)}</td>
+                                          </tr>
+                                        </React.Fragment>
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               </div>
@@ -939,31 +949,41 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                   <tr className="text-slate-600 uppercase text-[10px] border-b-2 border-slate-800">
                     <th className="pb-2">Data</th>
                     <th className="pb-2">{selectedOrder.type === 'Locação' ? 'Descrição da Locação' : 'Descrição dos Serviços Realizados'}</th>
-                    <th className="pb-2">Qtd x Valor Unitário</th>
+                    <th className="pb-2">Diária X Vlr Unitário</th>
                     <th className="pb-2 text-right">Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {selectedOrderItems.map(item => (
-                    <tr key={item.id} className="print:break-inside-avoid">
-                      <td className="py-2 text-xs">{item.date.split('-').reverse().join('/')} ({formatDayOfWeek(item.date)})</td>
-                      <td className="py-2 font-medium">
-                        <div className="flex items-center gap-2">
-                          {item.description}
-                          {item.unitType && item.unitType !== '-' && <span className="text-[9px] bg-slate-100 px-1 rounded border border-slate-200 text-slate-500 font-black uppercase tracking-tight">{item.unitType}</span>}
-                          {item.costCenter && <span className="text-[9px] bg-slate-50 px-1 rounded border border-slate-200 text-slate-400 font-bold uppercase tracking-tight">{item.costCenter}</span>}
-                        </div>
-                        {item.observations && <div className="text-slate-400 font-normal text-[11px] mt-0.5">Obs: {item.observations}</div>}
-                      </td>
-                      <td className="py-2 text-xs">{item.quantity} x {formatCurrency(item.unitPrice)}</td>
-                      <td className="py-2 text-right font-bold">{formatCurrency(item.totalPrice)}</td>
-                    </tr>
-                  ))}
+                <tbody>
+                  {selectedOrderItems.map((item, idx) => {
+                    const isNewDay = idx > 0 && item.date !== selectedOrderItems[idx - 1].date;
+                    return (
+                      <React.Fragment key={item.id}>
+                        {isNewDay && (
+                          <tr className="border-t-4 border-double border-slate-800">
+                            <td colSpan={4} className="py-1"></td>
+                          </tr>
+                        )}
+                        <tr className="print:break-inside-avoid">
+                          <td className="py-2 text-xs">{item.date.split('-').reverse().join('/')} ({formatDayOfWeek(item.date)})</td>
+                          <td className="py-2 text-xs font-medium">
+                            <div className="flex items-center gap-2">
+                              {item.description}
+                              {item.unitType && item.unitType !== '-' && <span className="text-[9px] bg-slate-100 px-1 rounded border border-slate-200 text-slate-500 font-black uppercase tracking-tight">{item.unitType}</span>}
+                              {item.costCenter && <span className="text-[9px] bg-slate-50 px-1 rounded border border-slate-200 text-slate-400 font-bold uppercase tracking-tight">{item.costCenter}</span>}
+                            </div>
+                            {item.observations && <div className="text-slate-400 font-normal text-[11px] mt-0.5">Obs: {item.observations}</div>}
+                          </td>
+                          <td className="py-2 text-xs">{item.quantity} x {formatCurrency(item.unitPrice)}</td>
+                          <td className="py-2 text-right font-bold text-xs">{formatCurrency(item.totalPrice)}</td>
+                        </tr>
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
                 <tfoot>
                    <tr className="border-t-2 border-slate-800">
                       <td colSpan={3} className="py-4 text-right font-bold uppercase text-xs">Valor Total:</td>
-                      <td className="py-4 text-right font-black text-lg text-emerald-700">{formatCurrency(totalSelectedOrder)}</td>
+                      <td className="py-4 text-right font-black text-xs text-emerald-700">{formatCurrency(totalSelectedOrder)}</td>
                    </tr>
                 </tfoot>
              </table>
@@ -978,7 +998,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                      <thead>
                        <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-600 border-b border-slate-200">
                          <th className="px-4 py-2">Equipamento / Serviço</th>
-                         <th className="px-4 py-2 text-center">Diárias/Qtd</th>
+                         <th className="px-4 py-2 text-center">Qtdade Diárias</th>
                          <th className="px-4 py-2 text-right">Vlr Unitário</th>
                          <th className="px-4 py-2 text-right">Vlr Total</th>
                        </tr>
@@ -987,15 +1007,15 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                        {center.items.map((sum, idx) => (
                          <tr key={idx}>
                            <td className="px-4 py-2 font-bold text-slate-800 uppercase text-xs">{sum.name}</td>
-                           <td className="px-4 py-2 text-center font-bold">{sum.quantity}</td>
+                           <td className="px-4 py-2 text-center font-bold text-xs">{sum.quantity}</td>
                            <td className="px-4 py-2 text-right text-xs">{formatCurrency(sum.unitPrice)}</td>
-                           <td className="px-4 py-2 text-right font-black">{formatCurrency(sum.totalPrice)}</td>
+                           <td className="px-4 py-2 text-right font-black text-xs">{formatCurrency(sum.totalPrice)}</td>
                          </tr>
                        ))}
                      </tbody>
                      <tr className="bg-slate-50 border-t border-slate-300">
                         <td colSpan={3} className="px-4 py-2 text-right font-black uppercase text-[10px]">Total do Centro de Custo:</td>
-                        <td className="px-4 py-2 text-right font-black text-slate-900 border-l border-slate-200 bg-amber-50/30">{formatCurrency(center.total)}</td>
+                        <td className="px-4 py-2 text-right font-black text-xs text-slate-900 border-l border-slate-200 bg-amber-50/30">{formatCurrency(center.total)}</td>
                      </tr>
                   </table>
                </div>
