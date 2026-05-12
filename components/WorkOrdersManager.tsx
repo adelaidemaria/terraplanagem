@@ -336,21 +336,26 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
   const totalSelectedOrder = selectedOrderItems.reduce((acc, curr) => acc + curr.totalPrice, 0);
 
   const summariesByCostCenter = useMemo(() => {
-    const centers = new Map<string, Map<string, { quantity: number; unitPrice: number; totalPrice: number }>>();
+    const centers = new Map<string, {
+      items: Map<string, { quantity: number; unitPrice: number; totalPrice: number }>;
+      dates: Set<string>;
+    }>();
     
     selectedOrderItems.forEach(item => {
       const cc = item.costCenter || '';
       if (!centers.has(cc)) {
-        centers.set(cc, new Map());
+        centers.set(cc, { items: new Map(), dates: new Set() });
       }
-      const centerMap = centers.get(cc)!;
-      const existing = centerMap.get(item.description);
+      const centerData = centers.get(cc)!;
+      centerData.dates.add(item.date);
+
+      const existing = centerData.items.get(item.description);
       if (existing) {
         existing.quantity += item.quantity;
         existing.totalPrice += item.totalPrice;
         existing.unitPrice = item.unitPrice;
       } else {
-        centerMap.set(item.description, {
+        centerData.items.set(item.description, {
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           totalPrice: item.totalPrice
@@ -358,10 +363,11 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
       }
     });
 
-    return Array.from(centers.entries()).map(([cc, itemsMap]) => ({
+    return Array.from(centers.entries()).map(([cc, data]) => ({
       costCenter: cc,
-      items: Array.from(itemsMap.entries()).map(([name, data]) => ({ name, ...data })),
-      total: Array.from(itemsMap.values()).reduce((sum, i) => sum + i.totalPrice, 0)
+      items: Array.from(data.items.entries()).map(([name, itemData]) => ({ name, ...itemData })),
+      dates: Array.from(data.dates).sort(),
+      total: Array.from(data.items.values()).reduce((sum, i) => sum + i.totalPrice, 0)
     })).sort((a, b) => {
       if (a.costCenter === '' && b.costCenter !== '') return 1;
       if (a.costCenter !== '' && b.costCenter === '') return -1;
@@ -994,6 +1000,16 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                   <div className="bg-slate-800 text-white px-4 py-2 text-xs font-black uppercase tracking-wider flex justify-between items-center">
                     <span>{center.costCenter ? `Resumo - Centro de Custo: ${center.costCenter}` : 'Resumo Geral'}</span>
                   </div>
+                  {center.dates && center.dates.length > 0 && (
+                    <div className="bg-white px-4 py-2 border-b border-slate-200 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase mr-1">Dias:</span>
+                      {center.dates.map(date => (
+                        <span key={date} className="text-[9px] font-black bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100">
+                          {date.split('-').reverse().join('/')}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <table className="w-full text-sm text-left">
                      <thead>
                        <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-600 border-b border-slate-200">
