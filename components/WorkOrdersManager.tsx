@@ -679,7 +679,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                    <td>
                      {/* Cabeçalho da Empresa (Apenas Impressão) */}
                      {companyConfig && (
-                       <div className="hidden print:flex items-start justify-between mb-8 border-b-2 border-slate-800 pb-6">
+                       <div className="hidden print:flex items-start justify-between mb-3 border-b-2 border-slate-800 pb-6">
                          <div className="flex items-center gap-6">
                            {(companyConfig as any).logoUrl ? (
                              <img src={(companyConfig as any).logoUrl} alt="Logo" className="h-20 w-auto object-contain" />
@@ -699,9 +699,9 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                        </div>
                      )}
 
-                     <div className="hidden print:block text-center mb-8">
-                       <h3 className="text-lg font-medium text-slate-800 uppercase tracking-widest mb-4">Relatório de Locações e Serviços</h3>
-                       <div className="mt-2 border-y border-slate-200 py-3">
+                     <div className="hidden print:block text-center mb-6">
+                       <h3 className="text-lg font-medium text-slate-800 uppercase tracking-widest mb-0">Relatório de Locações e Serviços</h3>
+                       <div className="border-b border-slate-200 pb-3 pt-0">
                          <p className="text-xs text-slate-500 font-bold">Período: {filterStartDate.split('-').reverse().join('/')} até {filterEndDate.split('-').reverse().join('/')}</p>
                        </div>
                      </div>
@@ -916,7 +916,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
           <div className="bg-white p-0">
              {/* Cabeçalho da Empresa */}
              {companyConfig && (
-               <div className="flex items-start justify-between mb-8 border-b-2 border-slate-800 pb-6">
+               <div className="flex items-start justify-between mb-3 border-b-2 border-slate-800 pb-6">
                  <div className="flex items-center gap-6">
                    {(companyConfig as any).logoUrl ? (
                      <img src={(companyConfig as any).logoUrl} alt="Logo" className="h-20 w-auto object-contain" />
@@ -936,9 +936,9 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                </div>
              )}
 
-             <div className="text-center mb-8">
-               <h3 className="text-lg font-medium text-slate-800 uppercase tracking-widest mb-4">Relatório de Ficha de {selectedOrder.type}</h3>
-               <div className="mt-4 flex flex-col items-center border-y border-slate-200 py-3">
+             <div className="text-center mb-6">
+               <h3 className="text-lg font-medium text-slate-800 uppercase tracking-widest mb-0">Relatório de Ficha de {selectedOrder.type}</h3>
+               <div className="flex flex-col items-center border-b border-slate-200 pb-3 pt-0">
                  <p className="text-lg font-black text-slate-800 uppercase">{selectedOrder.customerName}</p>
                  <p className="text-xs text-slate-500 font-bold">Período: {orderPeriod}</p>
                </div>
