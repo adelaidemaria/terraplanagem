@@ -3,16 +3,17 @@ import {
   Plus, Search, Edit, Trash2, UserPlus, X, FileText, Upload, 
   Loader2, Download, Paperclip, MessageSquare, Calendar, User, Briefcase, DollarSign, Printer, AlertTriangle
 } from 'lucide-react';
-import { Funcionario, FuncionarioDocumento } from '../types';
+import { Funcionario, FuncionarioDocumento, CompanyVehicle } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface EmployeeManagerProps {
   employees: Funcionario[];
   setEmployees: React.Dispatch<React.SetStateAction<Funcionario[]>>;
+  vehicles?: CompanyVehicle[];
   onGoToReports?: (type?: string) => void;
 }
 
-const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, setEmployees, onGoToReports }) => {
+const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, setEmployees, vehicles = [], onGoToReports }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -27,6 +28,8 @@ const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, setEmploye
     salarioBruto: 0,
     diferencaPf: 0,
     observacao: '',
+    isOperator: false,
+    linkedVehicles: [],
     documentos: []
   });
 
@@ -71,6 +74,8 @@ const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, setEmploye
       salarioBruto: 0,
       diferencaPf: 0,
       observacao: '',
+      isOperator: false,
+      linkedVehicles: [],
       documentos: []
     });
     setIsModalOpen(true);
@@ -176,6 +181,8 @@ const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, setEmploye
         salario_bruto: formData.salarioBruto || 0,
         diferenca_pf: formData.diferencaPf || 0,
         observacao: formData.observacao || '',
+        is_operator: formData.isOperator || false,
+        linked_vehicles: formData.linkedVehicles || []
       };
 
       let funcionarioId = editingId;
@@ -223,6 +230,8 @@ const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, setEmploye
           salarioBruto: updatedFunc.salario_bruto,
           diferencaPf: updatedFunc.diferenca_pf,
           observacao: updatedFunc.observacao,
+          isOperator: updatedFunc.is_operator,
+          linkedVehicles: updatedFunc.linked_vehicles,
           createdAt: updatedFunc.created_at
         };
 
@@ -432,6 +441,56 @@ const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, setEmploye
                     onChange={e => setFormData({ ...formData, observacao: e.target.value })}
                     placeholder="Informações relevantes sobre o funcionário..."
                   />
+                </div>
+
+                {/* Configurações de Operador */}
+                <div className="bg-amber-50 p-6 rounded-2xl border border-amber-200 space-y-4 mt-6">
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="checkbox" 
+                      id="isOperator"
+                      checked={formData.isOperator || false}
+                      onChange={e => setFormData({ ...formData, isOperator: e.target.checked })}
+                      className="w-5 h-5 accent-amber-600 rounded cursor-pointer"
+                    />
+                    <label htmlFor="isOperator" className="text-sm font-black text-amber-900 cursor-pointer uppercase tracking-widest flex items-center gap-2">
+                      Este funcionário é um Operador de Equipamento?
+                    </label>
+                  </div>
+
+                  {formData.isOperator && (
+                    <div className="pt-4 border-t border-amber-200/50 animate-in fade-in slide-in-from-top-2">
+                      <label className="block text-xs font-black text-amber-800 uppercase tracking-widest mb-3">Equipamentos Vinculados</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {vehicles.map(vehicle => {
+                          const isLinked = (formData.linkedVehicles || []).includes(vehicle.id);
+                          return (
+                            <label key={vehicle.id} className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors ${isLinked ? 'bg-white border-amber-500 shadow-sm' : 'bg-white/50 border-amber-100 hover:border-amber-300'}`}>
+                              <input 
+                                type="checkbox"
+                                className="mt-1 accent-amber-600"
+                                checked={isLinked}
+                                onChange={(e) => {
+                                  const list = formData.linkedVehicles || [];
+                                  if (e.target.checked) {
+                                    setFormData({ ...formData, linkedVehicles: [...list, vehicle.id] });
+                                  } else {
+                                    setFormData({ ...formData, linkedVehicles: list.filter(id => id !== vehicle.id) });
+                                  }
+                                }}
+                              />
+                              <div className="flex flex-col text-sm">
+                                <span className={`font-bold ${isLinked ? 'text-slate-800' : 'text-slate-500'}`}>{vehicle.model}</span>
+                                {vehicle.licensePlate && (
+                                  <span className="text-xs text-slate-400">{vehicle.licensePlate}</span>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Documentos */}

@@ -335,7 +335,28 @@ export interface ConfiguracaoEmpresa {
     updated_at?: string;
 }
 
-export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos' | 'company-settings' | 'simples-nacional' | 'employees' | 'employee-loans' | 'company-loans' | 'work-orders';
+export interface ChecklistItem {
+  id: string;
+  name: string;
+  status: 'OK' | 'NC' | 'PENDENTE';
+}
+
+export interface DailyChecklist {
+  id: string;
+  operator_name: string;
+  equipment_id: string;
+  equipment_name: string;
+  equipment_type: string;
+  start_time: string;
+  end_time?: string;
+  items: Record<string, ChecklistItem>;
+  observations?: string;
+  situation?: string;
+  photo_url?: string;
+  created_at: string;
+}
+
+export type View = 'dashboard' | 'customers' | 'vendors' | 'sales' | 'expenses' | 'payables' | 'receivables' | 'accountPlan' | 'banks' | 'transfers' | 'yields' | 'reports' | 'fleet' | 'company-vehicles' | 'settings' | 'agenda' | 'nf-import' | 'bank-statements' | 'corporate-cards' | 'ctr' | 'orcamentos' | 'company-settings' | 'simples-nacional' | 'employees' | 'employee-loans' | 'company-loans' | 'work-orders' | 'checklist' | 'checklist-manager';
 
 export interface AdminUser {
   id: string;
@@ -378,6 +399,8 @@ export interface Funcionario {
   salarioBruto: number;
   diferencaPf: number;
   observacao?: string;
+  isOperator?: boolean;
+  linkedVehicles?: string[];
   documentos?: FuncionarioDocumento[];
   createdAt: number;
 }

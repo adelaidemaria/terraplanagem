@@ -89,6 +89,8 @@ import EmployeeManager from './components/EmployeeManager';
 import EmployeeLoanManager from './components/EmployeeLoanManager';
 import CompanyLoanManager from './components/CompanyLoanManager';
 import WorkOrdersManager from './components/WorkOrdersManager';
+import PublicChecklist from './components/PublicChecklist';
+import DailyChecklistManager from './components/DailyChecklistManager';
 import { useSupabaseSync } from './lib/useSupabaseSync';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
@@ -123,6 +125,11 @@ const App: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  const pathname = window.location.pathname;
+  if (pathname.startsWith('/checklist')) {
+    return <PublicChecklist />;
   }
 
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -593,6 +600,7 @@ const App: React.FC = () => {
         return <EmployeeManager 
           employees={employees} 
           setEmployees={setEmployees} 
+          vehicles={companyVehicles}
           onGoToReports={(type) => {
             if (type) setSelectedReportType(type);
             setCurrentView('reports');
@@ -635,6 +643,11 @@ const App: React.FC = () => {
           rentalEquipments={rentalEquipments}
           setRentalEquipments={setRentalEquipments}
           companyConfig={companyConfigs[0]}
+        />;
+      case 'checklist-manager':
+        return <DailyChecklistManager
+          vehicles={companyVehicles}
+          employees={employees}
         />;
       default:
         return <Dashboard
@@ -774,6 +787,7 @@ const App: React.FC = () => {
               <div className="space-y-1 mt-1">
                 <NavItem id="company-vehicles" label="Cadastro Veículos" icon={Car} />
                 <NavItem id="fleet" label="Agenda Manutenção" icon={Wrench} />
+                <NavItem id="checklist-manager" label="Checklists Diários" icon={ClipboardList} />
               </div>
             )}
           </div>
