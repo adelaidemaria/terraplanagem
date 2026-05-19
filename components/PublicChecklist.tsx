@@ -266,6 +266,70 @@ export default function PublicChecklist() {
     setError(null);
 
     try {
+      // 0. Capturar localização e dados do dispositivo
+      let coordinates = 'Permissão Negada / Indisponível';
+      if (navigator.geolocation) {
+        try {
+          const pos = await new Promise<GeolocationPosition | null>((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (position) => resolve(position),
+              () => resolve(null),
+              { enableHighAccuracy: true, timeout: 5000 }
+            );
+          });
+          if (pos) {
+            coordinates = `${pos.coords.latitude},${pos.coords.longitude}`;
+          }
+        } catch (e) {
+          console.warn("Erro ao obter geolocalização:", e);
+        }
+      }
+
+      let deviceModel = 'Dispositivo Móvel';
+      const ua = navigator.userAgent;
+      const uad = (navigator as any).userAgentData;
+      if (uad && typeof uad.getHighEntropyValues === 'function') {
+        try {
+          const hints = await uad.getHighEntropyValues(['model', 'platform', 'platformVersion']);
+          if (hints.model) {
+            const platform = hints.platform || 'Android';
+            const version = hints.platformVersion ? ` v${hints.platformVersion}` : '';
+            deviceModel = `${platform}${version} (${hints.model})`;
+          } else {
+            deviceModel = hints.platform || 'Android';
+          }
+        } catch (e) {
+          console.warn("Erro ao obter Client Hints:", e);
+        }
+      }
+
+      if (deviceModel === 'Dispositivo Móvel' || deviceModel === 'Android' || deviceModel === 'Windows' || deviceModel === 'Mac OS') {
+        if (/android/i.test(ua)) {
+          const match = ua.match(/\(([^)]+)\)/);
+          if (match && match[1]) {
+            const parts = match[1].split(';');
+            const modelPart = parts.find(p => p.includes('Build/') || /samsung|motorola|lg|huawei|xiaomi|redmi|sm-|moto|pixel/i.test(p));
+            if (modelPart) {
+              deviceModel = `Android (${modelPart.replace(/Build\/.+/, '').trim()})`;
+            } else {
+              deviceModel = `Android (${parts[parts.length - 1].trim()})`;
+            }
+          } else {
+            deviceModel = 'Android';
+          }
+        } else if (/iPhone/i.test(ua)) {
+          const match = ua.match(/OS (\d+_\d+)/);
+          const version = match ? match[1].replace('_', '.') : '';
+          deviceModel = `iPhone (iOS ${version})`;
+        } else if (/iPad/i.test(ua)) {
+          deviceModel = 'iPad';
+        } else if (/Windows/i.test(ua)) {
+          deviceModel = 'Windows PC';
+        } else if (/Macintosh/i.test(ua)) {
+          deviceModel = 'Mac PC';
+        }
+      }
+
       const vehicle = vehicles.find(v => v.id === selectedVehicleId);
       const uploadedUrls: (string | null)[] = [null, null, null];
 
@@ -307,39 +371,11 @@ export default function PublicChecklist() {
           items: checklist,
           observations,
           situation,
-           photo_url: uploadedUrls[0],
+          photo_url: uploadedUrls[0],
           photo_url_2: uploadedUrls[1],
           photo_url_3: uploadedUrls[2],
-          device_info: (() => {
-            const ua = navigator.userAgent;
-            if (/android/i.test(ua)) {
-              const match = ua.match(/\(([^)]+)\)/);
-              if (match && match[1]) {
-                const parts = match[1].split(';');
-                const modelPart = parts.find(p => p.includes('Build/') || /samsung|motorola|lg|huawei|xiaomi|redmi|sm-|moto|pixel/i.test(p));
-                if (modelPart) {
-                  return `Android (${modelPart.replace(/Build\/.+/, '').trim()})`;
-                }
-                return `Android (${parts[parts.length - 1].trim()})`;
-              }
-              return 'Android';
-            }
-            if (/iPhone/i.test(ua)) {
-              const match = ua.match(/OS (\d+_\d+)/);
-              const version = match ? match[1].replace('_', '.') : '';
-              return `iPhone (iOS ${version})`;
-            }
-            if (/iPad/i.test(ua)) {
-              return 'iPad';
-            }
-            if (/Windows/i.test(ua)) {
-              return 'Windows PC';
-            }
-            if (/Macintosh/i.test(ua)) {
-              return 'Mac PC';
-            }
-            return 'Dispositivo Móvel';
-          })()
+          device_info: deviceModel,
+          location_info: coordinates
         }]);
 
       if (dbError) throw dbError;

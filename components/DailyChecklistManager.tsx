@@ -583,7 +583,7 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                   </div>
                 </div>
 
-                <div className="mt-12 pt-6 border-t border-slate-200 text-center text-[10px] text-slate-400 space-y-1 select-none">
+                <div className="mt-12 pt-6 border-t border-slate-200 text-center text-[10px] text-slate-400 space-y-1.5 select-none">
                   <p className="font-medium">
                     Documento assinado digitalmente. Checklist realizado através do dispositivo{' '}
                     <span className="font-bold text-slate-500">
@@ -597,6 +597,19 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                     <span className="font-bold text-slate-500">
                       {new Date(viewingChecklist.end_time || viewingChecklist.created_at).toLocaleTimeString()}
                     </span>.
+                    {viewingChecklist.location_info && viewingChecklist.location_info !== 'Permissão Negada / Indisponível' && (
+                      <span className="block mt-1">
+                        📍 Coordenadas Geográficas:{' '}
+                        <a 
+                          href={`https://maps.google.com/?q=${viewingChecklist.location_info}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="font-bold text-blue-500 hover:underline print:text-slate-500 print:no-underline"
+                        >
+                          {viewingChecklist.location_info} (Visualizar no Google Maps)
+                        </a>
+                      </span>
+                    )}
                   </p>
                   <p className="font-mono tracking-wider text-[9px] uppercase">
                     Código de Autenticação: {viewingChecklist.id}

@@ -363,6 +363,7 @@ export interface DailyChecklist {
   photo_url_2?: string;
   photo_url_3?: string;
   device_info?: string;
+  location_info?: string;
   created_at: string;
 }
 
