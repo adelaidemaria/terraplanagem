@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { DailyChecklist, CompanyVehicle, Funcionario, ConfiguracaoEmpresa } from '../types';
-import { ClipboardCheck, Calendar as CalendarIcon, Search, Printer, Eye, Link as LinkIcon, Download, X, Copy, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
+import { DailyChecklist, CompanyVehicle, Funcionario, ConfiguracaoEmpresa, VehicleChecklistItem } from '../types';
+import { ClipboardCheck, Calendar as CalendarIcon, Search, Printer, Eye, Link as LinkIcon, Download, X, Copy, Trash2, AlertTriangle, Loader2, ListChecks, Plus, Edit2, CheckCircle2 } from 'lucide-react';
 
 interface DailyChecklistManagerProps {
   vehicles: CompanyVehicle[];
@@ -26,6 +26,16 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [selectedEmployeeForLink, setSelectedEmployeeForLink] = useState('');
   const [generatedLink, setGeneratedLink] = useState('');
+  const [showCopiedToast, setShowCopiedToast] = useState(false);
+
+  // Itens Obrigatórios
+  const [isItemsModalOpen, setIsItemsModalOpen] = useState(false);
+  const [selectedVehicleForItems, setSelectedVehicleForItems] = useState('');
+  const [vehicleItems, setVehicleItems] = useState<VehicleChecklistItem[]>([]);
+  const [newItemName, setNewItemName] = useState('');
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingItemName, setEditingItemName] = useState('');
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -91,7 +101,8 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generatedLink);
-    alert('Link copiado para a área de transferência!');
+    setShowCopiedToast(true);
+    setTimeout(() => setShowCopiedToast(false), 3000);
   };
 
   const handlePrint = () => {
@@ -115,6 +126,91 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
     }
   };
 
+  const loadVehicleItems = async (vehicleId: string) => {
+    if (!vehicleId) {
+      setVehicleItems([]);
+      return;
+    }
+    setIsLoadingItems(true);
+    try {
+      const { data, error } = await supabase
+        .from('vehicle_checklist_items')
+        .select('*')
+        .eq('vehicle_id', vehicleId)
+        .order('created_at', { ascending: true });
+        
+      if (error) throw error;
+      setVehicleItems(data || []);
+    } catch (err) {
+      console.error("Erro ao carregar itens do veículo:", err);
+    } finally {
+      setIsLoadingItems(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedVehicleForItems) {
+      loadVehicleItems(selectedVehicleForItems);
+    } else {
+      setVehicleItems([]);
+    }
+  }, [selectedVehicleForItems]);
+
+  const handleAddItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedVehicleForItems || !newItemName.trim()) return;
+    
+    try {
+      const { error } = await supabase.from('vehicle_checklist_items').insert([{
+        vehicle_id: selectedVehicleForItems,
+        item_name: newItemName.trim()
+      }]);
+      
+      if (error) throw error;
+      setNewItemName('');
+      loadVehicleItems(selectedVehicleForItems);
+    } catch (err: any) {
+      console.error("Erro ao adicionar item:", err);
+      alert("Erro ao adicionar item: " + err.message);
+    }
+  };
+
+  const handleEditItem = (item: VehicleChecklistItem) => {
+    setEditingItemId(item.id);
+    setEditingItemName(item.item_name);
+  };
+
+  const handleSaveEdit = async (itemId: string) => {
+    if (!editingItemName.trim()) return;
+    
+    try {
+      const { error } = await supabase
+        .from('vehicle_checklist_items')
+        .update({ item_name: editingItemName.trim() })
+        .eq('id', itemId);
+        
+      if (error) throw error;
+      setEditingItemId(null);
+      loadVehicleItems(selectedVehicleForItems);
+    } catch (err: any) {
+      console.error("Erro ao editar item:", err);
+      alert("Erro ao editar item: " + err.message);
+    }
+  };
+
+  const handleDeleteItem = async (itemId: string) => {
+    if (!confirm("Deseja realmente remover este item?")) return;
+    
+    try {
+      const { error } = await supabase.from('vehicle_checklist_items').delete().eq('id', itemId);
+      if (error) throw error;
+      loadVehicleItems(selectedVehicleForItems);
+    } catch (err: any) {
+      console.error("Erro ao remover item:", err);
+      alert("Erro ao remover item: " + err.message);
+    }
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto pb-24 print:p-0">
       <div className="flex justify-between items-center mb-8 print:hidden">
@@ -125,13 +221,22 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
           </h1>
           <p className="text-slate-500 mt-1">Consulte os relatórios operacionais enviados diariamente.</p>
         </div>
-        <button
-          onClick={() => setIsLinkModalOpen(true)}
-          className="bg-slate-900 hover:bg-black text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg"
-        >
-          <LinkIcon size={20} />
-          Gerar Link P/ Operador
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setIsItemsModalOpen(true)}
+            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition-colors"
+          >
+            <ListChecks size={20} className="text-emerald-600" />
+            Cadastrar Itens
+          </button>
+          <button
+            onClick={() => setIsLinkModalOpen(true)}
+            className="bg-slate-900 hover:bg-black text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg"
+          >
+            <LinkIcon size={20} />
+            Gerar Link P/ Operador
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -313,12 +418,18 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                       type="text" 
                       readOnly 
                       value={generatedLink}
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600"
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none"
                     />
-                    <button onClick={copyToClipboard} className="bg-slate-800 hover:bg-black text-white px-3 py-2 rounded-lg">
+                    <button onClick={copyToClipboard} className="bg-slate-800 hover:bg-black text-white px-3 py-2 rounded-lg transition-colors">
                       <Copy size={18} />
                     </button>
                   </div>
+                  {showCopiedToast && (
+                    <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 p-3 rounded-xl flex items-center gap-2 mt-2 animate-in fade-in slide-in-from-top-2">
+                      <CheckCircle2 size={18} />
+                      <span className="text-sm font-bold">Link copiado com sucesso!</span>
+                    </div>
+                  )}
                   {(() => {
                     const selectedEmp = employees.find(e => e.id === selectedEmployeeForLink);
                     const wpNumber = selectedEmp?.whatsapp ? `55${selectedEmp.whatsapp}` : '';
@@ -490,6 +601,140 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                 {isDeleting ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
                 Confirmar Exclusão
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Itens Obrigatórios por Veículo */}
+      {isItemsModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <ListChecks className="text-emerald-600" size={24} />
+                Itens Obrigatórios do Checklist
+              </h2>
+              <button onClick={() => setIsItemsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="mb-6">
+                <label className="block text-sm font-bold text-slate-700 mb-2">Selecione o Veículo/Equipamento</label>
+                <select
+                  value={selectedVehicleForItems}
+                  onChange={(e) => setSelectedVehicleForItems(e.target.value)}
+                  className="w-full border-2 border-slate-200 rounded-lg p-3 text-sm focus:border-emerald-500 outline-none"
+                >
+                  <option value="">Selecione um veículo...</option>
+                  {vehicles.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {v.model} {v.licensePlate ? `(${v.licensePlate})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedVehicleForItems && (
+                <div className="space-y-6">
+                  <form onSubmit={handleAddItem} className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Novo item de verificação (ex: Nível do Óleo, Faróis...)"
+                      value={newItemName}
+                      onChange={(e) => setNewItemName(e.target.value)}
+                      className="flex-1 border-2 border-slate-200 rounded-lg px-4 py-2 text-sm focus:border-emerald-500 outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newItemName.trim()}
+                      className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors"
+                    >
+                      <Plus size={18} /> Adicionar
+                    </button>
+                  </form>
+
+                  <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="p-3 bg-slate-100 border-b border-slate-200 font-bold text-slate-700 text-sm">
+                      Lista de Itens ({vehicleItems.length})
+                    </div>
+                    {isLoadingItems ? (
+                      <div className="p-8 text-center text-slate-500 flex flex-col items-center justify-center">
+                        <Loader2 className="animate-spin mb-2" size={24} />
+                        Carregando itens...
+                      </div>
+                    ) : vehicleItems.length === 0 ? (
+                      <div className="p-8 text-center text-slate-500">
+                        Nenhum item cadastrado para este veículo.<br/>Adicione o primeiro item acima.
+                      </div>
+                    ) : (
+                      <ul className="divide-y divide-slate-200">
+                        {vehicleItems.map(item => (
+                          <li key={item.id} className="p-3 flex justify-between items-center hover:bg-white transition-colors">
+                            {editingItemId === item.id ? (
+                              <div className="flex-1 flex gap-2 mr-4">
+                                <input
+                                  type="text"
+                                  value={editingItemName}
+                                  onChange={(e) => setEditingItemName(e.target.value)}
+                                  className="flex-1 border-2 border-slate-200 rounded-lg px-3 py-1 text-sm focus:border-emerald-500 outline-none"
+                                  autoFocus
+                                />
+                                <button
+                                  onClick={() => handleSaveEdit(item.id)}
+                                  className="bg-emerald-500 hover:bg-emerald-600 text-white p-1.5 rounded-lg transition-colors"
+                                  title="Salvar"
+                                >
+                                  <CheckCircle2 size={18} />
+                                </button>
+                                <button
+                                  onClick={() => setEditingItemId(null)}
+                                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 p-1.5 rounded-lg transition-colors"
+                                  title="Cancelar"
+                                >
+                                  <X size={18} />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="font-medium text-slate-700">{item.item_name}</span>
+                            )}
+                            
+                            {editingItemId !== item.id && (
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => handleEditItem(item)}
+                                  className="text-slate-400 hover:text-amber-600 hover:bg-amber-50 p-2 rounded-lg transition-colors"
+                                  title="Editar Item"
+                                >
+                                  <Edit2 size={18} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteItem(item.id)}
+                                  className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-2 rounded-lg transition-colors"
+                                  title="Remover Item"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+               <button 
+                  onClick={() => setIsItemsModalOpen(false)}
+                  className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition-colors"
+               >
+                 Fechar
+               </button>
             </div>
           </div>
         </div>

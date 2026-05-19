@@ -162,21 +162,41 @@ export default function PublicChecklist() {
       setStartTime(new Date().toISOString());
       setEquipmentType(vehicle.type);
 
-      // Mapeamento super simples: Se tiver 'bobcat' no modelo, usa o template bobcat
-      let template: ChecklistTemplate;
-      if (vehicle.model.toLowerCase().includes('bobcat')) {
-        template = checklistTemplates['bobcat_s540'];
-      } else {
-        // Fallback
-        template = checklistTemplates['bobcat_s540']; 
+      // Fetch dynamic items from the database
+      const { data: dbItems, error: itemsError } = await supabase
+        .from('vehicle_checklist_items')
+        .select('*')
+        .eq('vehicle_id', selectedVehicleId)
+        .order('created_at', { ascending: true });
+
+      if (itemsError) {
+        console.error("Erro ao buscar itens do veículo:", itemsError);
       }
 
-      setTemplateName(template.name);
+      setTemplateName('Checklist Personalizado');
       
       const initialItems: Record<string, ChecklistItem> = {};
-      template.items.forEach(item => {
-        initialItems[item.id] = { ...item };
-      });
+      
+      if (dbItems && dbItems.length > 0) {
+        dbItems.forEach(item => {
+          initialItems[item.id] = { 
+            id: item.id, 
+            name: item.item_name, 
+            status: 'PENDENTE' 
+          };
+        });
+      } else {
+        // Fallback if no custom items defined
+        let template = checklistTemplates['bobcat_s540']; 
+        if (vehicle.model.toLowerCase().includes('bobcat')) {
+          template = checklistTemplates['bobcat_s540'];
+        }
+        template.items.forEach(item => {
+          initialItems[item.id] = { ...item };
+        });
+        setTemplateName(template.name);
+      }
+      
       setChecklist(initialItems);
     } catch (err: any) {
       console.error("Erro ao verificar checklist existente:", err);

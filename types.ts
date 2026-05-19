@@ -341,6 +341,13 @@ export interface ChecklistItem {
   status: 'OK' | 'NC' | 'PENDENTE';
 }
 
+export interface VehicleChecklistItem {
+  id: string;
+  vehicle_id: string;
+  item_name: string;
+  created_at: string;
+}
+
 export interface DailyChecklist {
   id: string;
   operator_name: string;
