@@ -500,7 +500,12 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
 
                 <div className="text-center mb-8 border-b-2 border-slate-800 pb-4 print:border-none print:mb-6 print:pb-0">
                   <h1 className="text-2xl font-black uppercase tracking-widest text-slate-800">Checklist Diário Operacional</h1>
-                  <h2 className="text-lg font-bold text-slate-600 mt-2">{viewingChecklist.equipment_name.replace(' - undefined', '')}</h2>
+                  <div 
+                    className="inline-block bg-slate-900 text-white print:bg-slate-100 print:text-slate-900 border-2 border-slate-900 font-black text-lg py-2 px-6 rounded-xl mt-3 tracking-wide shadow-sm"
+                    style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+                  >
+                    {viewingChecklist.equipment_name ? viewingChecklist.equipment_name.replace(' - undefined', '') : 'Equipamento'}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-8 mb-8">
@@ -519,7 +524,9 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                   </div>
                 </div>
 
-                <h3 className="font-black text-slate-800 uppercase border-b border-slate-200 pb-2 mb-4">Inspeção Diária</h3>
+                <h3 className="font-black text-slate-800 uppercase border-b border-slate-200 pb-2 mb-4">
+                  Inspeção Diária: {Object.keys(viewingChecklist.items).length} Itens
+                </h3>
                 <div className="grid grid-cols-2 gap-x-8 gap-y-2 mb-8">
                   {Object.values(viewingChecklist.items).map(item => (
                     <div key={item.id} className="flex justify-between items-center py-2 border-b border-slate-100 text-sm">
@@ -574,6 +581,26 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                       <span className="text-xs text-slate-500">Visto</span>
                     </div>
                   </div>
+                </div>
+
+                <div className="mt-12 pt-6 border-t border-slate-200 text-center text-[10px] text-slate-400 space-y-1 select-none">
+                  <p className="font-medium">
+                    Documento assinado digitalmente. Checklist realizado através do dispositivo{' '}
+                    <span className="font-bold text-slate-500">
+                      {viewingChecklist.device_info || 'Dispositivo Móvel'}
+                    </span>{' '}
+                    em{' '}
+                    <span className="font-bold text-slate-500">
+                      {new Date(viewingChecklist.end_time || viewingChecklist.created_at).toLocaleDateString()}
+                    </span>{' '}
+                    às{' '}
+                    <span className="font-bold text-slate-500">
+                      {new Date(viewingChecklist.end_time || viewingChecklist.created_at).toLocaleTimeString()}
+                    </span>.
+                  </p>
+                  <p className="font-mono tracking-wider text-[9px] uppercase">
+                    Código de Autenticação: {viewingChecklist.id}
+                  </p>
                 </div>
 
               </div>

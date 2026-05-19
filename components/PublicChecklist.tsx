@@ -307,9 +307,39 @@ export default function PublicChecklist() {
           items: checklist,
           observations,
           situation,
-          photo_url: uploadedUrls[0],
+           photo_url: uploadedUrls[0],
           photo_url_2: uploadedUrls[1],
-          photo_url_3: uploadedUrls[2]
+          photo_url_3: uploadedUrls[2],
+          device_info: (() => {
+            const ua = navigator.userAgent;
+            if (/android/i.test(ua)) {
+              const match = ua.match(/\(([^)]+)\)/);
+              if (match && match[1]) {
+                const parts = match[1].split(';');
+                const modelPart = parts.find(p => p.includes('Build/') || /samsung|motorola|lg|huawei|xiaomi|redmi|sm-|moto|pixel/i.test(p));
+                if (modelPart) {
+                  return `Android (${modelPart.replace(/Build\/.+/, '').trim()})`;
+                }
+                return `Android (${parts[parts.length - 1].trim()})`;
+              }
+              return 'Android';
+            }
+            if (/iPhone/i.test(ua)) {
+              const match = ua.match(/OS (\d+_\d+)/);
+              const version = match ? match[1].replace('_', '.') : '';
+              return `iPhone (iOS ${version})`;
+            }
+            if (/iPad/i.test(ua)) {
+              return 'iPad';
+            }
+            if (/Windows/i.test(ua)) {
+              return 'Windows PC';
+            }
+            if (/Macintosh/i.test(ua)) {
+              return 'Mac PC';
+            }
+            return 'Dispositivo Móvel';
+          })()
         }]);
 
       if (dbError) throw dbError;
