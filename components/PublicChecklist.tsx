@@ -409,7 +409,7 @@ export default function PublicChecklist() {
       {/* Header */}
       <header className="bg-slate-900 text-white p-4 sticky top-0 z-10 shadow-md">
         <div className="max-w-md mx-auto flex items-center justify-between">
-          <h1 className="font-black text-lg">Checklist Operacional</h1>
+          <h1 className="font-black text-lg">Check List Diário</h1>
           <div className="text-xs bg-slate-800 px-3 py-1 rounded-full font-medium flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
             {operatorName}
