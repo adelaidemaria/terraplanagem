@@ -478,9 +478,9 @@ export default function PublicChecklist() {
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-5">
             <div>
               <h2 className="text-lg font-bold text-slate-800 mb-1">
-                Olá, <span className="text-rose-600 font-black uppercase tracking-tight">{operatorName}</span>
+                Olá, <span className="text-rose-600 font-black uppercase tracking-tight">{operatorName ? operatorName.split(' ')[0] : ''}</span>
               </h2>
-              <p className="text-sm text-slate-500">Selecione o equipamento que você vai operar hoje para iniciar o checklist de segurança.</p>
+              <p className="text-sm text-slate-500">Selecione o equipamento para INICIAR o CHECK LIST de segurança.</p>
             </div>
 
             <div className="space-y-2">
