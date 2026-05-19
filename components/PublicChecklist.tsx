@@ -537,7 +537,7 @@ export default function PublicChecklist() {
             
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
               <h2 className="text-sm font-black text-slate-400 uppercase tracking-wider mb-1">Equipamento</h2>
-              <p className="text-lg font-bold text-slate-800">{vehicles.find(v => v.id === selectedVehicleId)?.model}</p>
+              <p className="text-lg font-black text-red-600 uppercase">{getFormattedName(vehicles.find(v => v.id === selectedVehicleId)?.model || '')}</p>
               <div className="flex items-center gap-2 mt-2 text-xs text-slate-500 font-medium">
                 <span className="bg-slate-100 px-2 py-1 rounded">Início: {startTime ? new Date(startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
               </div>
