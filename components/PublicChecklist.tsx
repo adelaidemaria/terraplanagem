@@ -484,7 +484,6 @@ export default function PublicChecklist() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 block">Equipamento</label>
               {vehicles.length === 0 ? (
                  <div className="bg-amber-50 text-amber-700 p-4 rounded-xl text-sm font-medium border border-amber-200 text-center">
                    Você não possui nenhum equipamento vinculado no seu cadastro.
@@ -495,7 +494,7 @@ export default function PublicChecklist() {
                     <button
                       key={v.id}
                       onClick={() => setSelectedVehicleId(v.id)}
-                      className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between ${
+                      className={`w-full text-left py-3 px-4 rounded-xl border-2 transition-all flex items-center justify-between ${
                         selectedVehicleId === v.id 
                           ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200' 
                           : 'border-slate-200 bg-slate-50 hover:border-emerald-300'
