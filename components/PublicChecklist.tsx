@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { CompanyVehicle, DailyChecklist, ChecklistItem } from '../types';
 import { checklistTemplates, ChecklistTemplate } from '../lib/checklistTemplates';
-import { Camera, CheckCircle2, AlertCircle, Save, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Camera, CheckCircle2, AlertCircle, Save, Loader2, Image as ImageIcon, X } from 'lucide-react';
 
 export default function PublicChecklist() {
   const [operatorName, setOperatorName] = useState<string>('');
@@ -44,8 +44,8 @@ export default function PublicChecklist() {
   const [observations, setObservations] = useState('');
   const [situation, setSituation] = useState<'EQUIPAMENTO LIBERADO' | 'EQUIPAMENTO NÃO LIBERADO'>('EQUIPAMENTO LIBERADO');
   
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFiles, setPhotoFiles] = useState<(File | null)[]>([null, null, null]);
+  const [photoPreviews, setPhotoPreviews] = useState<(string | null)[]>([null, null, null]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -206,12 +206,28 @@ export default function PublicChecklist() {
     }
   };
 
-  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoCapture = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setPhotoFile(file);
-      setPhotoPreview(URL.createObjectURL(file));
+      
+      const newFiles = [...photoFiles];
+      newFiles[index] = file;
+      setPhotoFiles(newFiles);
+      
+      const newPreviews = [...photoPreviews];
+      newPreviews[index] = URL.createObjectURL(file);
+      setPhotoPreviews(newPreviews);
     }
+  };
+
+  const removePhoto = (index: number) => {
+    const newFiles = [...photoFiles];
+    newFiles[index] = null;
+    setPhotoFiles(newFiles);
+    
+    const newPreviews = [...photoPreviews];
+    newPreviews[index] = null;
+    setPhotoPreviews(newPreviews);
   };
 
   const toggleItemStatus = (itemId: string, status: 'OK' | 'NC') => {
@@ -230,32 +246,51 @@ export default function PublicChecklist() {
       return;
     }
 
+    const hasNC = Object.values(checklist).some(item => item.status === 'NC');
+    if (hasNC) {
+      if (!observations.trim()) {
+        setError("Como há itens marcados como 'NÃO', é obrigatório relatar o problema no campo Observações.");
+        window.scrollTo(0, 0);
+        return;
+      }
+      
+      const hasPhoto = photoFiles.some(file => file !== null);
+      if (!hasPhoto) {
+        setError("Como há itens marcados como 'NÃO', é obrigatório enviar pelo menos uma foto do problema.");
+        window.scrollTo(0, 0);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
       const vehicle = vehicles.find(v => v.id === selectedVehicleId);
-      let uploadedPhotoUrl = null;
+      const uploadedUrls: (string | null)[] = [null, null, null];
 
-      // 1. Upload photo if exists
-      if (photoFile) {
-        const fileExt = photoFile.name.split('.').pop();
-        const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
-        const filePath = `${fileName}`;
+      // 1. Upload photos
+      for (let i = 0; i < 3; i++) {
+        const file = photoFiles[i];
+        if (file) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+          const filePath = `${fileName}`;
 
-        const { error: uploadError, data: uploadData } = await supabase.storage
-          .from('checklist_photos')
-          .upload(filePath, photoFile);
-
-        if (uploadError) {
-          throw new Error("Erro ao fazer upload da foto: " + uploadError.message);
-        }
-
-        if (uploadData) {
-           const { data: publicUrlData } = supabase.storage
+          const { error: uploadError, data: uploadData } = await supabase.storage
             .from('checklist_photos')
-            .getPublicUrl(filePath);
-          uploadedPhotoUrl = publicUrlData.publicUrl;
+            .upload(filePath, file);
+
+          if (uploadError) {
+            throw new Error(`Erro ao fazer upload da foto ${i + 1}: ` + uploadError.message);
+          }
+
+          if (uploadData) {
+            const { data: publicUrlData } = supabase.storage
+              .from('checklist_photos')
+              .getPublicUrl(filePath);
+            uploadedUrls[i] = publicUrlData.publicUrl;
+          }
         }
       }
 
@@ -272,7 +307,9 @@ export default function PublicChecklist() {
           items: checklist,
           observations,
           situation,
-          photo_url: uploadedPhotoUrl
+          photo_url: uploadedUrls[0],
+          photo_url_2: uploadedUrls[1],
+          photo_url_3: uploadedUrls[2]
         }]);
 
       if (dbError) throw dbError;
@@ -423,7 +460,7 @@ export default function PublicChecklist() {
             
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
               <h2 className="text-sm font-black text-slate-400 uppercase tracking-wider mb-1">Equipamento</h2>
-              <p className="text-lg font-bold text-slate-800">{templateName}</p>
+              <p className="text-lg font-bold text-slate-800">{vehicles.find(v => v.id === selectedVehicleId)?.model}</p>
               <div className="flex items-center gap-2 mt-2 text-xs text-slate-500 font-medium">
                 <span className="bg-slate-100 px-2 py-1 rounded">Início: {new Date(startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
               </div>
@@ -434,7 +471,7 @@ export default function PublicChecklist() {
                 <h3 className="font-bold text-slate-700 text-sm">ITENS DE VERIFICAÇÃO</h3>
                 <div className="flex gap-4 text-[10px] font-black text-slate-400">
                   <span className="w-12 text-center text-emerald-600">OK</span>
-                  <span className="w-12 text-center text-rose-500">NC</span>
+                  <span className="w-12 text-center text-rose-500">NÃO</span>
                 </div>
               </div>
 
@@ -478,7 +515,7 @@ export default function PublicChecklist() {
                 <textarea
                   value={observations}
                   onChange={(e) => setObservations(e.target.value)}
-                  placeholder="Relate aqui vazamentos, pneus carecas, luzes queimadas, etc..."
+                  placeholder="Relatar aqui vazamentos e problemas de funcionamento, etc..."
                   className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:border-amber-500 focus:ring-0 outline-none transition-colors min-h-[100px] resize-y"
                 />
               </div>
@@ -504,7 +541,7 @@ export default function PublicChecklist() {
                         : 'bg-white border-slate-200 text-slate-500 hover:border-rose-200'
                     }`}
                   >
-                    NÃO LIBERADO
+                    Manutenção Urgente
                   </button>
                 </div>
               </div>
@@ -512,31 +549,40 @@ export default function PublicChecklist() {
 
             {/* Foto */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-              <label className="text-sm font-bold text-slate-700 block">Foto do Equipamento (Opcional)</label>
+              <label className="text-sm font-bold text-slate-700 block">
+                Foto do Equipamento 
+                <span className="text-xs text-slate-400 font-normal ml-2">(Envie até 3 fotos do problema)</span>
+              </label>
               
-              {!photoPreview ? (
-                <label className="w-full h-32 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:bg-slate-50 hover:border-amber-400 transition-colors">
-                  <Camera size={32} className="mb-2 text-slate-400" />
-                  <span className="text-sm font-medium">Tirar ou anexar foto</span>
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    capture="environment"
-                    className="hidden" 
-                    onChange={handlePhotoCapture} 
-                  />
-                </label>
-              ) : (
-                <div className="relative rounded-xl overflow-hidden border-2 border-slate-200">
-                  <img src={photoPreview} alt="Preview" className="w-full h-auto object-cover" />
-                  <button 
-                    onClick={() => { setPhotoFile(null); setPhotoPreview(null); }}
-                    className="absolute top-2 right-2 bg-black/60 text-white p-2 rounded-lg backdrop-blur-sm hover:bg-black/80"
-                  >
-                    <span className="text-xs font-bold">Trocar Foto</span>
-                  </button>
-                </div>
-              )}
+              <div className="grid grid-cols-1 gap-4">
+                {[0, 1, 2].map((index) => (
+                  <div key={index}>
+                    {!photoPreviews[index] ? (
+                      <label className="w-full h-32 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:bg-slate-50 hover:border-amber-400 transition-colors">
+                        <Camera size={32} className="mb-2 text-slate-400" />
+                        <span className="text-sm font-medium">Tirar ou anexar foto {index + 1}</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          capture="environment"
+                          className="hidden" 
+                          onChange={(e) => handlePhotoCapture(index, e)} 
+                        />
+                      </label>
+                    ) : (
+                      <div className="relative rounded-xl overflow-hidden border-2 border-slate-200 h-48 bg-slate-100 flex items-center justify-center">
+                        <img src={photoPreviews[index] as string} alt={`Preview ${index + 1}`} className="w-full h-full object-contain" />
+                        <button 
+                          onClick={() => removePhoto(index)}
+                          className="absolute top-2 right-2 bg-rose-500/90 text-white p-2 rounded-lg backdrop-blur-sm hover:bg-rose-600 shadow-sm transition-colors"
+                        >
+                          <span className="text-xs font-bold flex items-center gap-1"><X size={14} /> Remover</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             <button

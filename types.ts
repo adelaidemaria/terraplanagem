@@ -360,6 +360,8 @@ export interface DailyChecklist {
   observations?: string;
   situation?: string;
   photo_url?: string;
+  photo_url_2?: string;
+  photo_url_3?: string;
   created_at: string;
 }
 
