@@ -36,7 +36,7 @@ export default function PublicChecklist() {
     return getSortOrder(getFormattedName(a.model)) - getSortOrder(getFormattedName(b.model));
   });
   
-  const [startTime, setStartTime] = useState<string | null>(null);
+  const [startTime, setStartTime] = useState<number | null>(null);
   const [checklist, setChecklist] = useState<Record<string, ChecklistItem>>({});
   const [templateName, setTemplateName] = useState<string>('');
   const [equipmentType, setEquipmentType] = useState<string>('');
@@ -160,7 +160,7 @@ export default function PublicChecklist() {
         return;
       }
 
-      setStartTime(new Date().toISOString());
+      setStartTime(Date.now());
       setEquipmentType(vehicle.type);
 
       // Fetch dynamic items from the database
@@ -266,7 +266,7 @@ export default function PublicChecklist() {
     // Verificar se o checklist foi preenchido muito rápido (menos de 2 minutos = 120.000 ms)
     const isBypassed = bypassSpeedCheck === true;
     if (!isBypassed && startTime) {
-      const durationMs = Date.now() - new Date(startTime).getTime();
+      const durationMs = Date.now() - startTime;
       if (durationMs < 120000) {
         setShowSpeedWarning(true);
         return;
@@ -377,7 +377,7 @@ export default function PublicChecklist() {
           equipment_id: vehicle?.id,
           equipment_name: vehicle?.licensePlate ? `${vehicle?.model} - ${vehicle?.licensePlate}` : vehicle?.model,
           equipment_type: equipmentType,
-          start_time: startTime,
+          start_time: startTime ? new Date(startTime).toISOString() : new Date().toISOString(),
           end_time: new Date().toISOString(),
           items: checklist,
           observations,
@@ -539,7 +539,7 @@ export default function PublicChecklist() {
               <h2 className="text-sm font-black text-slate-400 uppercase tracking-wider mb-1">Equipamento</h2>
               <p className="text-lg font-bold text-slate-800">{vehicles.find(v => v.id === selectedVehicleId)?.model}</p>
               <div className="flex items-center gap-2 mt-2 text-xs text-slate-500 font-medium">
-                <span className="bg-slate-100 px-2 py-1 rounded">Início: {new Date(startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                <span className="bg-slate-100 px-2 py-1 rounded">Início: {startTime ? new Date(startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
               </div>
             </div>
 
