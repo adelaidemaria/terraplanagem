@@ -277,12 +277,23 @@ export default function PublicChecklist() {
           </div>
           <h1 className="text-2xl font-black text-slate-800">Checklist Enviado!</h1>
           <p className="text-slate-600">Obrigado, {operatorName}. Seu checklist diário foi registrado com sucesso. Bom trabalho e segurança em primeiro lugar!</p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition-colors"
-          >
-            Fazer Novo Checklist
-          </button>
+          <div className="space-y-3">
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition-colors"
+            >
+              Fazer Novo Checklist
+            </button>
+            <button 
+              onClick={() => {
+                window.close();
+                setTimeout(() => window.location.href = 'about:blank', 300);
+              }}
+              className="w-full bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-600 font-bold py-3 px-4 rounded-xl transition-colors"
+            >
+              FECHAR
+            </button>
+          </div>
         </div>
       </div>
     );
