@@ -10,7 +10,7 @@ DROP POLICY IF EXISTS "Enable select for anonymous users on daily_checklists" ON
 -- Cria a nova permissão restrita: permite ler apenas os checklists criados nas últimas 24 horas
 -- Isso permite o sistema checar se já foi inspecionado hoje, sem vazar o histórico total
 CREATE POLICY "Enable select for anonymous users on daily_checklists" ON public.daily_checklists
-    FOR SELECT USING (created_at >= (now() - interval '24 hours'));
+    FOR SELECT TO anon USING (created_at >= (now() - interval '24 hours'));
 
 
 -- 2. CORREÇÃO DA TABELA FUNCIONARIOS
