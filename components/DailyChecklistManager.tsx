@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { DailyChecklist, CompanyVehicle, Funcionario } from '../types';
+import { DailyChecklist, CompanyVehicle, Funcionario, ConfiguracaoEmpresa } from '../types';
 import { ClipboardCheck, Calendar as CalendarIcon, Search, Printer, Eye, Link as LinkIcon, Download, X, Copy, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface DailyChecklistManagerProps {
@@ -17,6 +17,7 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
   const [endDate, setEndDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [selectedEquipment, setSelectedEquipment] = useState<string>('');
   const [operatorFilter, setOperatorFilter] = useState('');
+  const [config, setConfig] = useState<ConfiguracaoEmpresa | null>(null);
 
   // Modais
   const [viewingChecklist, setViewingChecklist] = useState<DailyChecklist | null>(null);
@@ -27,17 +28,33 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
   const [generatedLink, setGeneratedLink] = useState('');
 
   useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const { data } = await supabase.from('configuracao_empresa').select('*').single();
+        if (data) setConfig(data);
+      } catch (e) {
+        console.error("Erro ao buscar configurações da empresa:", e);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  useEffect(() => {
     fetchChecklists();
   }, [startDate, endDate, selectedEquipment, operatorFilter]);
 
   const fetchChecklists = async () => {
     setIsLoading(true);
     try {
+      // Ajuste de fuso horário: cria a data no timezone local e converte para UTC (ISO)
+      const startObj = new Date(`${startDate}T00:00:00`);
+      const endObj = new Date(`${endDate}T23:59:59.999`);
+
       let query = supabase
         .from('daily_checklists')
         .select('*')
-        .gte('created_at', `${startDate}T00:00:00Z`)
-        .lte('created_at', `${endDate}T23:59:59Z`)
+        .gte('created_at', startObj.toISOString())
+        .lte('created_at', endObj.toISOString())
         .order('created_at', { ascending: false });
 
       if (selectedEquipment) {
@@ -61,7 +78,7 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
     if (!selectedEmployeeForLink) return;
     const emp = employees.find(e => e.id === selectedEmployeeForLink);
     if (emp) {
-      const baseUrl = window.location.origin;
+      const baseUrl = window.location.hostname === 'localhost' ? 'https://terraplanagem-nu.vercel.app' : window.location.origin;
       const url = new URL('/checklist', baseUrl);
       
       // Pega apenas o primeiro nome para ficar mais amigável na URL
@@ -202,7 +219,7 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                         <div className="text-xs text-slate-500">{dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                       </td>
                       <td className="p-4 font-medium text-slate-700">{check.operator_name}</td>
-                      <td className="p-4 text-sm text-slate-600">{check.equipment_name}</td>
+                      <td className="p-4 text-sm text-slate-600">{check.equipment_name.replace(' - undefined', '')}</td>
                       <td className="p-4">
                         <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold ${
                           check.situation === 'EQUIPAMENTO LIBERADO' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
@@ -223,6 +240,16 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                             title="Ver Detalhes"
                           >
                             <Eye size={16} /> Detalhes
+                          </button>
+                          <button
+                            onClick={() => {
+                              setViewingChecklist(check);
+                              setTimeout(() => window.print(), 500);
+                            }}
+                            className="text-emerald-600 hover:text-emerald-700 font-bold text-sm flex items-center gap-1 bg-emerald-50 px-2 py-1.5 rounded-lg transition-colors"
+                            title="Imprimir"
+                          >
+                            <Printer size={16} />
                           </button>
                           <button
                             onClick={() => setDeletingChecklist(check)}
@@ -292,14 +319,25 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                       <Copy size={18} />
                     </button>
                   </div>
-                  <a 
-                    href={`https://wa.me/?text=${encodeURIComponent(`Olá, segue seu link para o checklist diário: ${generatedLink}`)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block w-full text-center bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3 rounded-lg mt-2"
-                  >
-                    Enviar via WhatsApp
-                  </a>
+                  {(() => {
+                    const selectedEmp = employees.find(e => e.id === selectedEmployeeForLink);
+                    const wpNumber = selectedEmp?.whatsapp ? `55${selectedEmp.whatsapp}` : '';
+                    const firstName = selectedEmp?.nomeCompleto.split(' ')[0] || '';
+                    
+                    const msgText = `*Olá ${firstName}!* 🚜👷‍♂️\n\nSegue o link do seu *Checklist Diário*:\n${generatedLink}\n\n_Por favor, acesse e preencha antes de iniciar a operação!_`;
+                    const wpMsg = encodeURIComponent(msgText);
+                    
+                    return (
+                      <a 
+                        href={`https://wa.me/${wpNumber}?text=${wpMsg}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block w-full text-center bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3 rounded-lg mt-2"
+                      >
+                        Enviar via WhatsApp {selectedEmp?.whatsapp ? `(${selectedEmp.whatsapp})` : ''}
+                      </a>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -327,9 +365,31 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
 
               {/* Print Content Area */}
               <div className="p-8 print:p-0" id="print-area">
-                <div className="text-center mb-8 border-b-2 border-slate-800 pb-4">
+                
+                {/* Cabeçalho da Empresa - Visível Apenas na Impressão */}
+                <div className="hidden print:flex justify-between items-center border-b-2 border-slate-800 pb-6 mb-8">
+                  <div className="flex items-center gap-4">
+                    {config?.logo_url ? (
+                      <img src={config.logo_url} alt={config.nome_fantasia || "Logotipo"} className="h-16 object-contain" />
+                    ) : (
+                      <img src="/logo-terraplanagem.png" alt="Terraplanagem Bauru" className="h-16" />
+                    )}
+                  </div>
+                  <div className="text-right text-xs text-slate-600 space-y-1">
+                    <p className="font-bold text-slate-800 text-sm">
+                      {config?.cnpj ? `CNPJ: ${config.cnpj}` : ''} {config?.inscricao_municipal ? `| I.M.: ${config.inscricao_municipal}` : ''}
+                    </p>
+                    {config?.endereco && <p>{config.endereco}</p>}
+                    <p>
+                      {config?.telefone ? `(${config.telefone})` : ''} {config?.email && config?.telefone ? ' / ' : ''} 
+                      {config?.email ? `E-mail: ${config.email}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-center mb-8 border-b-2 border-slate-800 pb-4 print:border-none print:mb-6 print:pb-0">
                   <h1 className="text-2xl font-black uppercase tracking-widest text-slate-800">Checklist Diário Operacional</h1>
-                  <h2 className="text-lg font-bold text-slate-600 mt-2">{viewingChecklist.equipment_name}</h2>
+                  <h2 className="text-lg font-bold text-slate-600 mt-2">{viewingChecklist.equipment_name.replace(' - undefined', '')}</h2>
                 </div>
 
                 <div className="grid grid-cols-2 gap-8 mb-8">
@@ -368,10 +428,10 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                 )}
 
                 {viewingChecklist.photo_url && (
-                  <div className="mb-8 page-break-before">
+                  <div className="mb-8 page-break-before print:mt-12">
                     <h3 className="font-black text-slate-800 uppercase border-b border-slate-200 pb-2 mb-4">Registro Fotográfico</h3>
-                    <div className="border border-slate-200 rounded-lg p-2 max-w-lg mx-auto">
-                      <img src={viewingChecklist.photo_url} alt="Foto do Checklist" className="w-full h-auto rounded" />
+                    <div className="border border-slate-200 rounded-lg p-2 max-w-sm mx-auto shadow-sm">
+                      <img src={viewingChecklist.photo_url} alt="Foto do Checklist" className="w-full h-auto rounded object-contain" style={{ maxHeight: '400px' }} />
                     </div>
                   </div>
                 )}
@@ -409,7 +469,7 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
             </div>
             
             <p className="text-sm text-slate-600 mb-6 font-medium leading-relaxed">
-              Você tem certeza que deseja excluir o checklist do operador <span className="font-black text-rose-600">{deletingChecklist.operator_name}</span> para o equipamento <span className="font-black">{deletingChecklist.equipment_name}</span> do dia {new Date(deletingChecklist.created_at).toLocaleDateString()}?
+              Você tem certeza que deseja excluir o checklist do operador <span className="font-black text-rose-600">{deletingChecklist.operator_name}</span> para o equipamento <span className="font-black">{deletingChecklist.equipment_name.replace(' - undefined', '')}</span> do dia {new Date(deletingChecklist.created_at).toLocaleDateString()}?
               <br/><br/>
               Esta ação não pode ser desfeita.
             </p>

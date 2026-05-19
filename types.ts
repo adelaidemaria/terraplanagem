@@ -394,6 +394,7 @@ export interface FuncionarioDocumento {
 export interface Funcionario {
   id: string;
   nomeCompleto: string;
+  whatsapp?: string;
   dataRegistro: string;
   funcao: string;
   salarioBruto: number;

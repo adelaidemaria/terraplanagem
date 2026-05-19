@@ -9,6 +9,33 @@ export default function PublicChecklist() {
   const [vehicles, setVehicles] = useState<CompanyVehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   
+  // Funções de formatação apenas para visualização nesta tela
+  const getFormattedName = (model: string) => {
+    const upper = model.toUpperCase();
+    if (upper.includes('BOBCAT')) return 'BOB CAT';
+    if (upper.includes('FORD CARGO')) return 'FORD CARGO 2422';
+    if (upper.includes('M. BENZ') || upper.includes('M. BENS')) return 'M. BENZ L 1313';
+    if (upper.includes('MINI ESCAVADEIRA')) return 'MINI ESCAVADEIRA';
+    if (upper.includes('RETROESCAVADEIRA')) return 'RETROESCAVADEIRA';
+    if (upper.includes('VW') || upper.includes('11.130')) return 'VOLKS PRANCHA';
+    return model;
+  };
+
+  const getSortOrder = (formattedName: string) => {
+    const name = formattedName.toUpperCase();
+    if (name.includes('BOB CAT')) return 1;
+    if (name.includes('RETROESCAVADEIRA')) return 2;
+    if (name.includes('MINI ESCAVADEIRA')) return 3;
+    if (name.includes('FORD CARGO')) return 4;
+    if (name.includes('M. BENZ')) return 5;
+    if (name.includes('VOLKS PRANCHA')) return 6;
+    return 99;
+  };
+
+  const sortedVehicles = [...vehicles].sort((a, b) => {
+    return getSortOrder(getFormattedName(a.model)) - getSortOrder(getFormattedName(b.model));
+  });
+  
   const [startTime, setStartTime] = useState<string | null>(null);
   const [checklist, setChecklist] = useState<Record<string, ChecklistItem>>({});
   const [templateName, setTemplateName] = useState<string>('');
@@ -218,7 +245,7 @@ export default function PublicChecklist() {
         .insert([{
           operator_name: operatorName,
           equipment_id: vehicle?.id,
-          equipment_name: `${vehicle?.model} - ${vehicle?.licensePlate}`,
+          equipment_name: vehicle?.licensePlate ? `${vehicle?.model} - ${vehicle?.licensePlate}` : vehicle?.model,
           equipment_type: equipmentType,
           start_time: startTime,
           end_time: new Date().toISOString(),
@@ -318,26 +345,44 @@ export default function PublicChecklist() {
                    Você não possui nenhum equipamento vinculado no seu cadastro.
                  </div>
               ) : (
-                <select
-                  value={selectedVehicleId}
-                  onChange={(e) => setSelectedVehicleId(e.target.value)}
-                  className="w-full border-2 border-slate-200 rounded-xl p-3 text-slate-800 font-medium focus:border-amber-500 focus:ring-0 outline-none transition-colors"
-                >
-                  <option value="">Selecione...</option>
-                  {vehicles.map(v => (
-                    <option key={v.id} value={v.id}>
-                      {v.model} {v.licensePlate ? `(${v.licensePlate})` : ''}
-                    </option>
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 pb-2">
+                  {sortedVehicles.map(v => (
+                    <button
+                      key={v.id}
+                      onClick={() => setSelectedVehicleId(v.id)}
+                      className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between ${
+                        selectedVehicleId === v.id 
+                          ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200' 
+                          : 'border-slate-200 bg-slate-50 hover:border-emerald-300'
+                      }`}
+                    >
+                      <div>
+                        <div className={`font-black uppercase tracking-tight ${selectedVehicleId === v.id ? 'text-emerald-800' : 'text-slate-700'}`}>
+                          {getFormattedName(v.model)}
+                        </div>
+                        {v.licensePlate && (
+                          <div className={`text-xs font-bold mt-1 ${selectedVehicleId === v.id ? 'text-emerald-600' : 'text-slate-500'}`}>
+                            {v.licensePlate}
+                          </div>
+                        )}
+                      </div>
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
+                        selectedVehicleId === v.id ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 bg-white'
+                      }`}>
+                        {selectedVehicleId === v.id && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}
+                      </div>
+                    </button>
                   ))}
-                </select>
+                </div>
               )}
             </div>
 
             <button
               onClick={handleStartChecklist}
               disabled={!selectedVehicleId || vehicles.length === 0}
-              className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 disabled:text-slate-500 text-white font-bold py-4 rounded-xl shadow-md transition-colors text-lg"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:text-slate-500 text-white font-black py-4 rounded-xl shadow-lg shadow-emerald-200 transition-all text-lg uppercase tracking-wider flex items-center justify-center gap-2"
             >
+              <CheckCircle2 size={24} className={!selectedVehicleId ? 'opacity-50' : ''} />
               Iniciar Checklist
             </button>
           </div>

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Plus, Search, Edit, Trash2, UserPlus, X, FileText, Upload, 
-  Loader2, Download, Paperclip, MessageSquare, Calendar, User, Briefcase, DollarSign, Printer, AlertTriangle
+  Loader2, Download, Paperclip, MessageSquare, Calendar, User, Briefcase, DollarSign, Printer, AlertTriangle, Phone
 } from 'lucide-react';
 import { Funcionario, FuncionarioDocumento, CompanyVehicle } from '../types';
 import { supabase } from '../lib/supabase';
@@ -23,6 +23,7 @@ const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, setEmploye
   
   const [formData, setFormData] = useState<Partial<Funcionario>>({
     nomeCompleto: '',
+    whatsapp: '',
     dataRegistro: new Date().toLocaleDateString('en-CA'),
     funcao: '',
     salarioBruto: 0,
@@ -69,6 +70,7 @@ const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, setEmploye
     setEditingId(null);
     setFormData({
       nomeCompleto: '',
+      whatsapp: '',
       dataRegistro: new Date().toLocaleDateString('en-CA'),
       funcao: '',
       salarioBruto: 0,
@@ -176,6 +178,7 @@ const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, setEmploye
       setLoading(true);
       const employeeData = {
         nome_completo: String(formData.nomeCompleto || '').toUpperCase(),
+        whatsapp: String(formData.whatsapp || '').replace(/\D/g, ''),
         data_registro: formData.dataRegistro,
         funcao: String(formData.funcao || ''),
         salario_bruto: formData.salarioBruto || 0,
@@ -225,6 +228,7 @@ const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, setEmploye
         const camelFunc = {
           id: updatedFunc.id,
           nomeCompleto: updatedFunc.nome_completo,
+          whatsapp: updatedFunc.whatsapp,
           dataRegistro: updatedFunc.data_registro,
           funcao: updatedFunc.funcao,
           salarioBruto: updatedFunc.salario_bruto,
@@ -357,7 +361,7 @@ const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, setEmploye
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {/* Nome Completo */}
-                  <div className="md:col-span-2">
+                  <div>
                     <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Nome Completo *</label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -367,6 +371,29 @@ const EmployeeManager: React.FC<EmployeeManagerProps> = ({ employees, setEmploye
                         className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold uppercase transition-all"
                         value={formData.nomeCompleto}
                         onChange={e => setFormData({ ...formData, nomeCompleto: e.target.value.toUpperCase() })}
+                      />
+                    </div>
+                  </div>
+
+                  {/* WhatsApp */}
+                  <div>
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">WhatsApp</label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500" size={18} />
+                      <input
+                        type="tel"
+                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 font-bold transition-all"
+                        value={formData.whatsapp}
+                        onChange={e => {
+                          let v = e.target.value.replace(/\D/g, '');
+                          if (v.length > 11) v = v.substring(0, 11);
+                          let formatted = v;
+                          if (v.length > 2) formatted = `(${v.substring(0,2)}) ` + v.substring(2);
+                          if (v.length > 7) formatted = `(${v.substring(0,2)}) ${v.substring(2,7)}-${v.substring(7)}`;
+                          setFormData({ ...formData, whatsapp: formatted });
+                        }}
+                        placeholder="(14) 99999-9999"
+                        maxLength={15}
                       />
                     </div>
                   </div>
