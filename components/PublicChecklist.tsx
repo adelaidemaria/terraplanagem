@@ -52,6 +52,7 @@ export default function PublicChecklist() {
   const [error, setError] = useState<string | null>(null);
   const [isInvalidLink, setIsInvalidLink] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
+  const [showSpeedWarning, setShowSpeedWarning] = useState(false);
 
   useEffect(() => {
     const initialize = async () => {
@@ -237,7 +238,7 @@ export default function PublicChecklist() {
     }));
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (bypassSpeedCheck = false) => {
     // Validar se todos os itens foram checados
     const pendingItems = Object.values(checklist).filter(item => item.status === 'PENDENTE');
     if (pendingItems.length > 0) {
@@ -258,6 +259,15 @@ export default function PublicChecklist() {
       if (!hasPhoto) {
         setError("Como há itens marcados como 'NÃO', é obrigatório enviar pelo menos uma foto do problema.");
         window.scrollTo(0, 0);
+        return;
+      }
+    }
+
+    // Verificar se o checklist foi preenchido muito rápido (menos de 2 minutos = 120.000 ms)
+    if (!bypassSpeedCheck && startTime) {
+      const durationMs = Date.now() - new Date(startTime).getTime();
+      if (durationMs < 120000) {
+        setShowSpeedWarning(true);
         return;
       }
     }
@@ -672,6 +682,45 @@ export default function PublicChecklist() {
         )}
 
       </main>
+
+      {/* Modal de Aviso de Velocidade */}
+      {showSpeedWarning && (
+        <div className="fixed inset-0 bg-slate-900/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border-t-4 border-rose-500 transform animate-in zoom-in duration-200">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="bg-rose-100 p-2.5 rounded-xl text-rose-600 shrink-0">
+                <AlertCircle size={28} />
+              </div>
+              <div>
+                <h3 className="text-rose-600 font-black text-lg leading-tight">Você preencheu muito rápido!</h3>
+                <p className="text-sm text-slate-700 font-bold mt-1 leading-normal">Tem certeza que todos os itens foram verificados?</p>
+              </div>
+            </div>
+            
+            <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+              O preenchimento do checklist deve ser feito com calma e atenção, inspecionando cada item fisicamente no equipamento para garantir a segurança da operação.
+            </p>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <button 
+                onClick={() => {
+                  setShowSpeedWarning(false);
+                  handleSubmit(true);
+                }}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md active:scale-[0.98]"
+              >
+                Sim
+              </button>
+              <button 
+                onClick={() => setShowSpeedWarning(false)}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition-all active:scale-[0.98]"
+              >
+                Refazer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
