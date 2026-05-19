@@ -238,7 +238,7 @@ export default function PublicChecklist() {
     }));
   };
 
-  const handleSubmit = async (bypassSpeedCheck = false) => {
+  const handleSubmit = async (bypassSpeedCheck: any = false) => {
     // Validar se todos os itens foram checados
     const pendingItems = Object.values(checklist).filter(item => item.status === 'PENDENTE');
     if (pendingItems.length > 0) {
@@ -264,7 +264,8 @@ export default function PublicChecklist() {
     }
 
     // Verificar se o checklist foi preenchido muito rápido (menos de 2 minutos = 120.000 ms)
-    if (!bypassSpeedCheck && startTime) {
+    const isBypassed = bypassSpeedCheck === true;
+    if (!isBypassed && startTime) {
       const durationMs = Date.now() - new Date(startTime).getTime();
       if (durationMs < 120000) {
         setShowSpeedWarning(true);
