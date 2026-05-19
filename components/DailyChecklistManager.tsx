@@ -546,7 +546,7 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                 )}
 
                 {(viewingChecklist.photo_url || viewingChecklist.photo_url_2 || viewingChecklist.photo_url_3) && (
-                  <div className="mb-8 page-break-before print:mt-12">
+                  <div className="mb-8 print:mt-12" style={{ breakBefore: 'page', pageBreakBefore: 'always' }}>
                     <h3 className="font-black text-slate-800 uppercase border-b border-slate-200 pb-2 mb-4">Registro Fotográfico</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                       {viewingChecklist.photo_url && (
