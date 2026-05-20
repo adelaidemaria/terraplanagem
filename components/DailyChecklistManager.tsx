@@ -559,8 +559,7 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                   <div className="space-y-2 text-sm">
                     <div className="flex border-b border-slate-200 py-2"><span className="font-bold w-32">Operador:</span> <span>{viewingChecklist.operator_name}</span></div>
                     <div className="flex border-b border-slate-200 py-2"><span className="font-bold w-32">Data:</span> <span>{new Date(viewingChecklist.created_at).toLocaleDateString()}</span></div>
-                    <div className="flex border-b border-slate-200 py-2"><span className="font-bold w-32">Hora Início:</span> <span>{new Date(viewingChecklist.start_time).toLocaleTimeString()}</span></div>
-                    <div className="flex border-b border-slate-200 py-2"><span className="font-bold w-32">Hora Fim:</span> <span>{viewingChecklist.end_time ? new Date(viewingChecklist.end_time).toLocaleTimeString() : '-'}</span></div>
+                    <div className="flex border-b border-slate-200 py-2"><span className="font-bold w-32">Hora:</span> <span>{new Date(viewingChecklist.start_time).toLocaleTimeString()}</span></div>
                   </div>
                   
                   <div className="border-4 border-slate-100 rounded-xl p-4 flex flex-col justify-center items-center text-center">
