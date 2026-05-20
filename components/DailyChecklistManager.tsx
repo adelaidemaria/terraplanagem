@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { DailyChecklist, CompanyVehicle, Funcionario, ConfiguracaoEmpresa, VehicleChecklistItem } from '../types';
 import { ClipboardCheck, Calendar as CalendarIcon, Search, Printer, Eye, Link as LinkIcon, Download, X, Copy, Trash2, AlertTriangle, Loader2, ListChecks, Plus, Edit2, CheckCircle2 } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
 
 interface DailyChecklistManagerProps {
   vehicles: CompanyVehicle[];
@@ -21,6 +22,7 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
 
   // Modais
   const [viewingChecklist, setViewingChecklist] = useState<DailyChecklist | null>(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<string | null>(null);
   const [deletingChecklist, setDeletingChecklist] = useState<DailyChecklist | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -107,6 +109,40 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPdf = async (check: DailyChecklist) => {
+    setViewingChecklist(check);
+    setIsDownloadingPdf(check.id);
+    
+    setTimeout(async () => {
+      const element = document.getElementById('print-area');
+      if (element) {
+        // Remove text-center do container principal para o PDF (evita quebra de alinhamento)
+        const dateStr = new Date(check.created_at).toLocaleDateString('pt-BR').replace(/\//g, '-');
+        const equipmentName = check.equipment_name ? check.equipment_name.replace(' - undefined', '') : 'Equipamento';
+        const filename = `Checklist ${dateStr} - ${equipmentName}.pdf`;
+        
+        const opt = {
+          margin:       [10, 10, 10, 10],
+          filename:     filename,
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, useCORS: true, logging: false },
+          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        
+        try {
+          await html2pdf().set(opt).from(element).save();
+        } catch (error) {
+          console.error("Erro ao gerar PDF:", error);
+          alert("Ocorreu um erro ao gerar o PDF.");
+        } finally {
+          setIsDownloadingPdf(null);
+        }
+      } else {
+        setIsDownloadingPdf(null);
+      }
+    }, 800);
   };
 
   const confirmDelete = async () => {
@@ -357,6 +393,14 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                             <Printer size={16} />
                           </button>
                           <button
+                            onClick={() => handleDownloadPdf(check)}
+                            className="text-blue-600 hover:text-blue-700 font-bold text-sm flex items-center gap-1 bg-blue-50 px-2 py-1.5 rounded-lg transition-colors"
+                            title="Baixar PDF"
+                            disabled={isDownloadingPdf === check.id}
+                          >
+                            {isDownloadingPdf === check.id ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                          </button>
+                          <button
                             onClick={() => setDeletingChecklist(check)}
                             className="text-rose-500 hover:text-rose-700 font-bold text-sm flex items-center gap-1 bg-rose-50 px-2 py-1.5 rounded-lg transition-colors"
                             title="Excluir"
@@ -465,6 +509,9 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
               <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50 print:hidden">
                 <h2 className="text-lg font-bold text-slate-800">Detalhes do Checklist</h2>
                 <div className="flex items-center gap-2">
+                  <button onClick={() => handleDownloadPdf(viewingChecklist)} disabled={isDownloadingPdf === viewingChecklist.id} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:bg-blue-300">
+                    {isDownloadingPdf === viewingChecklist.id ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />} Baixar PDF
+                  </button>
                   <button onClick={handlePrint} className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2">
                     <Printer size={18} /> Imprimir
                   </button>
@@ -477,8 +524,8 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
               {/* Print Content Area */}
               <div className="p-8 print:p-0" id="print-area">
                 
-                {/* Cabeçalho da Empresa - Visível Apenas na Impressão */}
-                <div className="hidden print:flex justify-between items-center border-b-2 border-slate-800 pb-6 mb-8">
+                {/* Cabeçalho da Empresa - Visível Apenas na Impressão / Geração PDF */}
+                <div className={`${isDownloadingPdf ? 'flex' : 'hidden print:flex'} justify-between items-center border-b-2 border-slate-800 pb-6 mb-8`}>
                   <div className="flex items-center gap-4">
                     {config?.logo_url ? (
                       <img src={config.logo_url} alt={config.nome_fantasia || "Logotipo"} className="h-16 object-contain" />

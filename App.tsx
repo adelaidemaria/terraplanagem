@@ -57,7 +57,8 @@ import {
   CompanyLoan,
   WorkOrder,
   WorkOrderItem,
-  RentalEquipment
+  RentalEquipment,
+  VehicleChecklistItem
 } from './types';
 
 // Components
@@ -222,8 +223,9 @@ const App: React.FC = () => {
   const [workOrderItems, setWorkOrderItems, woiLoaded] = useSupabaseSync<WorkOrderItem>('work_order_items');
   const [rentalEquipments, setRentalEquipments, reLoaded] = useSupabaseSync<RentalEquipment>('rental_equipments');
   const [companyConfigs, setCompanyConfigs, companyLoaded] = useSupabaseSync<ConfiguracaoEmpresa>('configuracao_empresa');
+  const [vehicleChecklistItems, setVehicleChecklistItems, vciLoaded] = useSupabaseSync<VehicleChecklistItem>('vehicle_checklist_items');
 
-  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded && cvLoaded && ctrsLoaded && orcamentosLoaded && snLoaded && empLoaded && elLoaded && clLoaded && woLoaded && woiLoaded && reLoaded && companyLoaded;
+  const allLoaded = customersLoaded && vendorsLoaded && vcLoaded && acLoaded && salesLoaded && expLoaded && payLoaded && apLoaded && ascLoaded && baLoaded && btLoaded && yieldsLoaded && fleetLoaded && mrLoaded && agendaLoaded && ccLoaded && ccpLoaded && cvLoaded && ctrsLoaded && orcamentosLoaded && snLoaded && empLoaded && elLoaded && clLoaded && woLoaded && woiLoaded && reLoaded && companyLoaded && vciLoaded;
 
   // --- Logic for Next Due Dates & Alerts ---
   const hasFleetAlerts = useMemo(() => {
@@ -552,6 +554,7 @@ const App: React.FC = () => {
           employeeLoans={employeeLoans}
           companyLoans={companyLoans}
           orcamentos={orcamentos}
+          vehicleChecklistItems={vehicleChecklistItems}
           initialReport={selectedReportType as any}
         />;
       case 'ctr':

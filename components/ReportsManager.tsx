@@ -44,11 +44,12 @@ import {
   Orcamento,
   Funcionario,
   EmprestimoFuncionario,
-  CompanyLoan
+  CompanyLoan,
+  VehicleChecklistItem
 } from '../types';
 import Logo from './Logo';
 
-type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetAlerts' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'profitDistribution' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement' | 'cashFlow' | 'ctr' | 'orcamentos' | 'employees' | 'employeeLoans' | 'companyLoans';
+type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetAlerts' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'profitDistribution' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement' | 'cashFlow' | 'ctr' | 'orcamentos' | 'employees' | 'employeeLoans' | 'companyLoans' | 'vehicleChecklistItems';
 
 interface ReportsManagerProps {
   customers: Customer[];
@@ -75,6 +76,7 @@ interface ReportsManagerProps {
   employees?: Funcionario[];
   employeeLoans?: EmprestimoFuncionario[];
   companyLoans?: CompanyLoan[];
+  vehicleChecklistItems?: VehicleChecklistItem[];
 }
 
 const itemLabels: Record<keyof MaintenanceIntervals, string> = {
@@ -117,6 +119,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
   employees = [],
   employeeLoans = [],
   companyLoans = [],
+  vehicleChecklistItems = [],
   initialReport
 }) => {
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(initialReport || 'sales');
@@ -858,6 +861,64 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               formatMonths(e.intervals.others)
             ];
           })
+        };
+      }
+      case 'vehicleChecklistItems': {
+        const filteredItems = (vehicleChecklistItems || []).filter(item => {
+          const vId = (item as any).vehicle_id || (item as any).vehicleId;
+          if (selectedEquipmentId === 'all') return true;
+          return vId === selectedEquipmentId;
+        });
+
+        const byVehicleMap = new Map<string, any[]>();
+        filteredItems.forEach(item => {
+          const vId = (item as any).vehicle_id || (item as any).vehicleId;
+          const vehicle = companyVehicles.find(v => v.id === vId);
+          const vName = vehicle ? `${vehicle.type} - ${vehicle.model} (${vehicle.licensePlate})` : 'Veículo Desconhecido';
+          if (!byVehicleMap.has(vName)) byVehicleMap.set(vName, []);
+          byVehicleMap.get(vName)!.push(item);
+        });
+
+        // Sort items per vehicle by item_name
+        byVehicleMap.forEach(items => {
+          items.sort((a, b) => {
+            const aName = (a as any).item_name || (a as any).itemName || '';
+            const bName = (b as any).item_name || (b as any).itemName || '';
+            return aName.localeCompare(bName);
+          });
+        });
+
+        const sortedVehicles = Array.from(byVehicleMap.keys()).sort();
+
+        const rows: any[] = [];
+        sortedVehicles.forEach((vehicleName, idx) => {
+          const items = byVehicleMap.get(vehicleName)!;
+          if (idx > 0) {
+            rows.push(['MONTH_SEPARATOR', '']);
+          }
+          rows.push([`VEÍCULO/EQUIPAMENTO: ${vehicleName}`, 'FULL_WIDTH_HEADER']);
+          rows.push(['', 'VEHICLE_CHECKLIST_HEADER']);
+          
+          items.forEach((item, index) => {
+            const iName = (item as any).item_name || (item as any).itemName || '---';
+            rows.push([
+              (index + 1).toString(),
+              iName
+            ]);
+          });
+          
+          rows.push([`Totais de Itens cadastrados: ${items.length} itens`, 'VEHICLE_CHECKLIST_FOOTER']);
+        });
+
+        if (rows.length === 0) {
+           rows.push(['', 'Nenhum item cadastrado para o veículo selecionado.']);
+        }
+
+        return {
+          title: `Relatório de Checklist Equipamentos`,
+          headerInfo: selectedEquipmentId === 'all' ? 'Listagem de todos os veículos e seus itens de checklist.' : 'Itens do checklist do veículo selecionado.',
+          headers: ['Nº', 'Item de Verificação Diário'],
+          rows: rows
         };
       }
       case 'fleetAlerts': {
@@ -2305,7 +2366,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       default:
         return null;
     }
-  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, selectedCardId, statusFilter, agendaStatus, agendaCategory, corporateCards, corporateCardPayments, ctrs, orcamentos, employees, employeeLoans, companyLoans, selectedLoanId, dreRegime, searchTerm, vendorSearch]);
+  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, selectedCardId, statusFilter, agendaStatus, agendaCategory, corporateCards, corporateCardPayments, ctrs, orcamentos, employees, employeeLoans, companyLoans, companyVehicles, vehicleChecklistItems, selectedLoanId, dreRegime, searchTerm, vendorSearch]);
 
   return (
     <div className="space-y-8">
@@ -2386,7 +2447,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               <div className="relative group">
                 <select
                   className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-700 font-bold outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white focus:border-rose-200 transition-all appearance-none cursor-pointer"
-                  value={['fleetAlerts', 'fleetHistory', 'fleetIntervals'].includes(selectedReport || '') ? selectedReport || '' : ''}
+                  value={['fleetAlerts', 'fleetHistory', 'fleetIntervals', 'vehicleChecklistItems'].includes(selectedReport || '') ? selectedReport || '' : ''}
                   onChange={(e) => {
                     setSelectedReport(e.target.value as ReportType);
                     setSelectedEquipmentId('all');
@@ -2396,6 +2457,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   <option value="fleetAlerts">🚨 ALERTAS DE MANUTENÇÃO</option>
                   <option value="fleetHistory">📜 Histórico Completo</option>
                   <option value="fleetIntervals">⏱️ Prazos Cadastrados</option>
+                  <option value="vehicleChecklistItems">✔️ Checklist Equipamentos</option>
                 </select>
                 <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-rose-500 transition-transform rotate-90" size={18} />
               </div>
@@ -2477,6 +2539,24 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                         const v = companyVehicles.find(v => v.id === e.vehicleId);
                         return <option key={e.id} value={e.id}>{v?.type} - {v?.model}</option>;
                       })}
+                    </select>
+                  </div>
+                )}
+
+                {selectedReport === 'vehicleChecklistItems' && (
+                  <div className="flex-1 space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                      <Truck size={14} className="mr-1" /> Selecionar Veículo
+                    </label>
+                    <select
+                      className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-rose-500 font-bold"
+                      value={selectedEquipmentId}
+                      onChange={(e) => setSelectedEquipmentId(e.target.value)}
+                    >
+                      <option value="all">TODOS OS VEÍCULOS</option>
+                      {companyVehicles.map(v => (
+                        <option key={v.id} value={v.id}>{v.type} - {v.model}</option>
+                      ))}
                     </select>
                   </div>
                 )}
@@ -2847,7 +2927,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   </tr>
                   
                   {/* Cabeçalho das Colunas - Repetível na Impressão */}
-                  {selectedReport !== 'profitDistribution' && (
+                  {selectedReport !== 'profitDistribution' && selectedReport !== 'vehicleChecklistItems' && (
                     <tr className="bg-slate-50 border-y border-slate-200">
                     {reportContent.headers.map((h, k) => {
                       // Simplificação dos nomes das colunas para extrato bancário
@@ -2933,6 +3013,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                               k === 2 ? 'w-[200px] text-right' : ''
                             ) : selectedReport === 'accountCategoriesList' ? (
                               k === 0 ? 'w-[120px] text-left' :
+                              k === 1 ? 'w-full text-left' : ''
+                            ) : selectedReport === 'vehicleChecklistItems' ? (
+                              k === 0 ? 'w-[80px] text-left' :
                               k === 1 ? 'w-full text-left' : ''
                             ) : (
                               k === 0 ? 'w-[90px]' : ''
@@ -3486,6 +3569,25 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                           <td className="px-4 py-3 text-sm font-black text-rose-600 text-right">{row[4]}</td>
                           <td className={`px-4 py-3 text-base font-black text-right border-l border-slate-200 ${isMinus ? 'text-rose-600' : 'text-slate-900'}`}>{row[5]}</td>
                           <td colSpan={reportContent.headers.length - 5} className="px-4 py-3"></td>
+                        </tr>
+                      );
+                    }
+
+                    if (row[1] === 'VEHICLE_CHECKLIST_HEADER') {
+                      return (
+                        <tr key={i} className="bg-slate-50 border-y border-slate-200">
+                          <th className="px-4 py-3 font-black text-slate-600 uppercase text-[12px] tracking-wider whitespace-nowrap text-left w-[80px]">Nº</th>
+                          <th className="px-4 py-3 font-black text-slate-600 uppercase text-[12px] tracking-wider whitespace-nowrap text-left w-full">Item de Verificação Diário</th>
+                        </tr>
+                      );
+                    }
+
+                    if (row[1] === 'VEHICLE_CHECKLIST_FOOTER') {
+                      return (
+                        <tr key={i} className="bg-slate-50/80 border-t-2 border-slate-200">
+                          <td colSpan={2} className="px-4 py-4 text-left font-black text-slate-700 text-sm uppercase tracking-wide">
+                            {row[0]}
+                          </td>
                         </tr>
                       );
                     }
