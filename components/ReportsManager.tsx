@@ -125,11 +125,15 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(initialReport || 'sales');
   const [searchTerm, setSearchTerm] = useState('');
   const [vendorSearch, setVendorSearch] = useState('');
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [selectedVendorId, setSelectedVendorId] = useState<string>('all');
 
   useEffect(() => {
     if (selectedReport === 'profitDistribution') {
       setSearchTerm('DISTR LUCROS');
       setVendorSearch('');
+      setEmployeeSearch('');
+      setSelectedVendorId('all');
       const d = new Date();
       const firstDayLastMonth = new Date(d.getFullYear(), d.getMonth() - 1, 1);
       const lastDayLastMonth = new Date(d.getFullYear(), d.getMonth(), 0);
@@ -139,6 +143,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
     } else {
       setSearchTerm('');
       setVendorSearch('');
+      setEmployeeSearch('');
+      setSelectedVendorId('all');
     }
   }, [selectedReport]);
 
@@ -197,6 +203,10 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       .filter(p => p.type === 'Despesa')
       .sort((a, b) => a.subcategory.localeCompare(b.subcategory));
   }, [accountPlan]);
+
+  const sortedVendors = useMemo(() => {
+    return [...vendors].sort((a, b) => a.name.localeCompare(b.name));
+  }, [vendors]);
 
   const reportContent = useMemo(() => {
     if (!selectedReport) return null;
@@ -311,6 +321,13 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             // Filtro por Categoria
             const matchesCategory = selectedCategoryId === 'all' || e.accountPlanId === selectedCategoryId;
             if (!matchesCategory) return false;
+
+            // Filtro por Fornecedor
+            const matchesVendor = selectedVendorId === 'all' || e.vendorId === selectedVendorId || (() => {
+              const targetVendor = vendors.find(v => v.id === selectedVendorId);
+              return targetVendor && e.vendorName && e.vendorName.toLowerCase() === targetVendor.name.toLowerCase();
+            })();
+            if (!matchesVendor) return false;
 
             // Filtro por Data (Vencimento ou Emissão)
             const refDate = e.dueDate ? new Date(e.dueDate) : new Date(e.date);
@@ -1515,6 +1532,13 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         const filteredExps = expenses.filter(e => {
           const isCard = e.paymentMethod === 'Cartão Corporativo';
           const matchesCategory = selectedCategoryId === 'all' || e.accountPlanId === selectedCategoryId;
+
+          // Filtro por Fornecedor
+          const matchesVendor = selectedVendorId === 'all' || e.vendorId === selectedVendorId || (() => {
+            const targetVendor = vendors.find(v => v.id === selectedVendorId);
+            return targetVendor && e.vendorName && e.vendorName.toLowerCase() === targetVendor.name.toLowerCase();
+          })();
+          if (!matchesVendor) return false;
           
           if (isCard) {
             const d = new Date(e.date).getTime();
@@ -1530,6 +1554,21 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
           const ap = accountPlan.find(p => p.id === y.accountPlanId);
           if (!ap || ap.type !== 'Despesa') return false;
           const matchesCategory = selectedCategoryId === 'all' || y.accountPlanId === selectedCategoryId;
+
+          // Filtro por Fornecedor para rendimentos/lançamentos financeiros
+          const matchesVendor = selectedVendorId === 'all' || (() => {
+            const targetVendor = vendors.find(v => v.id === selectedVendorId);
+            if (!targetVendor) return false;
+            const isLoanExit = y.description.startsWith('SAÍDA EMPRÉSTIMO:');
+            const isLoanPayment = y.description.startsWith('PGTO PARCELA EMPRÉSTIMO:');
+            const isCompanyLoanPayment = y.description.startsWith('PGTO PARCELA EMPRÉSTIMO') || y.description.includes('Parc');
+            let vendor = (y.description || '').split(' (Ref:')[0];
+            if (isCompanyLoanPayment) vendor = "PGTO EMPRÉSTIMO BANCÁRIO";
+            if (isLoanExit) vendor = "SAÍDA EMPRÉSTIMO";
+            return vendor.toLowerCase().includes(targetVendor.name.toLowerCase()) || targetVendor.name.toLowerCase().includes(vendor.toLowerCase());
+          })();
+          if (!matchesVendor) return false;
+
           const d = new Date(y.date).getTime();
           return matchesCategory && d >= startTimestamp && d <= endTimestamp;
         }).map(y => {
@@ -2244,7 +2283,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
               new Date(p.dataPagamento).getTime() <= endTimestamp
             );
 
-            return hasLoanInPeriod || hasPaymentInPeriod;
+            const matchesEmployee = !employeeSearch || l.funcionarioNome.toLowerCase().includes(employeeSearch.toLowerCase());
+
+            return (hasLoanInPeriod || hasPaymentInPeriod) && matchesEmployee;
           })
           .sort((a, b) => new Date(a.dataEmprestimo).getTime() - new Date(b.dataEmprestimo).getTime());
 
@@ -2366,7 +2407,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
       default:
         return null;
     }
-  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, selectedCardId, statusFilter, agendaStatus, agendaCategory, corporateCards, corporateCardPayments, ctrs, orcamentos, employees, employeeLoans, companyLoans, companyVehicles, vehicleChecklistItems, selectedLoanId, dreRegime, searchTerm, vendorSearch]);
+  }, [selectedReport, selectedBankId, selectedEquipmentId, startDate, endDate, customers, vendors, vendorCategories, sales, expenses, payments, accountPlan, bankAccounts, fleet, maintenanceRecords, agendaItems, receivablesFilter, selectedCategoryId, selectedCustomerId, selectedCardId, statusFilter, agendaStatus, agendaCategory, corporateCards, corporateCardPayments, ctrs, orcamentos, employees, employeeLoans, companyLoans, companyVehicles, vehicleChecklistItems, selectedLoanId, dreRegime, searchTerm, vendorSearch, employeeSearch, selectedVendorId]);
 
   return (
     <div className="space-y-8">
@@ -2579,7 +2620,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   </div>
                 )}
 
-                {['cashFlow', 'dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'profitDistribution', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory', 'cardFees', 'fleetAlerts', 'ctr', 'orcamentos', 'employees'].includes(selectedReport) && (
+                {['cashFlow', 'dre', 'sales', 'receivables', 'receivablesPending', 'customerStatement', 'payments', 'expensesByMonth', 'expensesByMonthFlat', 'profitDistribution', 'expensesPending', 'bankStatement', 'corporateCard', 'fleetHistory', 'cardFees', 'fleetAlerts', 'ctr', 'orcamentos', 'employees', 'employeeLoans'].includes(selectedReport) && (
                   <>
                     {selectedReport === 'dre' && (
                       <div className="flex-1 space-y-2">
@@ -2654,6 +2695,23 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                         </select>
                       </div>
                     )}
+                    {['expensesPending', 'payments'].includes(selectedReport) && (
+                      <div className="flex-1 space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                          <Users size={14} className="mr-1" /> Fornecedor
+                        </label>
+                        <select
+                          className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+                          value={selectedVendorId}
+                          onChange={(e) => setSelectedVendorId(e.target.value)}
+                        >
+                          <option value="all">TODOS OS FORNECEDORES</option>
+                          {sortedVendors.map(v => (
+                            <option key={v.id} value={v.id}>{v.name.toUpperCase()}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     {(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat' || selectedReport === 'profitDistribution') && (
                       <div className="flex-1 space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
@@ -2695,6 +2753,20 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                           <option value="all">TODOS OS CARTÕES</option>
                           {corporateCards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
+                      </div>
+                    )}
+                    {selectedReport === 'employeeLoans' && (
+                      <div className="flex-1 space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                          <Users size={14} className="mr-1" /> Pesquisar Funcionário
+                        </label>
+                        <input
+                          type="text"
+                          className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+                          placeholder="Nome do funcionário..."
+                          value={employeeSearch}
+                          onChange={(e) => setEmployeeSearch(e.target.value)}
+                        />
                       </div>
                     )}
                     <div className="flex-1 space-y-2">
