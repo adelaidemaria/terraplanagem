@@ -35,4 +35,6 @@ test-supabase.js
 setup_tables.sql
 dist/
 node_modules/
+extrato banco/
+
 

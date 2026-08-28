@@ -58,7 +58,8 @@ import {
   WorkOrder,
   WorkOrderItem,
   RentalEquipment,
-  VehicleChecklistItem
+  VehicleChecklistItem,
+  ConfiguracaoEmpresa
 } from './types';
 
 // Components

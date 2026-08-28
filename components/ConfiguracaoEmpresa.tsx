@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { ConfiguracaoEmpresa, AdminUser } from '../types';
-import { Building2, Save, Upload, Loader2, CheckCircle2, AlertCircle, ShieldAlert, User, Menu } from 'lucide-react';
+import { Building2, Save, Upload, Loader2, CheckCircle2, AlertCircle, ShieldAlert, User, Menu, Database } from 'lucide-react';
+import BackupManager from './BackupManager';
 
 interface ConfiguracaoEmpresaManagerProps {
   adminUser?: AdminUser | null;
@@ -9,7 +10,7 @@ interface ConfiguracaoEmpresaManagerProps {
 }
 
 const ConfiguracaoEmpresaManager: React.FC<ConfiguracaoEmpresaManagerProps> = ({ adminUser, onUpdateUser }) => {
-  const [activeTab, setActiveTab] = useState<'empresa' | 'acesso'>('empresa');
+  const [activeTab, setActiveTab] = useState<'empresa' | 'acesso' | 'backup'>('empresa');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -24,14 +25,17 @@ const ConfiguracaoEmpresaManager: React.FC<ConfiguracaoEmpresaManagerProps> = ({
 
   useEffect(() => {
     fetchConfig();
-    if (adminUser) {
-      setEmail(adminUser.username || '');
+  }, []);
+
+  useEffect(() => {
+    if (adminUser?.username) {
+      setEmail(adminUser.username);
     }
-  }, [adminUser]);
+  }, [adminUser?.username]);
 
   const fetchConfig = async () => {
     try {
-      setLoading(true);
+      if (!config) setLoading(true);
       const { data, error } = await supabase
         .from('configuracao_empresa')
         .select('*')
@@ -197,6 +201,17 @@ const ConfiguracaoEmpresaManager: React.FC<ConfiguracaoEmpresaManagerProps> = ({
             >
               <ShieldAlert size={18} />
               Acesso ao Sistema
+            </button>
+            <button
+              onClick={() => setActiveTab('backup')}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                activeTab === 'backup'
+                  ? 'bg-amber-500 text-white shadow-lg'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700'
+              }`}
+            >
+              <Database size={18} />
+              Backup & Segurança
             </button>
           </div>
         </div>
@@ -478,6 +493,12 @@ const ConfiguracaoEmpresaManager: React.FC<ConfiguracaoEmpresaManagerProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {activeTab === 'backup' && (
+          <div className="p-6 sm:p-8 animate-in fade-in duration-300">
+            <BackupManager />
           </div>
         )}
       </div>
