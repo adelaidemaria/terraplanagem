@@ -3248,7 +3248,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
         selectedReport && reportContent && (
           <div className="bg-white p-4 sm:p-8 md:p-12 rounded-2xl border border-slate-100 shadow-xl print:shadow-none print:border-0 print:m-0 w-full overflow-hidden">
             <div className="overflow-x-auto print:overflow-visible text-slate-800 w-full">
-              <table className="w-full min-w-[620px] text-left text-sm border-collapse">
+              <table className="w-full min-w-[620px] print:min-w-0 print:w-full text-left text-sm border-collapse">
                 <thead className="print:table-header-group">
                   {/* Bloco de Identificação da Empresa e Relatório - Repetível na Impressão */}
                   <tr className="border-0">
@@ -3289,7 +3289,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       return (
                         <th
                           key={k}
-                          className={`px-4 py-3 font-black text-slate-600 uppercase text-[12px] tracking-wider whitespace-nowrap
+                          className={`px-2.5 sm:px-4 py-2 sm:py-3 font-black text-slate-600 uppercase text-[10px] sm:text-[12px] tracking-wider print:px-1.5 print:py-1 print:text-[10px] ${(selectedReport === 'vendorStatement' || selectedReport === 'customerStatement') && k === 2 ? 'whitespace-normal' : 'whitespace-nowrap'}
                             ${(h.toLowerCase().includes('valor') || h.toLowerCase().includes('total') || h.toLowerCase().includes('saldo') || h.toLowerCase().includes('líquido') || h.toLowerCase().includes('faturado') || h.toLowerCase().includes('recebido') || h.toLowerCase().includes('deduç') || h.toLowerCase().includes('crédito') || h.toLowerCase().includes('débito')) ? 'text-right' : 'text-left'}
                             
                             ${selectedReport === 'bankStatement' ? (
@@ -3303,13 +3303,13 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                               k === 1 ? 'w-auto min-w-[200px]' :
                               k === 5 ? 'w-[200px] text-left' :
                               k === 6 ? 'w-[110px] text-left' : ''
-                            ) : selectedReport === 'customerStatement' ? (
-                              k === 0 ? 'w-[100px] text-left' :
-                              k === 1 ? 'w-full min-w-[300px] text-left' :
-                              k === 2 ? 'w-[140px] text-right' :
-                              k === 3 ? 'w-[140px] text-right' :
-                              k === 4 ? 'w-[140px] text-right' :
-                              k === 5 ? 'w-[160px] text-right' : ''
+                            ) : (selectedReport === 'customerStatement' || selectedReport === 'vendorStatement') ? (
+                              k === 0 ? 'w-[80px] sm:w-[90px] print:w-[65px] text-left' :
+                              k === 1 ? 'w-[80px] sm:w-[90px] print:w-[65px] text-left' :
+                              k === 2 ? 'w-auto text-left' :
+                              k === 3 ? 'w-[105px] sm:w-[125px] print:w-[90px] text-right' :
+                              k === 4 ? 'w-[105px] sm:w-[125px] print:w-[90px] text-right' :
+                              k === 5 ? 'w-[110px] sm:w-[130px] print:w-[95px] text-right' : ''
                             ) : selectedReport === 'expensesPending' ? (
                               k === 0 ? 'w-[150px]' :
                               k === 1 ? 'w-full min-w-[180px]' :
@@ -3558,12 +3558,12 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                     if (row[0] === 'COLUMN_HEADERS_VENDOR') {
                       return (
                         <tr key={i} className="bg-slate-100 border-y border-slate-200">
-                          <th className="px-4 py-2 font-black text-slate-600 uppercase text-[12px] tracking-wider text-left w-[110px]">{reportContent.headers[0]}</th>
-                          <th className="px-4 py-2 font-black text-slate-600 uppercase text-[12px] tracking-wider text-left w-[110px]">{reportContent.headers[1]}</th>
-                          <th className="px-4 py-2 font-black text-slate-600 uppercase text-[12px] tracking-wider text-left w-full">{reportContent.headers[2]}</th>
-                          <th className="px-4 py-2 font-black text-slate-600 uppercase text-[12px] tracking-wider text-right w-[140px]">{reportContent.headers[3]}</th>
-                          <th className="px-4 py-2 font-black text-slate-600 uppercase text-[12px] tracking-wider text-right w-[140px]">{reportContent.headers[4]}</th>
-                          <th className="px-4 py-2 font-black text-slate-600 uppercase text-[12px] tracking-wider text-right w-[160px]">{reportContent.headers[5]}</th>
+                          <th className="px-2.5 sm:px-4 py-2 font-black text-slate-600 uppercase text-[10px] sm:text-[11px] tracking-wider text-left w-[80px] sm:w-[90px] print:w-[65px] print:px-1.5 print:py-1 print:text-[10px] whitespace-nowrap">{reportContent.headers[0]}</th>
+                          <th className="px-2.5 sm:px-4 py-2 font-black text-slate-600 uppercase text-[10px] sm:text-[11px] tracking-wider text-left w-[80px] sm:w-[90px] print:w-[65px] print:px-1.5 print:py-1 print:text-[10px] whitespace-nowrap">{reportContent.headers[1]}</th>
+                          <th className="px-2.5 sm:px-4 py-2 font-black text-slate-600 uppercase text-[10px] sm:text-[11px] tracking-wider text-left w-auto print:px-1.5 print:py-1 print:text-[10px]">{reportContent.headers[2]}</th>
+                          <th className="px-2.5 sm:px-4 py-2 font-black text-slate-600 uppercase text-[10px] sm:text-[11px] tracking-wider text-right w-[105px] sm:w-[125px] print:w-[90px] print:px-1.5 print:py-1 print:text-[10px] whitespace-nowrap">{reportContent.headers[3]}</th>
+                          <th className="px-2.5 sm:px-4 py-2 font-black text-slate-600 uppercase text-[10px] sm:text-[11px] tracking-wider text-right w-[105px] sm:w-[125px] print:w-[90px] print:px-1.5 print:py-1 print:text-[10px] whitespace-nowrap">{reportContent.headers[4]}</th>
+                          <th className="px-2.5 sm:px-4 py-2 font-black text-slate-600 uppercase text-[10px] sm:text-[11px] tracking-wider text-right w-[110px] sm:w-[130px] print:w-[95px] print:px-1.5 print:py-1 print:text-[10px] whitespace-nowrap">{reportContent.headers[5]}</th>
                         </tr>
                       );
                     }
@@ -3571,10 +3571,10 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                     if (row[0] === 'VENDOR_STATEMENT_FOOTER') {
                       return (
                         <tr key={i} className="font-bold bg-slate-100 border-t-2 border-slate-900 border-b-2">
-                          <td colSpan={3} className="px-4 py-3 text-right uppercase tracking-wider text-sm text-slate-900">Total no Período:</td>
-                          <td className="px-4 py-3 text-right text-rose-600">{row[1]}</td>
-                          <td className="px-4 py-3 text-right text-emerald-600">{row[2]}</td>
-                          <td className="px-4 py-3" />
+                          <td colSpan={3} className="px-2.5 sm:px-4 py-2 sm:py-3 text-right uppercase tracking-wider text-xs sm:text-sm font-black text-slate-900 print:text-[10px] print:px-1.5 print:py-1">Total no Período:</td>
+                          <td className="px-2.5 sm:px-4 py-2 sm:py-3 text-right text-rose-600 text-xs sm:text-sm font-black print:text-[10px] print:px-1.5 print:py-1 whitespace-nowrap">{row[1]}</td>
+                          <td className="px-2.5 sm:px-4 py-2 sm:py-3 text-right text-emerald-600 text-xs sm:text-sm font-black print:text-[10px] print:px-1.5 print:py-1 whitespace-nowrap">{row[2]}</td>
+                          <td className="px-2.5 sm:px-4 py-2 sm:py-3 print:px-1.5 print:py-1" />
                         </tr>
                       );
                     }
@@ -4010,7 +4010,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                             <td
                               key={j}
                               colSpan={isSectionHeader ? reportContent.headers.length : (isSubtotalRow && j === 0 ? reportContent.headers.length - 1 : 1)}
-                              className={`px-4 py-3 text-slate-700 font-medium leading-relaxed print:text-[12px] ${(selectedReport === 'employeeLoans' || selectedReport === 'companyLoans') && j === 0 ? 'whitespace-nowrap' : ''}
+                              className={`px-2.5 sm:px-4 py-2 sm:py-3 text-slate-700 font-medium leading-relaxed print:px-1.5 print:py-1 print:text-[10px] ${(selectedReport === 'employeeLoans' || selectedReport === 'companyLoans') && j === 0 ? 'whitespace-nowrap' : ''}
                                 ${isSectionHeader ? 'text-slate-900 text-sm tracking-widest uppercase py-4 whitespace-nowrap print:text-[12px]' : ''}
                                 ${isSubtotalRow ? 'text-slate-800 text-sm print:text-[12px]' : ''}
                                 ${isCredit ? 'text-emerald-600 font-bold' : ''}

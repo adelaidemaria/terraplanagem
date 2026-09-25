@@ -86,11 +86,15 @@
                 display: none !important;
             }
 
-            /* Ajuste de tabelas para quebras de página */
             table {
                 width: 100% !important;
+                max-width: 100% !important;
                 border-collapse: collapse !important;
                 page-break-inside: auto;
+            }
+
+            th, td {
+                word-break: break-word;
             }
 
             tr {
