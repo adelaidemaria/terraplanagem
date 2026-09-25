@@ -409,23 +409,23 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-        <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+    <div className="space-y-5 w-full min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+          <div className="relative w-full sm:w-52 min-w-[160px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
               placeholder="Pesquisar lançamentos..."
-              className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg w-full outline-none focus:ring-2 focus:ring-rose-500/20 text-sm"
+              className="pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg w-full outline-none focus:ring-2 focus:ring-indigo-500/20 text-xs sm:text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <span className="text-sm font-bold text-slate-500 whitespace-nowrap">Cartão:</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs sm:text-sm font-bold text-slate-500 whitespace-nowrap">Cartão:</span>
             <select
-              className="px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm bg-white text-slate-600 focus:ring-2 focus:ring-rose-500/20 font-bold"
+              className="px-2.5 py-1.5 border border-slate-200 rounded-lg outline-none text-xs sm:text-sm bg-white text-slate-600 focus:ring-2 focus:ring-indigo-500/20 font-bold max-w-[160px] truncate"
               value={selectedCardId}
               onChange={(e) => setSelectedCardId(e.target.value)}
             >
@@ -436,22 +436,22 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
             </select>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-1.5">
             <input
               type="date"
-              className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-rose-500/20"
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs sm:text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
               value={startDate}
               onChange={(e) => { setStartDate(e.target.value); setPeriod('custom'); }}
             />
-            <span className="text-slate-400">até</span>
+            <span className="text-xs text-slate-400">até</span>
             <input
               type="date"
-              className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-rose-500/20"
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs sm:text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
               value={endDate}
               onChange={(e) => { setEndDate(e.target.value); setPeriod('custom'); }}
             />
             <select
-              className="px-3 py-1.5 border border-slate-200 rounded-lg outline-none text-sm bg-white text-slate-600 focus:ring-2 focus:ring-rose-500/20 font-bold"
+              className="px-2.5 py-1.5 border border-slate-200 rounded-lg outline-none text-xs sm:text-sm bg-white text-slate-600 focus:ring-2 focus:ring-indigo-500/20 font-bold"
               value={period}
               onChange={(e) => handlePeriodChange(e.target.value as any)}
             >
@@ -464,12 +464,12 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
           </div>
         </div>
         
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto mt-4 xl:mt-0">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setIsManageCardsModalOpen(true)}
-            className="px-4 py-2 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg flex items-center justify-center space-x-2 font-bold hover:bg-slate-200 transition-colors shadow-sm w-full sm:w-auto"
+            className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg flex items-center justify-center space-x-1.5 font-bold hover:bg-slate-200 transition-colors shadow-sm text-xs sm:text-sm whitespace-nowrap"
           >
-            <Settings size={18} /> <span>Gerenciar Cartões</span>
+            <Settings size={16} /> <span>Gerenciar Cartões</span>
           </button>
           <button 
             onClick={() => {
@@ -494,60 +494,62 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
               
               setIsLancarModalOpen(true);
             }} 
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 font-bold shadow-lg whitespace-nowrap w-full sm:w-auto justify-center"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg flex items-center space-x-1.5 font-bold shadow-md whitespace-nowrap text-xs sm:text-sm justify-center"
           >
-            <Plus size={18} /> <span>Novo Lançamento</span>
+            <Plus size={16} /> <span>Novo Lançamento</span>
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
-        <table className="w-full text-left min-w-[800px]">
-          <thead className="bg-slate-50 border-b">
-            <tr>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Data Doc</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Vencimento</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Cartão</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Tipo</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Descrição / Local</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Itens / Observação</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase text-right">Valor</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase text-right">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {cardTransactions.length === 0 ? (
-              <tr><td colSpan={8} className="px-6 py-8 text-center text-slate-500 italic">Nenhum lançamento no cartão.</td></tr>
-            ) : cardTransactions.map((tx, idx) => {
-              const card = corporateCards.find(c => c.id === tx.cardId);
-              return (
-                <tr key={`${tx.type}-${tx.id}-${idx}`} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-slate-800 font-semibold">{formatDateDisplay(tx.date)}</td>
-                  <td className="px-6 py-4 text-sm text-indigo-700 font-bold">{formatDateDisplay(tx.dueDate || tx.date)}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{card?.name || '---'}</td>
-                  <td className="px-6 py-4">
-                    {tx.type === 'compra' ? (
-                      <span className="inline-flex items-center px-2 py-1 bg-rose-50 text-rose-700 rounded text-xs font-bold"><ArrowUpCircle size={14} className="mr-1"/> Compra</span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-1 bg-emerald-50 text-emerald-700 rounded text-xs font-bold"><ArrowDownCircle size={14} className="mr-1"/> Pagamento Fatura</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 font-semibold text-slate-800">{tx.description}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{tx.itemsDesc}</td>
-                  <td className={`px-6 py-4 font-black text-right ${tx.type === 'compra' ? 'text-rose-600' : 'text-emerald-600'}`}>
-                    {tx.type === 'compra' ? '+' : '-'}{formatCurrency(tx.amount)}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end space-x-1">
-                      <button onClick={() => handleEditTransaction(tx)} className="p-2 text-slate-400 hover:text-indigo-500 rounded-lg" title="Editar"><Edit size={18} /></button>
-                      <button onClick={() => handleDeleteTransaction(tx)} className="p-2 text-slate-400 hover:text-rose-500 rounded-lg" title="Excluir"><Trash2 size={18} /></button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden w-full">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-3 sm:px-4 py-3 text-[11px] font-bold text-slate-600 uppercase whitespace-nowrap">Data Doc</th>
+                <th className="px-3 sm:px-4 py-3 text-[11px] font-bold text-slate-600 uppercase whitespace-nowrap">Vencimento</th>
+                <th className="px-3 sm:px-4 py-3 text-[11px] font-bold text-slate-600 uppercase whitespace-nowrap">Cartão</th>
+                <th className="px-3 sm:px-4 py-3 text-[11px] font-bold text-slate-600 uppercase whitespace-nowrap">Tipo</th>
+                <th className="px-3 sm:px-4 py-3 text-[11px] font-bold text-slate-600 uppercase">Descrição / Local</th>
+                <th className="px-3 sm:px-4 py-3 text-[11px] font-bold text-slate-600 uppercase">Itens / Observação</th>
+                <th className="px-3 sm:px-4 py-3 text-[11px] font-bold text-slate-600 uppercase text-right whitespace-nowrap">Valor</th>
+                <th className="px-3 sm:px-4 py-3 text-[11px] font-bold text-slate-600 uppercase text-right whitespace-nowrap">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
+              {cardTransactions.length === 0 ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-500 italic">Nenhum lançamento no cartão.</td></tr>
+              ) : cardTransactions.map((tx, idx) => {
+                const card = corporateCards.find(c => c.id === tx.cardId);
+                return (
+                  <tr key={`${tx.type}-${tx.id}-${idx}`} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-800 font-semibold whitespace-nowrap">{formatDateDisplay(tx.date)}</td>
+                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-indigo-700 font-bold whitespace-nowrap">{formatDateDisplay(tx.dueDate || tx.date)}</td>
+                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 whitespace-nowrap">{card?.name || '---'}</td>
+                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 whitespace-nowrap">
+                      {tx.type === 'compra' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 bg-rose-50 text-rose-700 rounded text-xs font-bold"><ArrowUpCircle size={13} className="mr-1"/> Compra</span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-xs font-bold"><ArrowDownCircle size={13} className="mr-1"/> Pagamento Fatura</span>
+                      )}
+                    </td>
+                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 font-semibold text-slate-800 break-words max-w-[220px]">{tx.description}</td>
+                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-xs text-slate-500 break-words max-w-[180px]">{tx.itemsDesc}</td>
+                    <td className={`px-3 sm:px-4 py-2.5 sm:py-3 font-black text-right whitespace-nowrap ${tx.type === 'compra' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                      {tx.type === 'compra' ? '+' : '-'}{formatCurrency(tx.amount)}
+                    </td>
+                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right whitespace-nowrap">
+                      <div className="flex justify-end space-x-1">
+                        <button onClick={() => handleEditTransaction(tx)} className="p-1.5 text-slate-400 hover:text-indigo-500 rounded-lg" title="Editar"><Edit size={16} /></button>
+                        <button onClick={() => handleDeleteTransaction(tx)} className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg" title="Excluir"><Trash2 size={16} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Modal: Gerenciar Cartões */}

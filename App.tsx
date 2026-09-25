@@ -828,9 +828,9 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'pl-64' : 'pl-20'} print:pl-0`}>
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-40 print:hidden">
-          <h1 className="text-xl font-bold text-slate-800">
+      <main className={`flex-1 min-w-0 transition-all duration-300 ${isSidebarOpen ? 'pl-64' : 'pl-20'} print:pl-0`}>
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-40 print:hidden">
+          <h1 className="text-lg sm:text-xl font-bold text-slate-800 truncate pr-4">
             {currentView === 'dashboard' && 'Visão Geral'}
             {currentView === 'agenda' && 'Agenda de Tarefas'}
             {currentView === 'customers' && 'Gestão de Clientes'}
@@ -862,12 +862,12 @@ const App: React.FC = () => {
               sessionStorage.removeItem('dashboard_welcome_shown');
               await supabase.auth.signOut();
             }}
-            className="text-sm font-bold text-slate-500 hover:text-rose-500 transition-colors"
+            className="text-sm font-bold text-slate-500 hover:text-rose-500 transition-colors whitespace-nowrap"
           >
             Sair
           </button>
         </header>
-        <div className="p-8 print:p-0">{renderView()}</div>
+        <div className="p-4 sm:p-6 lg:p-8 print:p-0 min-w-0 w-full">{renderView()}</div>
       </main>
     </div>
   );
