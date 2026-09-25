@@ -80,7 +80,16 @@ export function useSupabaseSync<T extends { id: string }>(tableName: string, ini
                 });
             }
             if (addedOrUpdated.length > 0) {
-                const snakeCaseData = keysToSnake(addedOrUpdated);
+                let snakeCaseData = keysToSnake(addedOrUpdated);
+                if (tableName === 'expenses') {
+                    snakeCaseData = snakeCaseData.map((item: any) => {
+                        const copy = { ...item };
+                        delete copy.installments;
+                        delete copy.installments_list;
+                        delete copy.installmentsList;
+                        return copy;
+                    });
+                }
                 console.log(`Syncing ${addedOrUpdated.length} items to ${tableName}...`, snakeCaseData);
                 supabase.from(tableName).upsert(snakeCaseData).then(({ error, data }) => {
                     if (error) {

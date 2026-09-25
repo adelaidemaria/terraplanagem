@@ -460,6 +460,7 @@ const App: React.FC = () => {
           expenses={expenses} setExpenses={setExpenses}
           vendors={vendors} accountPlan={accountPlan}
           bankAccounts={bankAccounts}
+          corporateCards={corporateCards}
           onNavigateToReports={() => {
             setSelectedReportType('expensesByMonthFlat');
             setCurrentView('reports');

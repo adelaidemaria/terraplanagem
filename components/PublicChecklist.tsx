@@ -240,14 +240,15 @@ export default function PublicChecklist() {
 
   const handleSubmit = async (bypassSpeedCheck: any = false) => {
     // Validar se todos os itens foram checados
-    const pendingItems = Object.values(checklist).filter(item => item.status === 'PENDENTE');
+    const checklistItems = Object.values(checklist) as Array<{ status?: string }>;
+    const pendingItems = checklistItems.filter(item => item.status === 'PENDENTE');
     if (pendingItems.length > 0) {
       setError(`Ainda faltam ${pendingItems.length} itens para verificar.`);
       window.scrollTo(0, 0);
       return;
     }
 
-    const hasNC = Object.values(checklist).some(item => item.status === 'NC');
+    const hasNC = checklistItems.some(item => item.status === 'NC');
     if (hasNC) {
       if (!observations.trim()) {
         setError("Como há itens marcados como 'NÃO', é obrigatório relatar o problema no campo Observações.");

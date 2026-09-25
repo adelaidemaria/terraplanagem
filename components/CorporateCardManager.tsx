@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  CreditCard, Plus, Search, Edit, Trash2, X, AlertTriangle, ArrowUpCircle, ArrowDownCircle, Settings
+  CreditCard, Plus, Search, Edit, Trash2, X, AlertTriangle, ArrowUpCircle, ArrowDownCircle, Settings, Calendar
 } from 'lucide-react';
 import { CorporateCard, CorporateCardPayment, Expense, Vendor, AccountPlan, BankAccount, ExpenseItem } from '../types';
 
@@ -60,6 +60,25 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
   // Manage Cards Form
   const [cardFormData, setCardFormData] = useState<Partial<CorporateCard>>({ name: '', dueDay: 10 });
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
+
+  const getSuggestedCardDueDate = (cardId: string, currentEditingTxId?: string | null) => {
+    if (!cardId) return '';
+    const lastCardExpense = expenses
+      .filter(ex => ex.cardId === cardId && ex.dueDate && ex.id !== currentEditingTxId)
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+    if (lastCardExpense?.dueDate) {
+      return lastCardExpense.dueDate;
+    }
+    const cardObj = corporateCards.find(c => c.id === cardId);
+    if (cardObj?.dueDay) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(cardObj.dueDay).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    return '';
+  };
 
   // Lancamento Form (Compra = Expense, Pagamento = CorporateCardPayment)
   const defaultExpenseData: Partial<Expense> = {
@@ -163,7 +182,8 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
     // Compras
     expenses.filter(e => e.paymentMethod === 'Cartão Corporativo' && e.cardId).forEach(e => {
       if (selectedCardId === 'all' || e.cardId === selectedCardId) {
-        const d = new Date(e.date).getTime();
+        const targetDate = e.dueDate || e.date;
+        const d = new Date(targetDate).getTime();
         const start = new Date(startDate).getTime();
         const end = new Date(endDate).getTime();
         
@@ -174,6 +194,7 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
                  type: 'compra',
                  id: e.id,
                  date: e.date,
+                 dueDate: targetDate,
                  cardId: e.cardId,
                  description: e.vendorName,
                  itemsDesc: e.items?.map(i => i.description).join(', ') || '',
@@ -198,6 +219,7 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
               type: 'pagamento',
               id: p.id,
               date: p.date,
+              dueDate: p.date,
               cardId: p.cardId,
               description: p.description || 'Pagamento',
               itemsDesc: bankAccounts.find(b => b.id === p.bankAccountId)?.bankName || '',
@@ -209,7 +231,7 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
       }
     });
 
-    return transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return transactions.sort((a, b) => new Date(b.dueDate || b.date).getTime() - new Date(a.dueDate || a.date).getTime());
   }, [expenses, corporateCardPayments, selectedCardId, searchTerm, bankAccounts, startDate, endDate]);
 
   const handleSaveCard = (e: React.FormEvent) => {
@@ -285,7 +307,7 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
         paymentMethod: 'Cartão Corporativo',
         paymentCondition: 'A Vista', // default
         status: 'Pago',
-        dueDate: expenseFormData.date!,
+        dueDate: expenseFormData.dueDate || expenseFormData.date!,
         paymentDate: expenseFormData.date!,
         amountPaid: total,
         cardId: expenseFormData.cardId,
@@ -298,9 +320,11 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
       } else {
         setExpenses(prev => [newExpense, ...prev]);
         // reset form but KEEP OPEN for next entry
+        const nextDueDate = getSuggestedCardDueDate(expenseFormData.cardId || '');
         setExpenseFormData({
           ...defaultExpenseData,
           cardId: expenseFormData.cardId,
+          dueDate: nextDueDate || expenseFormData.dueDate,
           vendorId: vendors.find(v => v.name === 'SEM CADASTRO (CARTÃO)')?.id || '',
           items: [{ id: crypto.randomUUID(), description: '', value: 0 }]
         });
@@ -451,18 +475,21 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
             onClick={() => {
               if (corporateCards.length === 0) return alert('Cadastre um cartão corporativo primeiro.');
               const defaultVendorId = vendors.find(v => v.name === 'SEM CADASTRO (CARTÃO)')?.id || '';
+              const targetCardId = selectedCardId !== 'all' ? selectedCardId : (corporateCards[0]?.id || '');
+              const targetDueDate = getSuggestedCardDueDate(targetCardId, null);
               setModalMode('add');
               setEditingTxId(null);
               setExpenseFormData({
                 ...defaultExpenseData,
                 vendorId: defaultVendorId,
-                cardId: selectedCardId !== 'all' ? selectedCardId : (corporateCards[0]?.id || ''),
+                cardId: targetCardId,
+                dueDate: targetDueDate,
                 items: [{ id: crypto.randomUUID(), description: '', value: 0 }]
               });
               
               setPaymentFormData({
                 ...defaultPaymentData,
-                cardId: selectedCardId !== 'all' ? selectedCardId : (corporateCards[0]?.id || '')
+                cardId: targetCardId
               });
               
               setIsLancarModalOpen(true);
@@ -478,7 +505,8 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
         <table className="w-full text-left min-w-[800px]">
           <thead className="bg-slate-50 border-b">
             <tr>
-              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Data</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Data Doc</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Vencimento</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Cartão</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Tipo</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-600 uppercase">Descrição / Local</th>
@@ -489,12 +517,13 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {cardTransactions.length === 0 ? (
-              <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500 italic">Nenhum lançamento no cartão.</td></tr>
+              <tr><td colSpan={8} className="px-6 py-8 text-center text-slate-500 italic">Nenhum lançamento no cartão.</td></tr>
             ) : cardTransactions.map((tx, idx) => {
               const card = corporateCards.find(c => c.id === tx.cardId);
               return (
                 <tr key={`${tx.type}-${tx.id}-${idx}`} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 text-sm text-slate-800 font-semibold">{formatDateDisplay(tx.date)}</td>
+                  <td className="px-6 py-4 text-sm text-indigo-700 font-bold">{formatDateDisplay(tx.dueDate || tx.date)}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{card?.name || '---'}</td>
                   <td className="px-6 py-4">
                     {tx.type === 'compra' ? (
@@ -602,7 +631,12 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
                   value={lancamentoTab === 'compra' ? expenseFormData.cardId : paymentFormData.cardId}
                   onChange={(e) => {
                     const id = e.target.value;
-                    setExpenseFormData(prev => ({...prev, cardId: id}));
+                    const suggestedDueDate = getSuggestedCardDueDate(id, editingTxId);
+                    setExpenseFormData(prev => ({
+                      ...prev,
+                      cardId: id,
+                      dueDate: suggestedDueDate || prev.dueDate
+                    }));
                     setPaymentFormData(prev => ({...prev, cardId: id}));
                   }}
                 >
@@ -612,10 +646,16 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
 
               {lancamentoTab === 'compra' ? (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-1">Data da Compra *</label>
-                      <input type="date" required className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-500" value={expenseFormData.date} onChange={e => setExpenseFormData({...expenseFormData, date: e.target.value})} />
+                      <input type="date" required className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium" value={expenseFormData.date} onChange={e => setExpenseFormData({...expenseFormData, date: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                        <Calendar size={14} className="text-indigo-600" /> Vencimento Fatura *
+                      </label>
+                      <input type="date" required className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-950 text-sm" value={expenseFormData.dueDate || ''} onChange={e => setExpenseFormData({...expenseFormData, dueDate: e.target.value})} />
                     </div>
                     <div className="flex items-center pt-6">
                       <label className="flex items-center space-x-2 cursor-pointer">
@@ -738,25 +778,73 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
       {/* Modal: Confirm Exclusion (Professional Style) */}
       {deleteConfirmTx && (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border-t-4 border-rose-500">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border-t-4 border-rose-500">
             <h3 className="text-lg font-bold mb-2 flex items-center text-rose-600"><AlertTriangle className="mr-2" /> Atenção!</h3>
-            <p className="text-sm text-slate-600 mb-6 font-medium">
-              Deseja excluir definitivamente este lançamento de {deleteConfirmTx.type === 'compra' ? 'compra' : 'pagamento'} do dia {formatDateDisplay(deleteConfirmTx.date)}? Esta ação não pode ser desfeita.
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button 
-                onClick={() => setDeleteConfirmTx(null)} 
-                className="px-4 py-2 text-slate-500 font-bold"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={handleConfirmDelete} 
-                className="px-6 py-2 bg-rose-500 text-white font-bold rounded-lg shadow-lg hover:bg-rose-600 transition-colors"
-              >
-                Confirmar Exclusão
-              </button>
-            </div>
+            
+            {deleteConfirmTx.type === 'compra' && (deleteConfirmTx.original?.docNumber?.includes('Parcela') || deleteConfirmTx.original?.invoiceTotalValue) ? (
+              <>
+                <p className="text-sm text-slate-600 mb-3 font-medium">
+                  Este lançamento é referente a uma compra no Cartão Corporativo. Como deseja prosseguir com a exclusão?
+                </p>
+                <div className="p-3 bg-slate-100 rounded-lg text-xs font-bold text-slate-700 mb-4 space-y-1">
+                  <p>Documento: <span className="text-slate-900">{deleteConfirmTx.original?.docNumber || 'S/N'}</span></p>
+                  <p>Fornecedor: <span className="text-slate-900">{deleteConfirmTx.description}</span></p>
+                  {deleteConfirmTx.original?.invoiceTotalValue && (
+                    <p>Valor Total da NF: <span className="text-rose-600">{formatCurrency(deleteConfirmTx.original.invoiceTotalValue)}</span></p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  <button
+                    onClick={handleConfirmDelete}
+                    className="w-full py-2.5 px-4 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold rounded-xl transition-colors text-xs text-left"
+                  >
+                    🗑️ Excluir apenas esta parcela ({formatCurrency(deleteConfirmTx.amount)})
+                  </button>
+                  <button
+                    onClick={() => {
+                      const targetExp = deleteConfirmTx.original as Expense;
+                      const baseDoc = targetExp?.docNumber ? targetExp.docNumber.split(' - Parcela')[0].trim() : '';
+                      setExpenses(prev => prev.filter(e => {
+                        if (baseDoc && e.docNumber) {
+                          const eBaseDoc = e.docNumber.split(' - Parcela')[0].trim();
+                          if (eBaseDoc === baseDoc && e.vendorId === targetExp?.vendorId && e.paymentMethod === 'Cartão Corporativo') {
+                            return false;
+                          }
+                        }
+                        return e.id !== deleteConfirmTx.id;
+                      }));
+                      setDeleteConfirmTx(null);
+                    }}
+                    className="w-full py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition-colors text-xs text-left"
+                  >
+                    💣 Excluir COMPRA COMPLETA (Todas as parcelas da NF)
+                  </button>
+                  <button onClick={() => setDeleteConfirmTx(null)} className="w-full py-2 text-slate-500 font-bold text-xs mt-1">
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-slate-600 mb-6 font-medium">
+                  Deseja excluir definitivamente este lançamento de {deleteConfirmTx.type === 'compra' ? 'compra' : 'pagamento'} do dia {formatDateDisplay(deleteConfirmTx.date)}? Esta ação não pode ser desfeita.
+                </p>
+                <div className="flex justify-end space-x-3">
+                  <button 
+                    onClick={() => setDeleteConfirmTx(null)} 
+                    className="px-4 py-2 text-slate-500 font-bold text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={handleConfirmDelete} 
+                    className="px-6 py-2 bg-rose-500 text-white font-bold rounded-lg shadow-lg hover:bg-rose-600 transition-colors text-sm"
+                  >
+                    Confirmar Exclusão
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

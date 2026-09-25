@@ -450,7 +450,7 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                (activeTab === 'abertos' ? openOrders : finishedOrders).map(order => {
                   const orderItems = workOrderItems.filter(i => i.workOrderId === order.id);
                   const itemsCount = orderItems.length;
-                  const uniqueDates = Array.from(new Set(orderItems.map(i => i.date))).sort();
+                  const uniqueDates = Array.from(new Set(orderItems.map(i => i.date))).sort() as string[];
                   const isActive = selectedOrderId === order.id;
                   return (
                     <div 

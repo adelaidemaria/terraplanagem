@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Plus, Search, Edit, Trash2, X, FileText, Eye, AlertTriangle, BookOpen, CheckCircle, CreditCard, Building2, Printer
+  Plus, Search, Edit, Trash2, X, FileText, Eye, AlertTriangle, BookOpen, CheckCircle, CreditCard, Building2, Printer, Calendar
 } from 'lucide-react';
-import { Expense, Vendor, AccountPlan, ExpenseItem, BankAccount } from '../types';
+import { Expense, Vendor, AccountPlan, ExpenseItem, BankAccount, CorporateCard } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface ExpenseManagerProps {
@@ -12,6 +12,7 @@ interface ExpenseManagerProps {
   vendors: Vendor[];
   accountPlan: AccountPlan[];
   bankAccounts: BankAccount[];
+  corporateCards?: CorporateCard[];
   onNavigateToReports: () => void;
 }
 
@@ -38,7 +39,7 @@ const getStatusColor = (expense: Expense) => {
   return label === 'PENDENTE' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700';
 };
 
-const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, vendors, accountPlan, bankAccounts, onNavigateToReports }) => {
+const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, vendors, accountPlan, bankAccounts, corporateCards = [], onNavigateToReports }) => {
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString('en-CA');
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toLocaleDateString('en-CA');
@@ -151,8 +152,94 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
     );
   }, [vendors, newVendorsCache, vendorSearchTerm, formData.vendorId]);
 
+  const consolidatedExpenses = useMemo(() => {
+    const groupMap = new Map<string, Expense[]>();
+    const standaloneMap = new Map<string, Expense>();
+
+    expenses.forEach(e => {
+      // For corporate card, ensure vendor status is always 'Pago'
+      const updated = e.paymentMethod === 'Cartão Corporativo' ? { ...e, status: 'Pago' as const } : e;
+      const hasParcelaDoc = updated.docNumber && updated.docNumber.includes(' - Parcela ');
+
+      if (hasParcelaDoc) {
+        const baseDoc = updated.docNumber.split(' - Parcela ')[0].trim();
+        const key = `${updated.vendorId}_${baseDoc}`;
+        if (!groupMap.has(key)) groupMap.set(key, []);
+        groupMap.get(key)!.push(updated);
+      } else {
+        const baseDoc = updated.docNumber ? updated.docNumber.trim() : updated.id;
+        const key = `${updated.vendorId}_${baseDoc}`;
+        standaloneMap.set(key, updated);
+      }
+    });
+
+    const result: Expense[] = Array.from(standaloneMap.values());
+
+    groupMap.forEach((items, key) => {
+      items.sort((a, b) => {
+        const numA = parseInt(a.docNumber.split(' - Parcela ')[1]?.split('/')[0] || '1');
+        const numB = parseInt(b.docNumber.split(' - Parcela ')[1]?.split('/')[0] || '1');
+        return numA - numB;
+      });
+
+      const first = items[0];
+      const baseDoc = first.docNumber.split(' - Parcela ')[0].trim();
+      const existingIdx = result.findIndex(r => r.vendorId === first.vendorId && r.docNumber?.trim() === baseDoc);
+
+      const totalVal = items.reduce((sum, item) => sum + item.totalValue, 0);
+      const invoiceTotal = first.invoiceTotalValue || totalVal;
+
+      const installmentsList = items.map((item, idx) => ({
+        id: item.id,
+        number: idx + 1,
+        dueDate: item.dueDate || item.date,
+        value: item.totalValue,
+        status: item.status
+      }));
+
+      const cleanItems = (first.items || []).map(item => ({
+        ...item,
+        description: item.description.replace(/^Parcela \d+\/\d+ - /, ''),
+        value: invoiceTotal
+      }));
+
+      const isCard = first.paymentMethod === 'Cartão Corporativo';
+      const allPaid = items.every(i => i.status === 'Pago');
+
+      const consolidatedItem: Expense = {
+        ...first,
+        docNumber: baseDoc,
+        items: cleanItems.length > 0 ? cleanItems : [{ id: crypto.randomUUID(), description: `Compra ${baseDoc}`, value: invoiceTotal }],
+        totalValue: invoiceTotal,
+        invoiceTotalValue: invoiceTotal,
+        paymentCondition: 'A Prazo',
+        installments: items.length,
+        installmentsList: installmentsList,
+        status: isCard || allPaid ? 'Pago' : 'Pendente',
+        dueDate: first.dueDate || first.date
+      };
+
+      if (existingIdx !== -1) {
+        result[existingIdx] = {
+          ...result[existingIdx],
+          docNumber: baseDoc,
+          items: cleanItems.length > 0 ? cleanItems : result[existingIdx].items,
+          totalValue: Math.max(result[existingIdx].totalValue, invoiceTotal),
+          paymentCondition: 'A Prazo',
+          installments: items.length,
+          installmentsList: installmentsList,
+          status: isCard || allPaid ? 'Pago' : result[existingIdx].status
+        };
+      } else {
+        result.push(consolidatedItem);
+      }
+    });
+
+    return result;
+  }, [expenses]);
+
   const filteredExpenses = useMemo(() => {
-    return expenses
+    return consolidatedExpenses
       .filter(e => {
         const docDate = e.date;
         const dueDate = e.dueDate || e.date;
@@ -160,8 +247,6 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
         const matchesSearch = e.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (e.docNumber && e.docNumber.includes(searchTerm));
         
-        // Melhora na Experiência: Se estiver pesquisando por texto, ignora a data inicial 
-        // para encontrar registros antigos sem precisar mudar o seletor de período.
         const matchesDate = (searchTerm || !startDate || docDate >= startDate || dueDate >= startDate) && 
                            (!endDate || docDate <= endDate || dueDate <= endDate);
 
@@ -176,18 +261,39 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
         return matchesSearch && matchesDate && matchesNf;
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [expenses, searchTerm, startDate, endDate, nfFilter]);
+  }, [consolidatedExpenses, searchTerm, startDate, endDate, nfFilter]);
+
+  const getSuggestedCardDueDate = (cardId: string, currentEditingId?: string | null) => {
+    if (!cardId) return '';
+    const lastCardExpense = expenses
+      .filter(ex => ex.cardId === cardId && ex.dueDate && ex.id !== currentEditingId)
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+    if (lastCardExpense?.dueDate) {
+      return lastCardExpense.dueDate;
+    }
+    const cardObj = corporateCards.find(c => c.id === cardId);
+    if (cardObj?.dueDay) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(cardObj.dueDay).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    return '';
+  };
 
   const handleOpenAdd = () => {
     if (vendors.length === 0) return alert('Cadastre um fornecedor primeiro.');
     setEditingId(null);
     setIsSubmitting(false);
     setModalMode('add');
+    const defaultCard = corporateCards && corporateCards.length > 0 ? corporateCards[0].id : '';
+    const defaultDueDate = defaultCard ? getSuggestedCardDueDate(defaultCard) : '';
     setFormData({
       vendorId: '', accountPlanId: '', items: [{ id: crypto.randomUUID(), description: '', value: 0 }],
       docNumber: '', isNoDoc: false, paymentMethod: 'Boleto', paymentCondition: 'A Vista', installments: 1, installmentsList: [],
       date: new Date().toLocaleDateString('en-CA'),
-      dueDate: '', status: 'Pendente'
+      dueDate: defaultDueDate, status: 'Pendente', cardId: defaultCard
     });
     setIsModalOpen(true);
   };
@@ -196,7 +302,19 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
     setEditingId(expense.id);
     setIsSubmitting(false);
     setModalMode(mode);
-    setFormData({ ...expense });
+
+    const total = expense.totalValue;
+    const items = (expense.items || []).map(i => ({
+      ...i,
+      description: i.description.replace(/^Parcela \d+\/\d+ - /, ''),
+      value: expense.items && expense.items.length === 1 ? total : i.value
+    }));
+
+    setFormData({
+      ...expense,
+      items: items.length > 0 ? items : [{ id: crypto.randomUUID(), description: `Despesa ${expense.docNumber || 'S/N'}`, value: total }],
+      installments: expense.installments || expense.installmentsList?.length || 1
+    });
     setUploadError(null);
     setIsModalOpen(true);
   };
@@ -211,7 +329,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `receipts/${fileName}`; // Changed to avoid nested folders since not required
+      const filePath = `receipts/${fileName}`;
 
       const { data, error } = await supabase.storage
         .from('receipts')
@@ -233,7 +351,17 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
   };
 
   const handleDelete = (id: string) => {
-    setExpenses(prev => prev.filter(e => e.id !== id));
+    const target = expenses.find(e => e.id === id) || consolidatedExpenses.find(e => e.id === id);
+    const baseDoc = target?.docNumber ? target.docNumber.split(' - Parcela')[0].trim() : '';
+
+    setExpenses(prev => prev.filter(e => {
+      if (e.id === id) return false;
+      if (baseDoc && e.docNumber) {
+        const eBaseDoc = e.docNumber.split(' - Parcela')[0].trim();
+        if (eBaseDoc === baseDoc && e.vendorId === target?.vendorId) return false;
+      }
+      return true;
+    }));
     setDeleteConfirmId(null);
   };
 
@@ -311,78 +439,125 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
 
     const total = calculateTotal();
     if (!formData.vendorId || !formData.accountPlanId || total <= 0) return alert('Preencha os campos obrigatórios.');
-    if (formData.status === 'Pago' && !formData.bankAccountId) return alert('Selecione uma conta bancária para o pagamento.');
+
+    const isCard = formData.paymentMethod === 'Cartão Corporativo';
+
+    if (isCard) {
+      if (corporateCards && corporateCards.length > 0 && !formData.cardId) {
+        return alert('Selecione o Cartão Corporativo.');
+      }
+    } else {
+      if (formData.status === 'Pago' && !formData.bankAccountId) return alert('Selecione uma conta bancária para o pagamento.');
+    }
 
     setIsSubmitting(true);
 
     const vendor = vendors.find(v => v.id === formData.vendorId);
-    let expensesToSave: Expense[] = [];
+    const selectedCardId = formData.cardId || (corporateCards && corporateCards[0]?.id) || '';
 
-    // Se estiver no form 'A Prazo' com lista de parcelas geradas no modo INSERIR
-    if (!editingId && formData.paymentCondition === 'A Prazo' && formData.installmentsList && formData.installmentsList.length > 0) {
-      expensesToSave = formData.installmentsList.map(inst => ({
-        id: crypto.randomUUID(),
-        vendorId: formData.vendorId!,
-        vendorName: vendor?.name || '---',
-        accountPlanId: formData.accountPlanId!,
-        // Prorrateia o valor dos itens para que o total de itens case com o total da parcela
-        items: (formData.items || []).map(item => ({
-          ...item,
-          id: crypto.randomUUID(),
-          description: `Parcela ${inst.number}/${formData.installments} - ${item.description}`,
-          value: Number(((item.value / total) * inst.value).toFixed(2))
-        })),
-        totalValue: inst.value,
-        invoiceTotalValue: total,
-        date: formData.date!,
-        docNumber: `${formData.docNumber || 'S/N'} - Parcela ${inst.number}/${formData.installments}`,
-        isNoDoc: formData.isNoDoc || false,
-        paymentMethod: formData.paymentMethod || 'Boleto',
-        paymentCondition: 'A Prazo',
-        dueDate: inst.dueDate,
-        status: inst.status as any || 'Pendente',
-        receiptUrl: formData.receiptUrl,
-        createdAt: Date.now()
-      }));
+    const singleExpense: Expense = {
+      id: editingId || crypto.randomUUID(),
+      vendorId: formData.vendorId!,
+      vendorName: vendor?.name || '---',
+      accountPlanId: formData.accountPlanId!,
+      cardId: isCard ? selectedCardId : undefined,
+      items: formData.items || [],
+      totalValue: total,
+      invoiceTotalValue: total,
+      date: formData.date!,
+      docNumber: formData.docNumber?.split(' - Parcela')[0].trim() || 'S/N',
+      isNoDoc: formData.isNoDoc || false,
+      paymentMethod: isCard ? 'Cartão Corporativo' : (formData.paymentMethod || 'Boleto'),
+      paymentCondition: formData.paymentCondition || 'A Vista',
+      installments: formData.installments || 1,
+      installmentsList: (formData.paymentCondition === 'A Prazo' && formData.installmentsList && formData.installmentsList.length > 0)
+        ? formData.installmentsList
+        : undefined,
+      dueDate: formData.installmentsList?.[0]?.dueDate || formData.dueDate || formData.date!,
+      status: isCard ? 'Pago' : (formData.status as any || 'Pendente'),
+      paymentDate: isCard ? formData.date : (formData.status === 'Pago' ? (formData.paymentDate || formData.date) : undefined),
+      amountPaid: isCard ? total : (formData.status === 'Pago' ? total : undefined),
+      bankAccountId: !isCard && formData.status === 'Pago' ? formData.bankAccountId : undefined,
+      receiptUrl: formData.receiptUrl,
+      paymentReceiptUrl: formData.paymentReceiptUrl,
+      createdAt: editingId ? (formData.createdAt || Date.now()) : Date.now()
+    };
+
+    const baseDoc = formData.docNumber?.split(' - Parcela')[0].trim() || 'S/N';
+    const baseDesc = (formData.items && formData.items.length > 0 && formData.items[0].description)
+      ? formData.items[0].description.replace(/^Parcela \d+\/\d+ - /, '')
+      : `Compra ${baseDoc}`;
+
+    const isMultiParcela = formData.paymentCondition === 'A Prazo' && formData.installmentsList && formData.installmentsList.length > 1;
+
+    let newExpensesToSave: Expense[] = [];
+
+    if (isMultiParcela) {
+      const totalCount = formData.installmentsList!.length;
+      newExpensesToSave = formData.installmentsList!.map((inst, idx) => {
+        const pNum = inst.number || (idx + 1);
+        const pVal = inst.value;
+        const pDoc = `${baseDoc} - Parcela ${pNum}/${totalCount}`;
+        return {
+          id: inst.id || crypto.randomUUID(),
+          vendorId: formData.vendorId!,
+          vendorName: vendor?.name || '---',
+          accountPlanId: formData.accountPlanId!,
+          cardId: isCard ? selectedCardId : undefined,
+          items: [{
+            id: crypto.randomUUID(),
+            description: `Parcela ${pNum}/${totalCount} - ${baseDesc}`,
+            value: pVal
+          }],
+          totalValue: pVal,
+          invoiceTotalValue: total,
+          date: formData.date!,
+          docNumber: pDoc,
+          isNoDoc: formData.isNoDoc || false,
+          paymentMethod: isCard ? 'Cartão Corporativo' : (formData.paymentMethod || 'Boleto'),
+          paymentCondition: 'A Prazo',
+          dueDate: inst.dueDate || formData.date!,
+          status: isCard ? 'Pago' : (inst.status as any || 'Pendente'),
+          paymentDate: isCard ? formData.date : undefined,
+          amountPaid: isCard ? pVal : undefined,
+          bankAccountId: !isCard && inst.status === 'Pago' ? formData.bankAccountId : undefined,
+          receiptUrl: formData.receiptUrl,
+          paymentReceiptUrl: formData.paymentReceiptUrl,
+          createdAt: Date.now() + idx
+        };
+      });
     } else {
-      // Criação Padrão / Vista ou Modo Edição Unitária
-      expensesToSave = [{
-        id: editingId || crypto.randomUUID(),
-        vendorId: formData.vendorId!,
-        vendorName: vendor?.name || '---',
-        accountPlanId: formData.accountPlanId!,
-        items: formData.items || [],
-        totalValue: total,
-        date: formData.date!,
-        docNumber: formData.docNumber || '',
-        isNoDoc: formData.isNoDoc || false,
-        paymentMethod: formData.paymentMethod || 'Boleto',
-        paymentCondition: formData.paymentCondition || 'A Vista',
-        dueDate: formData.dueDate,
-        status: formData.status as any || 'Pendente',
-        receiptUrl: formData.receiptUrl,
-        paymentReceiptUrl: formData.paymentReceiptUrl,
-        bankAccountId: formData.status === 'Pago' ? formData.bankAccountId : undefined,
-        paymentDate: formData.status === 'Pago' ? (formData.paymentDate || formData.date) : undefined,
-        amountPaid: formData.status === 'Pago' ? total : undefined,
-        createdAt: editingId ? (formData.createdAt || Date.now()) : Date.now()
-      }];
+      newExpensesToSave = [singleExpense];
     }
 
     if (editingId) {
-      setExpenses(prev => prev.map(ex => ex.id === editingId ? expensesToSave[0] : ex));
+      const target = expenses.find(e => e.id === editingId) || consolidatedExpenses.find(e => e.id === editingId);
+      const targetBaseDoc = target?.docNumber ? target.docNumber.split(' - Parcela')[0].trim() : '';
+
+      setExpenses(prev => {
+        const filtered = prev.filter(ex => {
+          if (ex.id === editingId) return false;
+          if (targetBaseDoc && ex.docNumber) {
+            const exBase = ex.docNumber.split(' - Parcela')[0].trim();
+            if (exBase === targetBaseDoc && ex.vendorId === target?.vendorId) return false;
+          }
+          return true;
+        });
+        return [...newExpensesToSave, ...filtered];
+      });
+
       setTimeout(() => {
         setIsSubmitting(false);
       }, 500);
       setIsModalOpen(false);
     } else {
-      setExpenses(prev => [...expensesToSave, ...prev]);
+      setExpenses(prev => [...newExpensesToSave, ...prev]);
+      const defaultCard = corporateCards && corporateCards.length > 0 ? corporateCards[0].id : '';
       setFormData({
-
         vendorId: '', accountPlanId: '', items: [{ id: crypto.randomUUID(), description: '', value: 0 }],
         docNumber: '', isNoDoc: false, paymentMethod: 'Boleto', paymentCondition: 'A Vista', installments: 1, installmentsList: [],
         date: new Date().toLocaleDateString('en-CA'),
-        dueDate: '', status: 'Pendente'
+        dueDate: '', status: 'Pendente', cardId: defaultCard
       });
       setTimeout(() => {
         setIsSubmitting(false);
@@ -603,23 +778,9 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                   <div className="flex justify-end space-x-1" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => handleOpenEdit(expense, 'view')} className="p-2 text-slate-400 hover:text-blue-500 rounded-lg" title="Ver Detalhes"><Eye size={18} /></button>
                     {!isCardExpense && (
-                      <>
-                        <button onClick={() => handleOpenEdit(expense, 'edit')} className="p-2 text-slate-400 hover:text-amber-500 rounded-lg" title="Editar"><Edit size={18} /></button>
-                        <button onClick={() => setDeleteConfirmId(expense.id)} className="p-2 text-slate-400 hover:text-rose-500 rounded-lg" title="Excluir"><Trash2 size={18} /></button>
-                      </>
+                      <button onClick={() => handleOpenEdit(expense, 'edit')} className="p-2 text-slate-400 hover:text-amber-500 rounded-lg" title="Editar"><Edit size={18} /></button>
                     )}
-                    {isCardExpense && (
-                      <div className="group relative flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-                        <div className="p-2 text-blue-400/60 hover:text-blue-500 transition-colors cursor-help">
-                          <CreditCard size={18} />
-                        </div>
-                        <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 w-48 p-3 bg-slate-900 text-white text-[10px] rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 pointer-events-none shadow-2xl z-50 text-center font-bold leading-tight border border-slate-700">
-                          <div className="text-blue-400 mb-1 uppercase tracking-widest">Atenção</div>
-                          Este lançamento é gerenciado exclusivamente pela tela de Cartão Corporativo.
-                          <div className="absolute left-full top-1/2 -translate-y-1/2 border-8 border-transparent border-l-slate-900"></div>
-                        </div>
-                      </div>
-                    )}
+                    <button onClick={() => setDeleteConfirmId(expense.id)} className="p-2 text-slate-400 hover:text-rose-500 rounded-lg" title="Excluir"><Trash2 size={18} /></button>
                   </div>
                 </td>
               </tr>
@@ -629,18 +790,71 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
         </table>
       </div>
 
-      {deleteConfirmId && (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border-t-4 border-rose-500">
-            <h3 className="text-lg font-bold mb-2 flex items-center text-rose-600"><AlertTriangle className="mr-2" /> Atenção!</h3>
-            <p className="text-sm text-slate-600 mb-6 font-medium">Deseja excluir definitivamente este lançamento de despesa? Esta ação não pode ser desfeita.</p>
-            <div className="flex justify-end space-x-3">
-              <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 text-slate-500 font-bold">Cancelar</button>
-              <button onClick={() => handleDelete(deleteConfirmId)} className="px-6 py-2 bg-rose-500 text-white font-bold rounded-lg shadow-lg">Confirmar Exclusão</button>
+      {deleteConfirmId && (() => {
+        const targetExpense = expenses.find(e => e.id === deleteConfirmId);
+        const isCard = targetExpense?.paymentMethod === 'Cartão Corporativo';
+        const isParcel = targetExpense?.docNumber?.includes('Parcela') || (targetExpense?.invoiceTotalValue && targetExpense.invoiceTotalValue > targetExpense.totalValue);
+        const baseDoc = targetExpense?.docNumber ? targetExpense.docNumber.split(' - Parcela')[0].trim() : '';
+
+        return (
+          <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border-t-4 border-rose-500">
+              <h3 className="text-lg font-bold mb-2 flex items-center text-rose-600"><AlertTriangle className="mr-2" /> Atenção!</h3>
+              
+              {isCard && isParcel ? (
+                <>
+                  <p className="text-sm text-slate-600 mb-3 font-medium">
+                    Este lançamento é uma parcela de compra no Cartão Corporativo. Como deseja prosseguir com a exclusão?
+                  </p>
+                  <div className="p-3 bg-slate-100 rounded-lg text-xs font-bold text-slate-700 mb-4 space-y-1">
+                    <p>Documento: <span className="text-slate-900">{targetExpense?.docNumber}</span></p>
+                    <p>Fornecedor: <span className="text-slate-900">{targetExpense?.vendorName}</span></p>
+                    {targetExpense?.invoiceTotalValue && (
+                      <p>Valor Total da NF: <span className="text-rose-600">{formatCurrency(targetExpense.invoiceTotalValue)}</span></p>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    <button
+                      onClick={() => handleDelete(deleteConfirmId)}
+                      className="w-full py-2.5 px-4 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold rounded-xl transition-colors text-xs text-left flex items-center justify-between"
+                    >
+                      <span>🗑️ Excluir apenas esta parcela ({formatCurrency(targetExpense?.totalValue || 0)})</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setExpenses(prev => prev.filter(e => {
+                          if (baseDoc && e.docNumber) {
+                            const eBaseDoc = e.docNumber.split(' - Parcela')[0].trim();
+                            if (eBaseDoc === baseDoc && e.vendorId === targetExpense?.vendorId && e.paymentMethod === 'Cartão Corporativo') {
+                              return false;
+                            }
+                          }
+                          return e.id !== deleteConfirmId;
+                        }));
+                        setDeleteConfirmId(null);
+                      }}
+                      className="w-full py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition-colors text-xs text-left flex items-center justify-between"
+                    >
+                      <span>💣 Excluir COMPRA COMPLETA (Todas as parcelas da NF)</span>
+                    </button>
+                    <button onClick={() => setDeleteConfirmId(null)} className="w-full py-2 text-slate-500 font-bold text-xs mt-1">
+                      Cancelar
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-600 mb-6 font-medium">Deseja excluir definitivamente este lançamento de despesa? Esta ação não pode ser desfeita.</p>
+                  <div className="flex justify-end space-x-3">
+                    <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 text-slate-500 font-bold text-sm">Cancelar</button>
+                    <button onClick={() => handleDelete(deleteConfirmId)} className="px-6 py-2 bg-rose-500 text-white font-bold rounded-lg shadow-lg hover:bg-rose-600 text-sm">Confirmar Exclusão</button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -936,7 +1150,19 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                     <select
                       disabled={modalMode === 'view'}
                       className="w-full px-4 py-2 border rounded-lg bg-white border-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
-                      value={formData.paymentMethod} onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                      value={formData.paymentMethod} onChange={(e) => {
+                        const method = e.target.value;
+                        const updates: any = { paymentMethod: method };
+                        if (method === 'Cartão Corporativo') {
+                          const cardIdToUse = formData.cardId || (corporateCards.length > 0 ? corporateCards[0].id : '');
+                          if (cardIdToUse) {
+                            updates.cardId = cardIdToUse;
+                            const suggested = getSuggestedCardDueDate(cardIdToUse, editingId);
+                            if (suggested) updates.dueDate = suggested;
+                          }
+                        }
+                        setFormData({ ...formData, ...updates });
+                      }}
                     >
                       <option value="Boleto">Boleto</option>
                       <option value="PIX">PIX</option>
@@ -959,8 +1185,61 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, setExpenses, 
                   </div>
                 </div>
 
+                {formData.paymentMethod === 'Cartão Corporativo' && (
+                  <div className="bg-indigo-50/80 p-4 rounded-xl border border-indigo-200 animate-in fade-in space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                      <div>
+                        <label className="block text-sm font-bold text-indigo-900 mb-1 flex items-center gap-2">
+                          <CreditCard size={16} className="text-indigo-600" />
+                          Selecione o Cartão Corporativo *
+                        </label>
+                        <select
+                          disabled={modalMode === 'view'}
+                          required
+                          className="w-full px-4 py-2 border rounded-lg bg-white border-indigo-300 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-950 text-sm shadow-sm"
+                          value={formData.cardId || ''}
+                          onChange={(e) => {
+                            const newCardId = e.target.value;
+                            const suggested = getSuggestedCardDueDate(newCardId, editingId);
+                            setFormData(prev => ({
+                              ...prev,
+                              cardId: newCardId,
+                              dueDate: suggested || prev.dueDate
+                            }));
+                          }}
+                        >
+                          <option value="">Selecione o Cartão...</option>
+                          {corporateCards.map(card => (
+                            <option key={card.id} value={card.id}>{card.name} (Vencimento dia {card.dueDay})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-indigo-900 mb-1 flex items-center gap-2">
+                          <Calendar size={16} className="text-indigo-600" />
+                          Vencimento Fatura *
+                        </label>
+                        <input
+                          type="date"
+                          disabled={modalMode === 'view'}
+                          required
+                          className="w-full px-4 py-2 border rounded-lg bg-white border-indigo-300 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-950 text-sm shadow-sm"
+                          value={formData.dueDate || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div className="text-xs text-indigo-800 bg-white/80 p-3 rounded-lg border border-indigo-100 font-medium leading-relaxed flex items-start gap-2">
+                      <CheckCircle size={16} className="text-indigo-600 shrink-0 mt-0.5" />
+                      <div>
+                        O fornecedor é <strong>baixado (pago)</strong> automaticamente pelo cartão. O vencimento da fatura é puxado do último lançamento deste cartão ou pode ser ajustado manualmente acima.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Sub Row: Parcelamento */}
-                {formData.paymentCondition === 'A Prazo' && !editingId && (
+                {formData.paymentCondition === 'A Prazo' && (
                   <div className="animate-in fade-in zoom-in border-l-4 border-rose-500 pl-4 bg-slate-50 p-4 rounded-r-xl mt-4">
                     <div className="flex flex-col sm:flex-row items-end gap-4">
                       <div className="w-full sm:w-48">

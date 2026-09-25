@@ -117,7 +117,9 @@ export interface MaintenanceIntervals {
 
 export interface Equipment {
   id: string;
-  vehicleId: string;
+  vehicleId?: string;
+  type?: string;
+  model?: string;
   intervals: MaintenanceIntervals;
   observations?: string;
   createdAt: number;

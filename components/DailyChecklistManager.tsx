@@ -124,11 +124,11 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
         const filename = `Checklist ${dateStr} - ${equipmentName}.pdf`;
         
         const opt = {
-          margin:       [10, 10, 10, 10],
+          margin:       [10, 10, 10, 10] as [number, number, number, number],
           filename:     filename,
-          image:        { type: 'jpeg', quality: 0.98 },
+          image:        { type: 'jpeg' as const, quality: 0.98 },
           html2canvas:  { scale: 2, useCORS: true, logging: false },
-          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
         };
         
         try {
@@ -350,7 +350,7 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
               ) : (
                 checklists.map((check) => {
                   const dateObj = new Date(check.created_at);
-                  const itemsValues = Object.values(check.items);
+                  const itemsValues = Object.values(check.items) as Array<{ status?: string }>;
                   const hasNC = itemsValues.some(i => i.status === 'NC');
 
                   return (
@@ -574,7 +574,7 @@ export default function DailyChecklistManager({ vehicles, employees }: DailyChec
                   Inspeção Diária: {Object.keys(viewingChecklist.items).length} Itens
                 </h3>
                 <div className="grid grid-cols-2 gap-x-8 gap-y-2 mb-8">
-                  {Object.values(viewingChecklist.items).map(item => (
+                  {(Object.values(viewingChecklist.items) as Array<{ id: string; name: string; status: string }>).map(item => (
                     <div key={item.id} className="flex justify-between items-center py-2 border-b border-slate-100 text-sm">
                       <span className="font-medium text-slate-700">{item.name}</span>
                       <span className={`font-black ${item.status === 'OK' ? 'text-emerald-600' : 'text-rose-600'}`}>{item.status}</span>

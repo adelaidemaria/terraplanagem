@@ -70,7 +70,35 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
     };
 
     const pendingExpenses = useMemo(() => {
-        return expenses
+        const items: (Expense & { isSubInstallment?: boolean; parentExpenseId?: string; installmentId?: string })[] = [];
+
+        expenses.forEach(e => {
+            if (e.paymentMethod === 'Cartão Corporativo') return;
+
+            if (e.paymentCondition === 'A Prazo' && e.installmentsList && e.installmentsList.length > 0) {
+                const baseDoc = e.docNumber ? e.docNumber.split(' - Parcela')[0].trim() : 'S/N';
+                e.installmentsList.forEach(inst => {
+                    if (inst.status !== 'Pago') {
+                        items.push({
+                            ...e,
+                            id: `${e.id}___inst___${inst.id}`,
+                            parentExpenseId: e.id,
+                            installmentId: inst.id,
+                            isSubInstallment: true,
+                            docNumber: `${baseDoc} - Parcela ${inst.number}/${e.installmentsList!.length}`,
+                            dueDate: inst.dueDate,
+                            totalValue: inst.value,
+                            amountPaid: 0,
+                            status: 'Pendente'
+                        });
+                    }
+                });
+            } else if (e.status === 'Pendente') {
+                items.push(e);
+            }
+        });
+
+        return items
             .filter(e => {
                 const docDate = e.dueDate || e.date;
                 const matchesSearch = e.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) || (e.docNumber && e.docNumber.includes(searchTerm));
@@ -86,24 +114,52 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
 
     const paidExpenses = useMemo(() => {
         return expenses
-            .filter(e => e.status === 'Pago' || (e.amountPaid && e.amountPaid > 0)) // Inclui parciais e pagos
+            .filter(e => e.paymentMethod !== 'Cartão Corporativo' && (e.status === 'Pago' || (e.amountPaid && e.amountPaid > 0)))
             .sort((a, b) => new Date(b.paymentDate || b.date).getTime() - new Date(a.paymentDate || a.date).getTime())
-            .slice(0, 10); // Limita aos últimos 10
+            .slice(0, 10);
     }, [expenses]);
 
-    const selectedExpense = expenses.find(e => e.id === selectedExpenseId);
+    const selectedExpense = useMemo(() => {
+        if (!selectedExpenseId) return undefined;
+        if (selectedExpenseId.includes('___inst___')) {
+            return pendingExpenses.find(e => e.id === selectedExpenseId);
+        }
+        return expenses.find(e => e.id === selectedExpenseId);
+    }, [expenses, pendingExpenses, selectedExpenseId]);
 
     const handleRegisterPayment = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedExpenseId || !selectedExpense) return;
+        if (!selectedExpenseId) return;
         if (!bankAccountId) return alert('Selecione o banco de origem.');
 
         setExpenses(prev => {
-            const originalValue = selectedExpense.totalValue;
+            if (selectedExpenseId.includes('___inst___')) {
+                const [parentId, instId] = selectedExpenseId.split('___inst___');
+                return prev.map(exp => {
+                    if (exp.id !== parentId) return exp;
+                    const updatedList = (exp.installmentsList || []).map(inst => {
+                        if (inst.id === instId) {
+                            return { ...inst, status: 'Pago' as const };
+                        }
+                        return inst;
+                    });
+                    const allPaid = updatedList.every(i => i.status === 'Pago');
+                    return {
+                        ...exp,
+                        status: allPaid ? 'Pago' : 'Pendente',
+                        installmentsList: updatedList
+                    };
+                });
+            }
+
+            const targetExp = prev.find(ex => ex.id === selectedExpenseId);
+            if (!targetExp) return prev;
+
+            const originalValue = targetExp.totalValue;
 
             let newTotalPaid = payValue;
             if (!isEditingRecent) {
-                newTotalPaid = (selectedExpense.amountPaid || 0) + payValue;
+                newTotalPaid = (targetExp.amountPaid || 0) + payValue;
             }
 
             const diffOpen = originalValue - newTotalPaid;
@@ -112,7 +168,7 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
             const isOverpaid = newTotalPaid > originalValue;
             const interest = (isOverpaid && isInterestFee) ? (newTotalPaid - originalValue) : 0;
 
-            const updated = prev.map(exp => exp.id === selectedExpenseId ? {
+            return prev.map(exp => exp.id === selectedExpenseId ? {
                 ...exp,
                 status: isFullPayment ? 'Pago' : 'Pendente',
                 bankAccountId,
@@ -123,8 +179,6 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
                 paymentReceiptUrl: currentReceiptUrl,
                 paymentObservations: payObservations
             } : exp);
-
-            return updated;
         });
 
         setIsModalOpen(false);
@@ -132,16 +186,36 @@ const PayablesManager: React.FC<PayablesManagerProps> = ({ expenses, setExpenses
     };
 
     const handleUndoPayment = (id: string) => {
-        setExpenses(prev => prev.map(exp => exp.id === id ? {
-            ...exp,
-            status: 'Pendente',
-            bankAccountId: undefined,
-            paymentDate: undefined,
-            amountPaid: 0,
-            interestAmount: 0,
-            paymentReceiptUrl: undefined,
-            paymentObservations: undefined
-        } : exp));
+        setExpenses(prev => {
+            if (id.includes('___inst___')) {
+                const [parentId, instId] = id.split('___inst___');
+                return prev.map(exp => {
+                    if (exp.id !== parentId) return exp;
+                    const updatedList = (exp.installmentsList || []).map(inst => {
+                        if (inst.id === instId) {
+                            return { ...inst, status: 'Pendente' as const };
+                        }
+                        return inst;
+                    });
+                    return {
+                        ...exp,
+                        status: 'Pendente',
+                        installmentsList: updatedList
+                    };
+                });
+            }
+
+            return prev.map(exp => exp.id === id ? {
+                ...exp,
+                status: 'Pendente',
+                bankAccountId: undefined,
+                paymentDate: undefined,
+                amountPaid: 0,
+                interestAmount: 0,
+                paymentReceiptUrl: undefined,
+                paymentObservations: undefined
+            } : exp);
+        });
         setDeleteConfirmId(null);
     };
 
