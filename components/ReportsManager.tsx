@@ -3254,9 +3254,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
       {
         selectedReport && reportContent && (
-          <div className="bg-white p-4 sm:p-8 md:p-12 rounded-2xl border border-slate-100 shadow-xl print:shadow-none print:border-0 print:m-0 print:p-0 w-full overflow-hidden print:overflow-visible">
+          <div className="bg-white p-3 sm:p-6 md:p-8 rounded-2xl border border-slate-100 shadow-xl print:shadow-none print:border-0 print:m-0 print:p-0 w-full overflow-hidden print:overflow-visible">
             <div className="overflow-x-auto print:overflow-visible text-slate-800 w-full">
-              <table className={`w-full min-w-[620px] print:min-w-0 print:w-full text-left text-sm print:text-[10px] border-collapse ${selectedReport === 'corporateCard' ? 'print:table-fixed' : ''}`}>
+              <table className={`w-full ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat' || selectedReport === 'dre') ? 'min-w-0 table-fixed' : 'min-w-[620px]'} print:min-w-0 print:w-full text-left text-sm print:text-[10px] border-collapse ${(selectedReport === 'corporateCard' || selectedReport === 'dre') ? 'print:table-fixed' : ''}`}>
                 <thead className="print:table-header-group">
                   {/* Bloco de Identificação da Empresa e Relatório - Repetível na Impressão */}
                   <tr className="border-0">
@@ -3268,7 +3268,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                           <p className="text-sm font-normal text-slate-800 print:text-[11px]">Emitido em: {new Date().toLocaleString('pt-BR')}</p>
                         </div>
                       </div>
-                      <h2 className="text-sm font-normal text-slate-800 mb-1 border-l-4 border-amber-500 pl-4 uppercase leading-none text-left print:text-[16px]">
+                      <h2 className="text-sm font-normal text-slate-800 mb-1 border-l-4 border-amber-500 pl-4 uppercase leading-none text-left print:text-[13px] print:leading-normal">
                         {typeof reportContent.title === 'string' && reportContent.title.includes('(BLOQUEADO)') ? (
                           <>
                             {reportContent.title.split('(BLOQUEADO)')[0]}
@@ -3297,10 +3297,18 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       return (
                         <th
                           key={k}
-                          className={`px-2.5 sm:px-4 py-2 sm:py-3 font-black text-slate-600 uppercase text-[10px] sm:text-[12px] tracking-wider print:px-1.5 print:py-1 print:text-[10px] ${(selectedReport === 'vendorStatement' || selectedReport === 'customerStatement') && k === 2 ? 'whitespace-normal' : 'whitespace-nowrap'}
+                          className={`px-1.5 sm:px-3 py-2 sm:py-3 font-black text-slate-600 uppercase text-[10px] sm:text-[12px] tracking-wider print:px-1.5 print:py-1 print:text-[10px] ${(selectedReport === 'vendorStatement' || selectedReport === 'customerStatement' || ((selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && [3, 4, 5].includes(k))) ? 'whitespace-normal' : 'whitespace-nowrap'}
                             ${(h.toLowerCase().includes('valor') || h.toLowerCase().includes('total') || h.toLowerCase().includes('saldo') || h.toLowerCase().includes('líquido') || h.toLowerCase().includes('faturado') || h.toLowerCase().includes('recebido') || h.toLowerCase().includes('deduç') || h.toLowerCase().includes('crédito') || h.toLowerCase().includes('débito')) ? 'text-right' : 'text-left'}
                             
-                            ${selectedReport === 'bankStatement' ? (
+                            ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') ? (
+                              k === 0 ? 'w-[75px] sm:w-[85px] text-left' :
+                              k === 1 ? 'w-[75px] sm:w-[85px] text-left' :
+                              k === 2 ? 'w-[75px] sm:w-[85px] text-left' :
+                              k === 3 ? 'w-[24%] text-left' :
+                              k === 4 ? 'w-[90px] sm:w-[110px] text-left' :
+                              k === 5 ? 'w-auto text-left' :
+                              k === 6 ? 'w-[95px] sm:w-[110px] text-right' : ''
+                            ) : selectedReport === 'bankStatement' ? (
                               k === 0 ? 'w-[100px]' :
                               k === 1 ? 'w-full' : // Descrição ocupa o resto
                               k === 2 ? 'w-[90px] sm:w-[100px]' : // Crédito
@@ -3365,9 +3373,9 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                               k === 3 ? (selectedReport === 'customersSummary' ? 'w-full text-left' : 'w-[130px] text-left') :
                               k === 4 ? (selectedReport === 'vendorsSummary' ? 'w-full text-left' : 'w-full text-left') : ''
                             ) : selectedReport === 'dre' ? (
-                              k === 0 ? 'w-[120px]' :
-                              k === 1 ? 'w-full text-left' :
-                              k === 2 ? 'w-[200px] text-right' : ''
+                              k === 0 ? 'w-[100px] print:w-[85px] text-left' :
+                              k === 1 ? 'w-auto text-left' :
+                              k === 2 ? 'w-[180px] print:w-[130px] text-right' : ''
                             ) : selectedReport === 'accountCategoriesList' ? (
                               k === 0 ? 'w-[120px] text-left' :
                               k === 1 ? 'w-full text-left' : ''
@@ -3438,41 +3446,41 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
                       let numStyle = '';
                       let descStyle = '';
-                      let paddingLeft1 = '';
-                      let paddingLeft2 = '';
+                      let rowSpacing = '';
+                      let descIndent = '';
 
                       if (level === 0) {
-                        numStyle = 'text-[20px] text-slate-900 font-normal print:text-[14px]';
-                        descStyle = 'text-[20px] text-slate-900 font-normal uppercase tracking-widest print:text-[14px]';
-                        paddingLeft1 = 'pl-4 pt-10 pb-4 print:pt-6 print:pb-2';
-                        paddingLeft2 = 'pl-4 pt-10 pb-4 print:pt-6 print:pb-2';
+                        numStyle = 'text-[17px] text-slate-900 font-black print:text-[12px] whitespace-nowrap';
+                        descStyle = 'text-[17px] text-slate-900 font-black uppercase tracking-wider print:text-[12px]';
+                        rowSpacing = 'pt-5 pb-1.5 print:pt-3 print:pb-1';
+                        descIndent = 'pl-0';
                       } else if (level === 1) {
-                        numStyle = 'text-base text-slate-900 font-normal print:text-[12px]';
-                        descStyle = 'text-base text-slate-900 font-normal uppercase print:text-[12px]';
-                        paddingLeft1 = 'pl-16 pt-3 pb-1 print:pt-1 print:pb-0';
-                        paddingLeft2 = 'pl-6 pt-3 pb-1 print:pt-1 print:pb-0';
+                        numStyle = 'text-sm text-slate-900 font-bold print:text-[10.5px] whitespace-nowrap';
+                        descStyle = 'text-sm text-slate-900 font-bold uppercase print:text-[10.5px]';
+                        rowSpacing = 'pt-2.5 pb-1 print:pt-1 print:pb-0.5';
+                        descIndent = 'pl-2';
                       } else if (level === 2) {
-                        numStyle = 'text-base text-slate-900 font-normal print:text-[12px]';
-                        descStyle = 'text-base text-slate-900 font-normal uppercase print:text-[12px]';
-                        paddingLeft1 = 'pl-[100px] pt-3 pb-1 print:pt-1 print:pb-0';
-                        paddingLeft2 = 'pl-6 pt-3 pb-1 print:pt-1 print:pb-0';
+                        numStyle = 'text-xs text-slate-700 font-semibold print:text-[9.5px] whitespace-nowrap';
+                        descStyle = 'text-xs text-slate-700 font-semibold uppercase print:text-[9.5px]';
+                        rowSpacing = 'pt-1.5 pb-0.5 print:pt-0.5 print:pb-0';
+                        descIndent = 'pl-5';
                       } else if (level === 3) {
-                        numStyle = 'text-sm text-slate-500/80 font-medium print:text-[12px]';
-                        descStyle = 'text-sm text-slate-500/80 font-medium tracking-wide flex items-center gap-2 before:content-[\'\'] before:w-3 before:h-[1px] before:bg-slate-300/80 print:text-[12px]';
-                        paddingLeft1 = 'pl-[130px] pt-1 pb-1 print:pt-0 print:pb-0';
-                        paddingLeft2 = 'pl-8 pt-1 pb-1 print:pt-0 print:pb-0';
+                        numStyle = 'text-[11px] text-slate-500 font-medium print:text-[9px] whitespace-nowrap';
+                        descStyle = 'text-[11px] text-slate-600 font-normal tracking-wide print:text-[9px]';
+                        rowSpacing = 'pt-1 pb-0.5 print:pt-0.5 print:pb-0';
+                        descIndent = 'pl-8';
                       }
 
                       return (
-                        <tr key={i} className={`border-0 bg-transparent`}>
-                          <td className={`w-[120px] ${paddingLeft1} align-top print:py-1`}>
+                        <tr key={i} className="border-0 bg-transparent print:break-inside-avoid">
+                          <td className={`w-[100px] print:w-[85px] px-2 ${rowSpacing} align-top whitespace-nowrap`}>
                             <span className={numStyle}>{num}</span>
                           </td>
-                          <td className={`w-auto ${paddingLeft2} align-top print:py-1`}>
+                          <td className={`w-auto ${descIndent} ${rowSpacing} align-top`}>
                             <span className={descStyle}>{title}</span>
                           </td>
                           {row[0] === 'ACCOUNT_DRE_HIERARCHY' && (
-                            <td className={`text-right align-top print:py-1 px-4 ${level === 0 ? 'text-[20px] pt-10 pb-4 font-black print:text-[14px]' : level === 1 ? 'pt-3 pb-1 font-bold print:text-[12px] text-base' : level === 2 ? 'pt-3 pb-1 font-semibold print:text-[12px] text-base' : 'pt-1 pb-1 text-slate-500 font-medium print:text-[12px] text-sm'}`}>
+                            <td className={`w-[180px] print:w-[130px] text-right align-top px-2 ${rowSpacing} whitespace-nowrap ${level === 0 ? 'text-[17px] font-black text-slate-900 print:text-[12px]' : level === 1 ? 'font-bold text-slate-800 text-sm print:text-[10.5px]' : level === 2 ? 'font-semibold text-slate-700 text-xs print:text-[9.5px]' : 'text-slate-600 font-medium text-[11px] print:text-[9px]'}`}>
                               {value}
                             </td>
                           )}
@@ -3625,16 +3633,16 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                           {reportContent.headers.map((h: string, k: number) => (
                             <th
                               key={k}
-                              className={`px-4 py-3 font-black text-slate-600 uppercase text-[12px] tracking-wider whitespace-nowrap
+                              className={`px-1.5 sm:px-3 py-2.5 font-black text-slate-600 uppercase text-[10px] sm:text-[12px] tracking-wider ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && [3, 4, 5].includes(k) ? 'whitespace-normal' : 'whitespace-nowrap'}
                                 ${(h.toLowerCase().includes('valor') || h.toLowerCase().includes('total') || h.toLowerCase().includes('saldo') || h.toLowerCase().includes('líquido') || h.toLowerCase().includes('faturado') || h.toLowerCase().includes('recebido') || h.toLowerCase().includes('deduç')) ? 'text-right' : 'text-left'}
-                                ${k === 0 ? 'w-[90px]' : ''}
-                      ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat' || selectedReport === 'profitDistribution') ? (
-                                  k === 1 ? 'w-[90px]' :
-                                    k === 2 ? 'w-[90px]' :
-                                      k === 3 ? 'w-[200px]' :
-                                        k === 4 ? 'w-[130px]' : 
-                                          k === 5 ? 'w-full min-w-[200px]' :
-                                            k === 6 ? 'w-[110px]' : ''
+                                ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') ? (
+                                  k === 0 ? 'w-[75px] sm:w-[85px]' :
+                                  k === 1 ? 'w-[75px] sm:w-[85px]' :
+                                  k === 2 ? 'w-[75px] sm:w-[85px]' :
+                                  k === 3 ? 'w-[24%]' :
+                                  k === 4 ? 'w-[90px] sm:w-[110px]' : 
+                                  k === 5 ? 'w-auto' :
+                                  k === 6 ? 'w-[95px] sm:w-[110px]' : ''
                                 ) : selectedReport === 'profitDistribution' ? (
                                   k === 0 ? 'w-[105px]' :
                                     k === 1 ? 'w-[130px]' :
@@ -3809,11 +3817,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       }
 
                       return (
-                        <tr key={i} className={`border-t-4 ${borderColor} ${bgColor}`}>
-                          <td colSpan={2} className="px-6 py-5 font-black text-slate-900 text-right uppercase tracking-widest text-sm sm:text-base">
+                        <tr key={i} className={`border-t-4 ${borderColor} ${bgColor} print:break-inside-avoid`}>
+                          <td colSpan={2} className="px-6 py-4 font-black text-slate-900 text-right uppercase tracking-widest text-sm sm:text-base print:py-2 print:px-2 print:text-[11px]">
                             {row[1]}
                           </td>
-                          <td className={`px-6 py-5 font-black ${textColor} text-xl sm:text-2xl border-l ${borderColor} text-right whitespace-nowrap`}>
+                          <td className={`px-6 py-4 font-black ${textColor} text-xl sm:text-2xl border-l ${borderColor} text-right whitespace-nowrap print:py-2 print:px-2 print:text-[12px]`}>
                             {row[2]}
                           </td>
                         </tr>
@@ -4018,7 +4026,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                             <td
                               key={j}
                               colSpan={isSectionHeader ? reportContent.headers.length : (isSubtotalRow && j === 0 ? reportContent.headers.length - 1 : 1)}
-                              className={`px-2.5 sm:px-4 py-2 sm:py-3 text-slate-700 font-medium leading-relaxed print:px-1.5 print:py-1 print:text-[10px] ${(selectedReport === 'employeeLoans' || selectedReport === 'companyLoans') && j === 0 ? 'whitespace-nowrap' : ''}
+                              className={`px-1.5 sm:px-3 py-1.5 sm:py-2.5 text-slate-700 font-medium leading-relaxed print:px-1.5 print:py-1 print:text-[10px] ${(selectedReport === 'employeeLoans' || selectedReport === 'companyLoans') && j === 0 ? 'whitespace-nowrap' : ''}
                                 ${isSectionHeader ? 'text-slate-900 text-sm tracking-widest uppercase py-4 whitespace-nowrap print:text-[12px]' : ''}
                                 ${isSubtotalRow ? 'text-slate-800 text-sm print:text-[12px]' : ''}
                                 ${isCredit ? 'text-emerald-600 font-bold' : ''}
@@ -4063,9 +4071,17 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                                   j === 2 ? 'w-[100px] sm:w-[110px] text-right' :
                                   j === 3 ? 'w-[100px] sm:w-[110px] text-right' :
                                   j === 4 ? 'w-[110px] sm:w-[120px] text-right' : ''
-                                ) : (selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 1 ? 'min-w-[180px]' : ''}
-                                 ${((selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && [3, 4].includes(j)) || ((selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && (j >= 0 && j <= 4)) || (selectedReport === 'payments' && j === 4) || (selectedReport === 'expensesPending' && [0, 2, 5].includes(j)) || (selectedReport === 'bankStatement' && [0, 2, 3, 4].includes(j)) || selectedReport === 'profitDistribution' || selectedReport === 'vendorStatement' || selectedReport === 'customerStatement' ? 'whitespace-nowrap' : (isSectionHeader ? '' : 'whitespace-pre-line')}
-                                ${(selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') && j === 3 ? 'min-w-[180px]' : ''}
+                                ) : (selectedReport === 'expensesByMonth' || selectedReport === 'expensesByMonthFlat') ? (
+                                  j === 0 ? 'w-[75px] sm:w-[85px] whitespace-nowrap text-left text-[11px] sm:text-xs' :
+                                  j === 1 ? 'w-[75px] sm:w-[85px] whitespace-nowrap text-left text-[11px] sm:text-xs' :
+                                  j === 2 ? 'w-[75px] sm:w-[85px] whitespace-nowrap text-left text-[11px] sm:text-xs' :
+                                  j === 3 ? 'w-[24%] break-words whitespace-normal text-left text-[11px] sm:text-xs' :
+                                  j === 4 ? 'w-[90px] sm:w-[110px] break-words whitespace-normal text-left text-[11px] sm:text-xs' :
+                                  j === 5 ? 'w-auto break-words whitespace-normal text-left text-[11px] sm:text-xs' :
+                                  j === 6 ? 'w-[95px] sm:w-[110px] whitespace-nowrap text-right text-[11px] sm:text-xs font-semibold' : ''
+                                ) : ''}
+                                 ${((selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && (j >= 0 && j <= 4)) || (selectedReport === 'payments' && j === 4) || (selectedReport === 'expensesPending' && [0, 2, 5].includes(j)) || (selectedReport === 'bankStatement' && [0, 2, 3, 4].includes(j)) || selectedReport === 'profitDistribution' || selectedReport === 'vendorStatement' || selectedReport === 'customerStatement' ? 'whitespace-nowrap' : (isSectionHeader ? '' : 'whitespace-pre-line')}
+                                
                                 ${(selectedReport === 'customersSummary' || selectedReport === 'vendorsSummary') && j === 3 ? 'text-left' : ''}
                                 ${(isSubtotalRow && (j === 0 || j === 1)) ? 'whitespace-nowrap text-left' : ''}
                                 ${isTotalMonthRow && j === 0 ? 'font-black text-slate-900 text-sm' : ''}
