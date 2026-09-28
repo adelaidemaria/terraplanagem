@@ -3254,18 +3254,18 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
       {
         selectedReport && reportContent && (
-          <div className="bg-white p-4 sm:p-8 md:p-12 rounded-2xl border border-slate-100 shadow-xl print:shadow-none print:border-0 print:m-0 w-full overflow-hidden">
+          <div className="bg-white p-4 sm:p-8 md:p-12 rounded-2xl border border-slate-100 shadow-xl print:shadow-none print:border-0 print:m-0 print:p-0 w-full overflow-hidden print:overflow-visible">
             <div className="overflow-x-auto print:overflow-visible text-slate-800 w-full">
-              <table className="w-full min-w-[620px] print:min-w-0 print:w-full text-left text-sm border-collapse">
+              <table className={`w-full min-w-[620px] print:min-w-0 print:w-full text-left text-sm print:text-[10px] border-collapse ${selectedReport === 'corporateCard' ? 'print:table-fixed' : ''}`}>
                 <thead className="print:table-header-group">
                   {/* Bloco de Identificação da Empresa e Relatório - Repetível na Impressão */}
                   <tr className="border-0">
                     <th colSpan={reportContent.headers.length} className="pb-4 font-normal border-0 text-left">
-                      <div className="border-b-2 border-slate-900 pb-2 mb-4 flex justify-between items-center bg-white">
-                        <Logo size="lg" className="origin-left" />
+                      <div className="border-b-2 border-slate-900 pb-2 mb-4 flex justify-between items-center bg-white print:w-full">
+                        <Logo size="lg" className="origin-left print:scale-90" />
                         <div className="text-right">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Documento Gerencial</p>
-                          <p className="text-sm font-normal text-slate-800">Emitido em: {new Date().toLocaleString('pt-BR')}</p>
+                          <p className="text-sm font-normal text-slate-800 print:text-[11px]">Emitido em: {new Date().toLocaleString('pt-BR')}</p>
                         </div>
                       </div>
                       <h2 className="text-sm font-normal text-slate-800 mb-1 border-l-4 border-amber-500 pl-4 uppercase leading-none text-left print:text-[16px]">
@@ -3284,7 +3284,7 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                   </tr>
                   
                   {/* Cabeçalho das Colunas - Repetível na Impressão */}
-                  {selectedReport !== 'profitDistribution' && selectedReport !== 'vehicleChecklistItems' && (
+                  {selectedReport !== 'profitDistribution' && selectedReport !== 'vehicleChecklistItems' && selectedReport !== 'corporateCard' && (
                     <tr className="bg-slate-50 border-y border-slate-200">
                     {reportContent.headers.map((h, k) => {
                       // Simplificação dos nomes das colunas para extrato bancário
@@ -3921,8 +3921,8 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
 
                     if (row[0] === 'CARD_RESUMO_HEADER') {
                       return (
-                        <tr key={i} className="bg-slate-900 border-0">
-                          <td colSpan={6} className="px-3 sm:px-4 py-3 sm:py-4 font-black text-amber-500 uppercase tracking-widest text-sm sm:text-lg text-left rounded-t-xl">
+                        <tr key={i} className="bg-slate-900 border-0 print:bg-slate-800">
+                          <td colSpan={6} className="px-3 sm:px-4 py-2 sm:py-3 print:px-2 print:py-1.5 font-black text-amber-500 uppercase tracking-widest text-xs sm:text-base print:text-[11px] text-left rounded-t-xl print:rounded-none">
                             CARTÃO: {row[1]}
                           </td>
                         </tr>
@@ -3931,12 +3931,12 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                     if (row[0] === 'COLUMN_HEADERS_CARD') {
                       return (
                         <tr key={i} className="bg-slate-100 border-y border-slate-200">
-                          <th className="px-2 sm:px-4 py-2 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider text-left min-w-[75px] sm:w-[95px] whitespace-nowrap">{row[1]}</th>
-                          <th className="px-2 sm:px-4 py-2 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider text-left min-w-[75px] sm:w-[95px] whitespace-nowrap">{row[2]}</th>
-                          <th className="px-2 sm:px-4 py-2 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider text-left min-w-[160px] sm:w-full">{row[3]}</th>
-                          <th className="px-2 sm:px-4 py-2 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider text-right min-w-[85px] sm:w-[120px] whitespace-nowrap">{row[4]}</th>
-                          <th className="px-2 sm:px-4 py-2 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider text-right min-w-[85px] sm:w-[120px] whitespace-nowrap">{row[5]}</th>
-                          <th className="px-2 sm:px-4 py-2 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider text-right min-w-[95px] sm:w-[130px] whitespace-nowrap">{row[6]}</th>
+                          <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 print:px-1 print:py-1 font-black text-slate-600 uppercase text-[9px] sm:text-[11px] print:text-[8.5px] tracking-wider text-left w-[70px] sm:w-[85px] print:w-[58px] whitespace-nowrap">{row[1]}</th>
+                          <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 print:px-1 print:py-1 font-black text-slate-600 uppercase text-[9px] sm:text-[11px] print:text-[8.5px] tracking-wider text-left w-[75px] sm:w-[90px] print:w-[62px] whitespace-nowrap">{row[2]}</th>
+                          <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 print:px-1 print:py-1 font-black text-slate-600 uppercase text-[9px] sm:text-[11px] print:text-[8.5px] tracking-wider text-left w-auto min-w-[120px] print:w-auto print:min-w-0">{row[3]}</th>
+                          <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 print:px-1 print:py-1 font-black text-slate-600 uppercase text-[9px] sm:text-[11px] print:text-[8.5px] tracking-wider text-right w-[85px] sm:w-[110px] print:w-[68px] whitespace-nowrap">{row[4]}</th>
+                          <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 print:px-1 print:py-1 font-black text-slate-600 uppercase text-[9px] sm:text-[11px] print:text-[8.5px] tracking-wider text-right w-[85px] sm:w-[110px] print:w-[68px] whitespace-nowrap">{row[5]}</th>
+                          <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 print:px-1 print:py-1 font-black text-slate-600 uppercase text-[9px] sm:text-[11px] print:text-[8.5px] tracking-wider text-right w-[90px] sm:w-[115px] print:w-[74px] whitespace-nowrap">{row[6]}</th>
                         </tr>
                       );
                     }
@@ -3953,33 +3953,33 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
                       
                       return (
                         <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                          <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm text-slate-600 whitespace-nowrap">{dateDoc}</td>
-                          <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm text-indigo-700 font-bold whitespace-nowrap">{vencimento}</td>
-                          <td className={`px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm text-slate-700 ${weightClass} break-words min-w-[160px]`}>{desc}</td>
-                          <td className={`px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm text-emerald-600 text-right ${weightClass} whitespace-nowrap`}>{compraVal}</td>
-                          <td className={`px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm text-rose-600 text-right ${weightClass} whitespace-nowrap`}>{pagtoVal}</td>
-                          <td className={`px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm text-right ${weightClass} ${isMinus ? 'text-rose-600' : 'text-slate-800'} whitespace-nowrap`}>{saldoVal}</td>
+                          <td className="px-1.5 sm:px-3 py-1.5 sm:py-2.5 print:px-1 print:py-0.5 text-xs sm:text-sm print:text-[8.5px] text-slate-600 whitespace-nowrap">{dateDoc}</td>
+                          <td className="px-1.5 sm:px-3 py-1.5 sm:py-2.5 print:px-1 print:py-0.5 text-xs sm:text-sm print:text-[8.5px] text-indigo-700 font-bold whitespace-nowrap">{vencimento}</td>
+                          <td className={`px-1.5 sm:px-3 py-1.5 sm:py-2.5 print:px-1 print:py-0.5 text-xs sm:text-sm print:text-[8.5px] text-slate-700 ${weightClass} break-words`}>{desc}</td>
+                          <td className={`px-1.5 sm:px-3 py-1.5 sm:py-2.5 print:px-1 print:py-0.5 text-xs sm:text-sm print:text-[8.5px] text-emerald-600 text-right ${weightClass} whitespace-nowrap`}>{compraVal}</td>
+                          <td className={`px-1.5 sm:px-3 py-1.5 sm:py-2.5 print:px-1 print:py-0.5 text-xs sm:text-sm print:text-[8.5px] text-rose-600 text-right ${weightClass} whitespace-nowrap`}>{pagtoVal}</td>
+                          <td className={`px-1.5 sm:px-3 py-1.5 sm:py-2.5 print:px-1 print:py-0.5 text-xs sm:text-sm print:text-[8.5px] text-right ${weightClass} ${isMinus ? 'text-rose-600' : 'text-slate-800'} whitespace-nowrap`}>{saldoVal}</td>
                         </tr>
                       );
                     }
                     if (row[0] === 'CARD_FATURA_FOOTER') {
                       return (
                         <tr key={i} className="bg-amber-500/10 font-black border-y-2 border-amber-500/40">
-                          <td colSpan={3} className="px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-black text-amber-900 text-right uppercase tracking-wider">{row[1]}</td>
-                          <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-black text-rose-600 text-right whitespace-nowrap">{row[2]}</td>
-                          <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-black text-emerald-600 text-right whitespace-nowrap">{row[3]}</td>
-                          <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-base font-black text-slate-900 text-right whitespace-nowrap">{row[4]}</td>
+                          <td colSpan={3} className="px-1.5 sm:px-3 py-1.5 sm:py-2 print:px-1 print:py-1 text-xs sm:text-sm print:text-[8.5px] font-black text-amber-900 text-right uppercase tracking-wider">{row[1]}</td>
+                          <td className="px-1.5 sm:px-3 py-1.5 sm:py-2 print:px-1 print:py-1 text-xs sm:text-sm print:text-[8.5px] font-black text-rose-600 text-right whitespace-nowrap">{row[2]}</td>
+                          <td className="px-1.5 sm:px-3 py-1.5 sm:py-2 print:px-1 print:py-1 text-xs sm:text-sm print:text-[8.5px] font-black text-emerald-600 text-right whitespace-nowrap">{row[3]}</td>
+                          <td className="px-1.5 sm:px-3 py-1.5 sm:py-2 print:px-1 print:py-1 text-xs sm:text-base print:text-[9.5px] font-black text-slate-900 text-right whitespace-nowrap">{row[4]}</td>
                         </tr>
                       );
                     }
                     if (row[0] === 'CARD_FOOTER') {
                       const isMinus = typeof row[5] === 'string' && row[5].startsWith('-');
                       return (
-                        <tr key={i} className="bg-slate-900 text-white font-black border-t-2 border-slate-900">
-                          <td colSpan={3} className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm font-black text-amber-400 text-right uppercase tracking-wider">{row[1]}</td>
-                          <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm font-black text-rose-400 text-right whitespace-nowrap">{row[3]}</td>
-                          <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm font-black text-emerald-400 text-right whitespace-nowrap">{row[4]}</td>
-                          <td className={`px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-base font-black text-right whitespace-nowrap ${isMinus ? 'text-rose-400' : 'text-white'}`}>{row[5]}</td>
+                        <tr key={i} className="bg-slate-900 text-white font-black border-t-2 border-slate-900 print:bg-slate-800">
+                          <td colSpan={3} className="px-1.5 sm:px-3 py-2 sm:py-3 print:px-1 print:py-1.5 text-xs sm:text-sm print:text-[8.5px] font-black text-amber-400 text-right uppercase tracking-wider">{row[1]}</td>
+                          <td className="px-1.5 sm:px-3 py-2 sm:py-3 print:px-1 print:py-1.5 text-xs sm:text-sm print:text-[8.5px] font-black text-rose-400 text-right whitespace-nowrap">{row[3]}</td>
+                          <td className="px-1.5 sm:px-3 py-2 sm:py-3 print:px-1 print:py-1.5 text-xs sm:text-sm print:text-[8.5px] font-black text-emerald-400 text-right whitespace-nowrap">{row[4]}</td>
+                          <td className={`px-1.5 sm:px-3 py-2 sm:py-3 print:px-1 print:py-1.5 text-xs sm:text-base print:text-[9.5px] font-black text-right whitespace-nowrap ${isMinus ? 'text-rose-400' : 'text-white'}`}>{row[5]}</td>
                         </tr>
                       );
                     }
