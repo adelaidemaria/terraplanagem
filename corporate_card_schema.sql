@@ -11,6 +11,7 @@ create table corporate_card_payments (
   id uuid primary key default uuid_generate_v4(),
   card_id uuid not null references corporate_cards(id),
   date date not null,
+  due_date date,
   amount numeric not null,
   bank_account_id uuid not null references bank_accounts(id),
   description text,

@@ -90,6 +90,14 @@ export function useSupabaseSync<T extends { id: string }>(tableName: string, ini
                         return copy;
                     });
                 }
+                if (tableName === 'corporate_card_payments') {
+                    snakeCaseData = snakeCaseData.map((item: any) => {
+                        const copy = { ...item };
+                        delete copy.due_date;
+                        delete copy.dueDate;
+                        return copy;
+                    });
+                }
                 console.log(`Syncing ${addedOrUpdated.length} items to ${tableName}...`, snakeCaseData);
                 supabase.from(tableName).upsert(snakeCaseData).then(({ error, data }) => {
                     if (error) {

@@ -1449,10 +1449,16 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             })),
             ...cardPagts.map(p => {
               const bank = bankAccounts.find(b => b.id === p.bankAccountId);
+              let dueDate = p.dueDate;
+              if (!dueDate && p.description) {
+                const match = p.description.match(/\[VENC:(\d{4}-\d{2}-\d{2})\]/);
+                if (match) dueDate = match[1];
+              }
+              const displayDesc = (p.description || '').replace(/\s*\[VENC:[^\]]+\]/g, '').trim();
               return {
                 date: p.date,
-                dueDate: p.date,
-                desc: `PAGAMENTO FATURA - Saída: ${bank?.bankName || '---'}`,
+                dueDate: dueDate || p.date,
+                desc: `PAGAMENTO FATURA - Saída: ${bank?.bankName || '---'}${displayDesc && displayDesc !== 'Pagamento de Fatura' ? ` (${displayDesc})` : ''}`,
                 compra: 0,
                 pagto: p.amount
               };

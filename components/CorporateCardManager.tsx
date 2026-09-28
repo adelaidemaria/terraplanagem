@@ -35,6 +35,20 @@ const parseCurrencyInput = (val: string) => {
   return Number(cleanValue) / 100;
 };
 
+const getPaymentDueDate = (p: Partial<CorporateCardPayment>) => {
+  if (p.dueDate) return p.dueDate;
+  if (p.description) {
+    const match = p.description.match(/\[VENC:(\d{4}-\d{2}-\d{2})\]/);
+    if (match) return match[1];
+  }
+  return p.date || '';
+};
+
+const getPaymentDisplayDesc = (desc?: string) => {
+  if (!desc) return 'Pagamento de Fatura';
+  return desc.replace(/\s*\[VENC:[^\]]+\]/g, '').trim();
+};
+
 const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
   corporateCards, setCorporateCards,
   corporateCardPayments, setCorporateCardPayments,
@@ -98,6 +112,7 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
   const defaultPaymentData: Partial<CorporateCardPayment> = {
     cardId: corporateCards.length > 0 ? corporateCards[0].id : '',
     date: new Date().toLocaleDateString('en-CA'),
+    dueDate: '',
     amount: 0,
     bankAccountId: '',
     description: 'Pagamento de Fatura'
@@ -214,14 +229,15 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
         const end = new Date(endDate).getTime();
 
         if (d >= start && d <= (end + 86400000)) {
-          if (!searchTerm || (p.description || '').toLowerCase().includes(searchTerm.toLowerCase())) {
+          const displayDesc = getPaymentDisplayDesc(p.description);
+          if (!searchTerm || displayDesc.toLowerCase().includes(searchTerm.toLowerCase())) {
             transactions.push({
               type: 'pagamento',
               id: p.id,
               date: p.date,
-              dueDate: p.date,
+              dueDate: getPaymentDueDate(p),
               cardId: p.cardId,
-              description: p.description || 'Pagamento',
+              description: displayDesc,
               itemsDesc: bankAccounts.find(b => b.id === p.bankAccountId)?.bankName || '',
               amount: p.amount,
               original: p
@@ -338,13 +354,18 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
     } else {
       if (!paymentFormData.cardId || !paymentFormData.bankAccountId || !paymentFormData.amount || paymentFormData.amount <= 0) return alert('Preencha a conta bancária e o valor.');
       
+      const vencTag = paymentFormData.dueDate ? ` [VENC:${paymentFormData.dueDate}]` : '';
+      const baseDesc = (paymentFormData.description || 'Pagamento de Fatura').replace(/\s*\[VENC:[^\]]+\]/g, '').trim();
+      const fullDesc = `${baseDesc}${vencTag}`;
+
       const newPayment: CorporateCardPayment = {
         id: editingTxId || crypto.randomUUID(),
         cardId: paymentFormData.cardId!,
         date: paymentFormData.date!,
+        dueDate: paymentFormData.dueDate || paymentFormData.date!,
         amount: paymentFormData.amount!,
         bankAccountId: paymentFormData.bankAccountId!,
-        description: paymentFormData.description,
+        description: fullDesc,
         createdAt: editingTxId ? (corporateCardPayments.find(p => p.id === editingTxId)?.createdAt || Date.now()) : Date.now()
       };
       
@@ -353,7 +374,13 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
         setIsLancarModalOpen(false);
       } else {
         setCorporateCardPayments(prev => [newPayment, ...prev]);
-        setPaymentFormData({ ...defaultPaymentData, cardId: paymentFormData.cardId, amount: 0 });
+        const nextDueDate = getSuggestedCardDueDate(paymentFormData.cardId || '');
+        setPaymentFormData({
+          ...defaultPaymentData,
+          cardId: paymentFormData.cardId,
+          dueDate: nextDueDate || paymentFormData.dueDate,
+          amount: 0
+        });
         setIsLancarModalOpen(false);
       }
     }
@@ -384,7 +411,11 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
       setLancamentoTab('compra');
     } else {
       const pay = tx.original as CorporateCardPayment;
-      setPaymentFormData({ ...pay });
+      setPaymentFormData({
+        ...pay,
+        description: getPaymentDisplayDesc(pay.description),
+        dueDate: getPaymentDueDate(pay)
+      });
       setLancamentoTab('pagamento');
     }
     setIsLancarModalOpen(true);
@@ -489,7 +520,8 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
               
               setPaymentFormData({
                 ...defaultPaymentData,
-                cardId: targetCardId
+                cardId: targetCardId,
+                dueDate: targetDueDate
               });
               
               setIsLancarModalOpen(true);
@@ -639,7 +671,11 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
                       cardId: id,
                       dueDate: suggestedDueDate || prev.dueDate
                     }));
-                    setPaymentFormData(prev => ({...prev, cardId: id}));
+                    setPaymentFormData(prev => ({
+                      ...prev,
+                      cardId: id,
+                      dueDate: suggestedDueDate || prev.dueDate
+                    }));
                   }}
                 >
                   {corporateCards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -737,16 +773,22 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-1">Data do Pagamento *</label>
-                      <input type="date" required className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-emerald-500" value={paymentFormData.date} onChange={e => setPaymentFormData({...paymentFormData, date: e.target.value})} />
+                      <input type="date" required className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-medium" value={paymentFormData.date} onChange={e => setPaymentFormData({...paymentFormData, date: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                        <Calendar size={14} className="text-emerald-600" /> Vencimento Fatura *
+                      </label>
+                      <input type="date" required className="w-full px-4 py-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-950 text-sm" value={paymentFormData.dueDate || ''} onChange={e => setPaymentFormData({...paymentFormData, dueDate: e.target.value})} />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-1">Valor Pago *</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">R$</span>
-                        <input type="text" required className="w-full pl-10 pr-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-black text-emerald-600 text-right" value={formatInputCurrency(paymentFormData.amount || 0)} onChange={e => setPaymentFormData({...paymentFormData, amount: parseCurrencyInput(e.target.value)})} />
+                        <input type="text" required className="w-full pl-10 pr-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-black text-emerald-600 text-right text-sm" value={formatInputCurrency(paymentFormData.amount || 0)} onChange={e => setPaymentFormData({...paymentFormData, amount: parseCurrencyInput(e.target.value)})} />
                       </div>
                     </div>
                   </div>

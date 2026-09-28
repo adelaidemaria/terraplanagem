@@ -26,6 +26,7 @@ export interface CorporateCardPayment {
   id: string;
   cardId: string;
   date: string;
+  dueDate?: string;
   amount: number;
   bankAccountId: string;
   description?: string;
