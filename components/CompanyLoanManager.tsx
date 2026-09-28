@@ -81,9 +81,15 @@ const CompanyLoanManager: React.FC<CompanyLoanManagerProps> = ({
     return label === 'PENDENTE' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700';
   };
 
-  // Account plan items filtered by category 3.01
-  const investmentAccounts = useMemo(() => {
-    return accountPlan.filter(p => p.type === 'Despesa' && (p.accountNumber?.startsWith('3.01') || p.category?.toUpperCase().includes('COMPRAS')));
+  // Account plan items filtered by category 3.02 EMPRESTIMOS BANCARIOS
+  const loanAccounts = useMemo(() => {
+    return accountPlan.filter(p => 
+      p.accountNumber?.startsWith('3.02') || 
+      p.subcategory?.toUpperCase().includes('EMPRESTIMOS BANCARIOS') ||
+      p.subcategory?.toUpperCase().includes('EMPRÉSTIMOS BANCÁRIOS') ||
+      p.category?.toUpperCase().includes('EMPRESTIMOS BANCARIOS') ||
+      p.category?.toUpperCase().includes('EMPRÉSTIMOS BANCÁRIOS')
+    );
   }, [accountPlan]);
 
   // ===== HANDLERS =====
@@ -212,7 +218,7 @@ const CompanyLoanManager: React.FC<CompanyLoanManagerProps> = ({
     setBaixaDataPagamento(new Date().toLocaleDateString('en-CA'));
     setBaixaBancoId('');
     setBaixaJuros(0);
-    setBaixaAccountPlanId(investmentAccounts.length > 0 ? investmentAccounts[0].id : '');
+    setBaixaAccountPlanId(loanAccounts.length > 0 ? loanAccounts[0].id : '');
     setBaixaDescricao('');
   };
 
@@ -223,7 +229,7 @@ const CompanyLoanManager: React.FC<CompanyLoanManagerProps> = ({
     setBaixaDataPagamento(parcela.dataPagamento || new Date().toLocaleDateString('en-CA'));
     setBaixaBancoId(parcela.bancoDebitoId || '');
     setBaixaJuros(parcela.juros || 0);
-    setBaixaAccountPlanId(parcela.accountPlanId || (investmentAccounts.length > 0 ? investmentAccounts[0].id : ''));
+    setBaixaAccountPlanId(parcela.accountPlanId || (loanAccounts.length > 0 ? loanAccounts[0].id : ''));
     setBaixaDescricao(parcela.descricao || '');
   };
 
@@ -248,7 +254,7 @@ const CompanyLoanManager: React.FC<CompanyLoanManagerProps> = ({
           dataPagamento: baixaDataPagamento,
           bancoDebitoId: baixaBancoId,
           juros: baixaJuros,
-          accountPlanId: baixaAccountPlanId,
+          accountPlanId: baixaAccountPlanId || null,
           descricao: baixaDescricao
         };
       }
@@ -271,7 +277,7 @@ const CompanyLoanManager: React.FC<CompanyLoanManagerProps> = ({
       updatedYields[existingYieldIdx] = {
         ...updatedYields[existingYieldIdx],
         bankAccountId: baixaBancoId,
-        accountPlanId: baixaAccountPlanId,
+        accountPlanId: baixaAccountPlanId || null,
         amount: totalDebito,
         date: baixaDataPagamento,
         description: yieldDescription
@@ -282,7 +288,7 @@ const CompanyLoanManager: React.FC<CompanyLoanManagerProps> = ({
       const newYield: FinancialYield = {
         id: crypto.randomUUID(),
         bankAccountId: baixaBancoId,
-        accountPlanId: baixaAccountPlanId,
+        accountPlanId: baixaAccountPlanId || null,
         amount: totalDebito,
         date: baixaDataPagamento,
         description: yieldDescription,
@@ -547,7 +553,7 @@ const CompanyLoanManager: React.FC<CompanyLoanManagerProps> = ({
                             <select className="w-full px-4 py-2 border border-violet-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-violet-500 text-sm font-bold"
                               value={baixaAccountPlanId} onChange={e => setBaixaAccountPlanId(e.target.value)}>
                               <option value="">Selecione a conta...</option>
-                              {investmentAccounts.map(a => (
+                              {loanAccounts.map(a => (
                                 <option key={a.id} value={a.id}>{a.accountNumber} - {a.description}</option>
                               ))}
                             </select>
