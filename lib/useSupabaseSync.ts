@@ -36,7 +36,17 @@ export function useSupabaseSync<T extends { id: string }>(tableName: string, ini
         const fetchData = async () => {
             const { data: fetchedData, error } = await supabase.from(tableName).select('*');
             if (!error && fetchedData) {
-                setData(keysToCamel(fetchedData) as T[]);
+                let parsed = keysToCamel(fetchedData) as T[];
+                if (tableName === 'corporate_card_payments') {
+                    parsed = (parsed as any[]).map(item => {
+                        if (!item.dueDate && item.description) {
+                            const match = item.description.match(/\[VENC:(\d{4}-\d{2}-\d{2})\]/);
+                            if (match) item.dueDate = match[1];
+                        }
+                        return item;
+                    }) as T[];
+                }
+                setData(parsed);
             }
             setLoaded(true);
         };

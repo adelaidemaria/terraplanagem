@@ -35,16 +35,61 @@ const parseCurrencyInput = (val: string) => {
   return Number(cleanValue) / 100;
 };
 
-const getPaymentDueDate = (p: Partial<CorporateCardPayment>) => {
-  if (p.dueDate) return p.dueDate;
-  if (p.description) {
-    const match = p.description.match(/\[VENC:(\d{4}-\d{2}-\d{2})\]/);
+export const getResolvedPaymentDueDate = (
+  payment: Partial<CorporateCardPayment>,
+  corporateCards?: CorporateCard[],
+  expenses?: Expense[]
+): string => {
+  if (payment.dueDate) return payment.dueDate;
+
+  if (payment.description) {
+    const match = payment.description.match(/\[VENC:(\d{4}-\d{2}-\d{2})\]/);
     if (match) return match[1];
   }
-  return p.date || '';
+
+  if (payment.cardId && expenses && payment.date) {
+    const cardExps = expenses.filter(e => 
+      e.paymentMethod === 'Cartão Corporativo' && 
+      e.cardId === payment.cardId && 
+      e.dueDate
+    );
+    
+    if (cardExps.length > 0) {
+      const pYearMonth = payment.date.substring(0, 7);
+      const sameMonthExp = cardExps.find(e => e.dueDate?.startsWith(pYearMonth));
+      if (sameMonthExp?.dueDate) {
+        return sameMonthExp.dueDate;
+      }
+
+      const pTime = new Date(payment.date).getTime();
+      let closestDueDate = '';
+      let minDiff = Infinity;
+      cardExps.forEach(e => {
+        if (e.dueDate) {
+          const diff = Math.abs(new Date(e.dueDate).getTime() - pTime);
+          if (diff < minDiff && diff <= 35 * 86400000) {
+            minDiff = diff;
+            closestDueDate = e.dueDate;
+          }
+        }
+      });
+      if (closestDueDate) return closestDueDate;
+    }
+  }
+
+  if (payment.cardId && corporateCards && payment.date) {
+    const card = corporateCards.find(c => c.id === payment.cardId);
+    if (card?.dueDay) {
+      const [year, month] = payment.date.split('-');
+      const day = String(card.dueDay).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  return payment.date || '';
 };
 
-const getPaymentDisplayDesc = (desc?: string) => {
+export const getPaymentDisplayDesc = (desc?: string) => {
   if (!desc) return 'Pagamento de Fatura';
   return desc.replace(/\s*\[VENC:[^\]]+\]/g, '').trim();
 };
@@ -235,7 +280,7 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
               type: 'pagamento',
               id: p.id,
               date: p.date,
-              dueDate: getPaymentDueDate(p),
+              dueDate: getResolvedPaymentDueDate(p, corporateCards, expenses),
               cardId: p.cardId,
               description: displayDesc,
               itemsDesc: bankAccounts.find(b => b.id === p.bankAccountId)?.bankName || '',
@@ -414,7 +459,7 @@ const CorporateCardManager: React.FC<CorporateCardManagerProps> = ({
       setPaymentFormData({
         ...pay,
         description: getPaymentDisplayDesc(pay.description),
-        dueDate: getPaymentDueDate(pay)
+        dueDate: getResolvedPaymentDueDate(pay, corporateCards, expenses)
       });
       setLancamentoTab('pagamento');
     }

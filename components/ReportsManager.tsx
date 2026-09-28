@@ -48,6 +48,7 @@ import {
   VehicleChecklistItem
 } from '../types';
 import Logo from './Logo';
+import { getResolvedPaymentDueDate } from './CorporateCardManager';
 
 type ReportType = 'customers' | 'vendors' | 'customersSummary' | 'vendorsSummary' | 'sales' | 'receivables' | 'payments' | 'accountPlan' | 'accountCategoriesList' | 'banks' | 'bankStatement' | 'corporateCard' | 'fleetAlerts' | 'fleetHistory' | 'fleetIntervals' | 'expensesPending' | 'expensesByMonth' | 'expensesByMonthFlat' | 'profitDistribution' | 'receivablesPending' | 'cardFees' | 'dre' | 'agenda' | 'customerStatement' | 'vendorStatement' | 'cashFlow' | 'ctr' | 'orcamentos' | 'employees' | 'employeeLoans' | 'companyLoans' | 'vehicleChecklistItems';
 
@@ -1362,11 +1363,14 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             new Date(e.dueDate || e.date).getTime() <= endTimestamp
           );
           
-          const cardPagts = (corporateCardPayments || []).filter(p => 
-            p.cardId === card.id && 
-            new Date(p.date).getTime() >= startTimestamp && 
-            new Date(p.date).getTime() <= endTimestamp
-          );
+          const cardPagts = (corporateCardPayments || []).filter(p => {
+            if (p.cardId !== card.id) return false;
+            const pDueDate = getResolvedPaymentDueDate(p, corporateCards, expenses);
+            const timeDate = new Date(p.date).getTime();
+            const timeDue = new Date(pDueDate).getTime();
+            return (timeDue >= startTimestamp && timeDue <= endTimestamp) || 
+                   (timeDate >= startTimestamp && timeDate <= endTimestamp);
+          });
 
           const cardPrevExps = expenses.filter(e => 
             e.paymentMethod === 'Cartão Corporativo' && 
@@ -1374,10 +1378,12 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             new Date(e.dueDate || e.date).getTime() < startTimestamp
           ).reduce((acc, e) => acc + e.totalValue, 0);
 
-          const cardPrevPagts = (corporateCardPayments || []).filter(p => 
-            p.cardId === card.id && 
-            new Date(p.date).getTime() < startTimestamp
-          ).reduce((acc, p) => acc + p.amount, 0);
+          const cardPrevPagts = (corporateCardPayments || []).filter(p => {
+            if (p.cardId !== card.id) return false;
+            const pDueDate = getResolvedPaymentDueDate(p, corporateCards, expenses);
+            const timeDue = new Date(pDueDate || p.date).getTime();
+            return timeDue < startTimestamp;
+          }).reduce((acc, p) => acc + p.amount, 0);
 
           const openingBalance = cardPrevExps - cardPrevPagts;
 
@@ -1449,15 +1455,11 @@ const ReportsManager: React.FC<ReportsManagerProps> = ({
             })),
             ...cardPagts.map(p => {
               const bank = bankAccounts.find(b => b.id === p.bankAccountId);
-              let dueDate = p.dueDate;
-              if (!dueDate && p.description) {
-                const match = p.description.match(/\[VENC:(\d{4}-\d{2}-\d{2})\]/);
-                if (match) dueDate = match[1];
-              }
+              const dueDate = getResolvedPaymentDueDate(p, corporateCards, expenses);
               const displayDesc = (p.description || '').replace(/\s*\[VENC:[^\]]+\]/g, '').trim();
               return {
                 date: p.date,
-                dueDate: dueDate || p.date,
+                dueDate: dueDate,
                 desc: `PAGAMENTO FATURA - Saída: ${bank?.bankName || '---'}${displayDesc && displayDesc !== 'Pagamento de Fatura' ? ` (${displayDesc})` : ''}`,
                 compra: 0,
                 pagto: p.amount
