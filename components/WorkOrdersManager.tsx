@@ -600,26 +600,26 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                    {selectedOrderItems.length > 0 ? (
                      <div className="space-y-3">
                         {selectedOrderItems.map(item => (
-                          <div key={item.id} className="bg-white p-4 rounded-xl border flex items-center justify-between group">
-                            <div>
-                               <div className="flex items-center space-x-3 mb-1">
-                                 <span className="text-[11px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded tracking-tighter">{item.date.split('-').reverse().join('/')}</span>
-                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">({formatDayOfWeek(item.date)})</span>
-                                 {item.unitType && item.unitType !== '-' && <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-black uppercase tracking-tighter border border-blue-100">{item.unitType}</span>}
-                                 {item.costCenter && <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-black uppercase tracking-tighter">{item.costCenter}</span>}
-                                 <span className="font-bold text-slate-800">{item.description}</span>
+                          <div key={item.id} className="bg-white p-4 rounded-xl border flex flex-col sm:flex-row sm:items-start justify-between gap-4 group">
+                            <div className="flex-1 min-w-0">
+                               <div className="flex flex-wrap items-center gap-2 mb-1">
+                                 <span className="text-[11px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded tracking-tighter whitespace-nowrap">{item.date.split('-').reverse().join('/')}</span>
+                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight whitespace-nowrap">({formatDayOfWeek(item.date)})</span>
+                                 {item.unitType && item.unitType !== '-' && <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-black uppercase tracking-tighter border border-blue-100 whitespace-nowrap">{item.unitType}</span>}
+                                 {item.costCenter && <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-black uppercase tracking-tighter whitespace-nowrap">{item.costCenter}</span>}
+                                 <span className="font-bold text-slate-800 break-words">{item.description}</span>
                                </div>
                                <div className="text-xs text-slate-400">
-                                 {item.quantity} x {formatCurrency(item.unitPrice)}
+                                 <span className="whitespace-nowrap">{item.quantity} x {formatCurrency(item.unitPrice)}</span>
                                  {item.observations && (
-                                   <div className="text-slate-500 mt-1 italic">
+                                   <div className="text-slate-500 mt-1 italic whitespace-pre-line break-words [overflow-wrap:anywhere]">
                                      Obs: {item.observations}
                                    </div>
                                  )}
                                </div>
                             </div>
-                            <div className="flex items-center space-x-4">
-                               <span className="font-black text-slate-800">{formatCurrency(item.totalPrice)}</span>
+                            <div className="flex items-center justify-end space-x-4 shrink-0 whitespace-nowrap">
+                               <span className="font-black text-slate-800 whitespace-nowrap">{formatCurrency(item.totalPrice)}</span>
                                 {selectedOrder.status === 'Aberto' && (
                                    <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                      <button onClick={() => handleEditItem(item)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded transition-colors">
@@ -739,14 +739,14 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                               </div>
                             </div>
                             {(isExpanded || true) && (
-                              <div className={`p-4 bg-white border-t border-dashed pl-12 print:pl-4 ${!isExpanded && 'print:block hidden'}`}>
+                              <div className={`p-4 bg-white border-t border-dashed pl-4 sm:pl-12 print:pl-4 overflow-x-auto ${!isExpanded && 'print:block hidden'}`}>
                                 <table className="w-full text-sm text-left">
                                   <thead>
                                     <tr className="text-slate-500 uppercase text-[10px]">
-                                      <th className="pb-2">Data</th>
-                                      <th className="pb-2">{order.type === 'Locação' ? 'Descrição da Locação' : 'Descrição dos Serviços Realizados'}</th>
-                                      <th className="pb-2">Diária X Vlr Unitário</th>
-                                      <th className="pb-2 text-right">Total</th>
+                                      <th className="pb-2 pr-3 whitespace-nowrap">Data</th>
+                                      <th className="pb-2 pr-4 w-full">{order.type === 'Locação' ? 'Descrição da Locação' : 'Descrição dos Serviços Realizados'}</th>
+                                      <th className="pb-2 px-3 whitespace-nowrap">Diária X Vlr Unitário</th>
+                                      <th className="pb-2 pl-3 text-right whitespace-nowrap">Total</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -759,18 +759,21 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                                               <td colSpan={4} className="py-1"></td>
                                             </tr>
                                           )}
-                                          <tr className="print:break-inside-avoid">
-                                            <td className="py-2 text-xs">{item.date.split('-').reverse().join('/')} ({formatDayOfWeek(item.date)})</td>
-                                            <td className="py-2 text-xs font-medium">
-                                              <div className="flex items-center gap-2">
-                                                {item.description}
-                                                {item.unitType && item.unitType !== '-' && <span className="text-[9px] bg-slate-100 px-1 rounded border border-slate-200 text-slate-500 font-black uppercase tracking-tight">{item.unitType}</span>}
-                                                {item.costCenter && <span className="text-[9px] bg-slate-50 px-1 rounded border border-slate-200 text-slate-400 font-bold uppercase tracking-tight">{item.costCenter}</span>}
-                                              </div>
-                                              {item.observations && <div className="text-slate-400 font-normal text-[11px] mt-0.5">Obs: {item.observations}</div>}
+                                          <tr className="print:break-inside-avoid align-top">
+                                            <td className="py-2 pr-3 text-xs whitespace-nowrap align-top">
+                                              <div>{item.date.split('-').reverse().join('/')}</div>
+                                              <div>({formatDayOfWeek(item.date)})</div>
                                             </td>
-                                            <td className="py-2 text-xs">{item.quantity} x {formatCurrency(item.unitPrice)}</td>
-                                            <td className="py-2 text-right font-bold text-xs">{formatCurrency(item.totalPrice)}</td>
+                                            <td className="py-2 pr-4 text-xs font-medium break-words [overflow-wrap:anywhere] align-top">
+                                              <div className="flex flex-wrap items-center gap-2">
+                                                <span>{item.description}</span>
+                                                {item.unitType && item.unitType !== '-' && <span className="text-[9px] bg-slate-100 px-1 rounded border border-slate-200 text-slate-500 font-black uppercase tracking-tight whitespace-nowrap">{item.unitType}</span>}
+                                                {item.costCenter && <span className="text-[9px] bg-slate-50 px-1 rounded border border-slate-200 text-slate-400 font-bold uppercase tracking-tight whitespace-nowrap">{item.costCenter}</span>}
+                                              </div>
+                                              {item.observations && <div className="text-slate-400 font-normal text-[11px] mt-0.5 whitespace-pre-line break-words [overflow-wrap:anywhere] leading-snug">Obs: {item.observations}</div>}
+                                            </td>
+                                            <td className="py-2 px-3 text-xs whitespace-nowrap align-top">{item.quantity} x {formatCurrency(item.unitPrice)}</td>
+                                            <td className="py-2 pl-3 text-right font-bold text-xs whitespace-nowrap align-top">{formatCurrency(item.totalPrice)}</td>
                                           </tr>
                                         </React.Fragment>
                                       );
@@ -953,10 +956,10 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
              <table className="w-full text-sm text-left">
                 <thead>
                   <tr className="text-slate-600 uppercase text-[10px] border-b-2 border-slate-800">
-                    <th className="pb-2">Data</th>
-                    <th className="pb-2">{selectedOrder.type === 'Locação' ? 'Descrição da Locação' : 'Descrição dos Serviços Realizados'}</th>
-                    <th className="pb-2">Diária X Vlr Unitário</th>
-                    <th className="pb-2 text-right">Total</th>
+                    <th className="pb-2 pr-3 whitespace-nowrap">Data</th>
+                    <th className="pb-2 pr-4 w-full">{selectedOrder.type === 'Locação' ? 'Descrição da Locação' : 'Descrição dos Serviços Realizados'}</th>
+                    <th className="pb-2 px-3 whitespace-nowrap">Diária X Vlr Unitário</th>
+                    <th className="pb-2 pl-3 text-right whitespace-nowrap">Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -969,18 +972,21 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                             <td colSpan={4} className="py-1"></td>
                           </tr>
                         )}
-                        <tr className="print:break-inside-avoid">
-                          <td className="py-2 text-xs">{item.date.split('-').reverse().join('/')} ({formatDayOfWeek(item.date)})</td>
-                          <td className="py-2 text-xs font-medium">
-                            <div className="flex items-center gap-2">
-                              {item.description}
-                              {item.unitType && item.unitType !== '-' && <span className="text-[9px] bg-slate-100 px-1 rounded border border-slate-200 text-slate-500 font-black uppercase tracking-tight">{item.unitType}</span>}
-                              {item.costCenter && <span className="text-[9px] bg-slate-50 px-1 rounded border border-slate-200 text-slate-400 font-bold uppercase tracking-tight">{item.costCenter}</span>}
-                            </div>
-                            {item.observations && <div className="text-slate-400 font-normal text-[11px] mt-0.5">Obs: {item.observations}</div>}
+                        <tr className="print:break-inside-avoid align-top">
+                          <td className="py-2 pr-3 text-xs whitespace-nowrap align-top">
+                            <div>{item.date.split('-').reverse().join('/')}</div>
+                            <div>({formatDayOfWeek(item.date)})</div>
                           </td>
-                          <td className="py-2 text-xs">{item.quantity} x {formatCurrency(item.unitPrice)}</td>
-                          <td className="py-2 text-right font-bold text-xs">{formatCurrency(item.totalPrice)}</td>
+                          <td className="py-2 pr-4 text-xs font-medium break-words [overflow-wrap:anywhere] align-top">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span>{item.description}</span>
+                              {item.unitType && item.unitType !== '-' && <span className="text-[9px] bg-slate-100 px-1 rounded border border-slate-200 text-slate-500 font-black uppercase tracking-tight whitespace-nowrap">{item.unitType}</span>}
+                              {item.costCenter && <span className="text-[9px] bg-slate-50 px-1 rounded border border-slate-200 text-slate-400 font-bold uppercase tracking-tight whitespace-nowrap">{item.costCenter}</span>}
+                            </div>
+                            {item.observations && <div className="text-slate-400 font-normal text-[11px] mt-0.5 whitespace-pre-line break-words [overflow-wrap:anywhere] leading-snug">Obs: {item.observations}</div>}
+                          </td>
+                          <td className="py-2 px-3 text-xs whitespace-nowrap align-top">{item.quantity} x {formatCurrency(item.unitPrice)}</td>
+                          <td className="py-2 pl-3 text-right font-bold text-xs whitespace-nowrap align-top">{formatCurrency(item.totalPrice)}</td>
                         </tr>
                       </React.Fragment>
                     );
@@ -988,8 +994,8 @@ const WorkOrdersManager: React.FC<WorkOrdersManagerProps> = ({
                 </tbody>
                 <tfoot>
                    <tr className="border-t-2 border-slate-800">
-                      <td colSpan={3} className="py-4 text-right font-bold uppercase text-xs">Valor Total:</td>
-                      <td className="py-4 text-right font-black text-xs text-emerald-700">{formatCurrency(totalSelectedOrder)}</td>
+                      <td colSpan={3} className="py-4 pr-3 text-right font-bold uppercase text-xs whitespace-nowrap">Valor Total:</td>
+                      <td className="py-4 pl-3 text-right font-black text-xs text-emerald-700 whitespace-nowrap">{formatCurrency(totalSelectedOrder)}</td>
                    </tr>
                 </tfoot>
              </table>
